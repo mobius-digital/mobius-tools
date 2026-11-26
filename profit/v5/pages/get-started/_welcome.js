@@ -34,9 +34,12 @@ function cards(brand) {
     { t: 'What it does for you', p: 'It shows what your ads earn, what to change next, and what we are working on. Nothing changes in your ads without a tap.' },
     { t: 'Getting around', p: 'The menu on the left is the whole app. On a phone it is the More tab at the bottom.' },
     { t: 'Where things live', p: 'Home and This month for your numbers. Ads for every platform. Reports for what we send you. Creative review and Requests for what needs your yes. Assets opens your photo and video folder.' },
-    { t: 'Tell us what is missing', p: APP_NAME + ' is new and keeps growing. See something missing or want a feature? Tell ' + OWNER_FIRST + '.', last: true },
+    { t: 'Tell us what is missing', p: LAST_CARD, last: true },
   ];
 }
+/* Cole's words for the last card (2026-11-26), exactly. */
+export const LAST_CARD = APP_NAME + ' is new and we keep building it. Look around. If something is missing, confusing, or you have an idea that would help you, tell ' + OWNER_FIRST + '. Tap below to message the team, or tell him in Slack.';
+export const _cards = cards;
 
 /** showWelcome({ brand, me, preview, team_chat }) */
 export function showWelcome({ brand = null, me = null, preview = false, team_chat = null } = {}) {

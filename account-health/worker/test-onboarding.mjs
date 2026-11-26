@@ -50,6 +50,9 @@ const flat = body => Object.fromEntries(new URLSearchParams(String(body || '')))
 function stripeMock(u, init) {
   const url = new URL(u), p = url.pathname.replace(/^\/v1\//, ''), m = init.method || 'GET', b = flat(init.body), q = Object.fromEntries(url.searchParams);
   const ok = j => new Response(JSON.stringify(j), { status: 200 });
+  /* A test can run one thing in the middle of a Stripe call (the webhook landing during a "Check if paid"). */
+  if (S.hook && m === 'GET' && /^invoices\/in_/.test(p)) { const hk = S.hook; S.hook = null; hk(); }
+  if (m === 'GET' && p === 'subscriptions') return ok({ data: Object.values(S.subs).filter(x => x.customer === q.customer) });
   if (m === 'POST' && p === 'webhook_endpoints') return ok({ id: 'we_1', secret: 'whsec_test' });
   if (m === 'POST' && p.startsWith('webhook_endpoints/')) return ok({ id: 'we_1' });
   if (m === 'POST' && p === 'products') return ok({ id: 'prod_1' });
@@ -75,7 +78,7 @@ function stripeMock(u, init) {
   if ((mm = /^invoices\/(in_\w+)\/void$/.exec(p))) { S.invoices[mm[1]].status = 'void'; return ok(S.invoices[mm[1]]); }
   if ((mm = /^invoices\/(in_\w+)$/.exec(p))) { const i = S.invoices[mm[1]]; if (!i) return new Response('{"error":{"message":"no"}}', { status: 404 }); if (m === 'POST') i.auto_advance = b.auto_advance; return ok(i); }
   if (m === 'GET' && /^payment_intents\//.test(p)) return ok({ id: p.split('/')[1], payment_method: 'pm_card_1' });
-  if (m === 'POST' && p === 'subscriptions') { const s = { id: sid('sub'), body: b, metadata: { locus: b['metadata[locus]'], locus_v: b['metadata[locus_v]'] } }; S.subs[s.id] = s; return ok(s); }
+  if (m === 'POST' && p === 'subscriptions') { const s = { id: sid('sub'), body: b, customer: b.customer, metadata: { locus: b['metadata[locus]'], locus_v: b['metadata[locus_v]'] } }; S.subs[s.id] = s; return ok(s); }
   if ((mm = /^subscriptions\/(sub_\d+)$/.exec(p))) return ok(S.subs[mm[1]] || { id: mm[1], metadata: {} });
   return new Response(JSON.stringify({ error: { message: 'stripe mock: ' + m + ' ' + p } }), { status: 400 });
 }
@@ -87,6 +90,9 @@ function slackMock(u, init) {
   if (method === 'conversations.create') return j({ channel: { id: `C0TEST${String(++slackN).padStart(4, '0')}` } });
   if (method === 'users.lookupByEmail') return j({ user: { id: 'U' + crypto.createHash('md5').update(u).digest('hex').slice(0, 8).toUpperCase() } });
   if (method === 'users.list') return j({ members: [] });
+  if (method === 'conversations.members' && S.slackJoin) return j({ members: ['UEXTERNAL1'] });
+  if (method === 'users.info' && S.slackJoin) return j({ user: { id: 'UEXTERNAL1', is_bot: false, is_stranger: true, team_id: 'TOTHER' } });
+  if (method === 'chat.postMessage') { let bd; try { bd = JSON.parse(String(init.body || '{}')); } catch { bd = { raw: String(init.body || '') }; } S.posted.push(bd); return j({ ts: '1.1', channel: 'C0X' }); }
   return j({ ts: '1.1', channel: 'C0X' });
 }
 const realFetch = globalThis.fetch;
@@ -755,6 +761,222 @@ await check('finish: Mark finished ends the gate; a finished brand has no lines'
   const late = (await onb.onboardLines(ahEnv)).filter(l => l.act === ACT);
   assert.deepEqual(late.map(l => l.kind), ['invoice_held']); assert.ok(late[0].to.owner_only);
   assert.equal((await ah(TEAM, 'POST', '/api/onboard/reopen', { act: ACT })).status, 403, 'reopen is the owner\'s');
+});
+
+/* ---------------- recheck 1 (2026-11-26): the fixes after the second review ---------------- */
+const NOPAPER = { welcome: true, agreement: false, invoice: false };
+const sendOne = async (name, contact_name, contact_email, extra = {}) => {
+  const r = await ah(OWNER, 'POST', '/api/onboard/send', { ...FORM, name, contact_name, contact_email, send: NOPAPER, confirm: true, ...extra });
+  assert.equal(r.status, 200, JSON.stringify(r.j));
+  return r.j;
+};
+const tickAt = () => onb.onboardTick(ahEnv, { canAfford: () => true, centralHour: () => 10, centralDate: () => THURSDAY });
+
+await check('a client who signs up with another Google address: the day 3 reminder, the waiting line and Remind them reach that login; a colleague who did the same loses the step when it is taken back; nothing is stamped while nobody can be mailed', async () => {
+  const { claimInvite } = await import('./src/clients.js');
+  const j = await sendOne('Claim Links', 'Cam Ode', 'cam@claim.example.com');
+  const A = j.act;
+  const inv = getSetting('clientUsers')['cam@claim.example.com'].invite.token;
+  assert.equal(await claimInvite(ahEnv, inv, 'cam.google@gmail.example.com'), true);
+  const u = getSetting('clientUsers');
+  assert.equal(u['cam@claim.example.com'], undefined, 'the login moved');
+  assert.deepEqual(u['cam.google@gmail.example.com'].claimed_from, ['cam@claim.example.com']);
+  assert.equal(row(A).steps.connect.holder, 'cam@claim.example.com', 'the checklist still names the invited address');
+  assert.equal(onb.liveLogin(u, 'cam@claim.example.com', A), 'cam.google@gmail.example.com');
+  assert.equal(onb.liveLogin(u, 'cam@claim.example.com', 'brand_alpha'), null, 'only for its own brand');
+  backdate(A, 4);
+  const out0 = outbox.length;
+  const t = await tickAt();
+  const mine = t.reminded.find(x => x.act === A);
+  assert.ok(mine && mine.which === 'd3' && mine.sent === 1, JSON.stringify(t.reminded));
+  assert.ok(outbox.slice(out0).some(m => m.to === 'cam.google@gmail.example.com' && /Claim Links/.test(m.subject)), 'the live login gets the reminder');
+  assert.ok(row(A).rem.d3);
+  assert.ok((await onb.onboardLines(ahEnv)).some(l => l.act === A && l.kind === 'client_waiting' && l.step === 'connect'), 'the team line is there');
+  const pg = await ah(TEAM, 'GET', `/api/onboard?act=${A}`);
+  assert.equal(pg.j.team.can_remind.connect, true); assert.equal(pg.j.team.contact.signed_in_as, 'cam.google@gmail.example.com');
+  const rm = await ah(TEAM, 'POST', '/api/onboard/remind', { act: A, step: 'brief' });
+  assert.equal(rm.status, 200, JSON.stringify(rm.j)); assert.match(rm.j.to, /^ca\*+@gmail\.example\.com$/);
+  assert.ok(outbox.some(m => m.to === 'cam.google@gmail.example.com' && /a few minutes left/.test(m.subject)));
+  /* The colleague claims with another address; the client takes the step back: that live login goes. */
+  const CAM = mint('cam.google@gmail.example.com');
+  const h = await ah(CAM, 'POST', '/api/onboard/handoff', { act: A, step: 'assets', email: 'dee@claim.example.com', name: 'Dee Ray' });
+  assert.equal(h.status, 200, JSON.stringify(h.j));
+  assert.equal(await claimInvite(ahEnv, getSetting('clientUsers')['dee@claim.example.com'].invite.token, 'dee.g@other.example.com'), true);
+  assert.deepEqual(getSetting('clientUsers')['dee.g@other.example.com'].onboard_only, ['assets']);
+  const back = await ah(CAM, 'POST', '/api/onboard/handoff', { act: A, step: 'assets', email: 'cam.google@gmail.example.com', name: 'Cam Ode' });
+  assert.equal(back.status, 200, JSON.stringify(back.j));
+  assert.equal(getSetting('clientUsers')['dee.g@other.example.com'], undefined, 'the colleague\'s live login lost the step');
+  /* A step is open and nobody has a login: no mail, no stamp, so the reminder still goes once someone does. */
+  const lost = await sendOne('Lost Links', 'Lou Ng', 'lou@lost.example.com');
+  const u2 = getSetting('clientUsers'); delete u2['lou@lost.example.com']; setSetting('clientUsers', u2);
+  backdate(lost.act, 4);
+  const o1 = outbox.length;
+  await tickAt();
+  assert.ok(!outbox.slice(o1).some(m => m.to === 'lou@lost.example.com'));
+  assert.equal(row(lost.act).rem.d3, undefined, 'not stamped while nobody could be mailed');
+});
+
+await check('removing a set-up client takes the brand off its logins: the client and the colleague lose it, a login with another brand keeps that one', async () => {
+  const j = await sendOne('Gone Again', 'Gil Ode', 'gil@gone.example.com');
+  const A = j.act, GIL = mint('gil@gone.example.com');
+  assert.equal((await ah(GIL, 'POST', '/api/onboard/handoff', { act: A, step: 'brief', email: 'hal@gone.example.com', name: 'Hal Ode' })).status, 200);
+  const u = getSetting('clientUsers'); u['ivy@gone.example.com'] = { brands: [A, 'brand_alpha'], name: 'Ivy' }; setSetting('clientUsers', u);
+  assert.equal((await ah(GIL, 'GET', `/api/onboard?act=${A}`)).status, 200);
+  const rm = await ah(OWNER, 'POST', '/api/new-client/remove', { id: j.run_id });
+  assert.equal(rm.status, 200, JSON.stringify(rm.j)); assert.equal(rm.j.logins_removed, 3);
+  const after = getSetting('clientUsers');
+  assert.equal(after['gil@gone.example.com'], undefined); assert.equal(after['hal@gone.example.com'], undefined);
+  assert.deepEqual(after['ivy@gone.example.com'].brands, ['brand_alpha']);
+  const me = await ah(GIL, 'GET', '/api/me');
+  assert.ok(me.status !== 200 || !((me.j.client && me.j.client.brands) || []).some(b => b.id === A), 'the old session has no brand');
+  assert.ok([401, 403].includes((await ah(GIL, 'GET', `/api/onboard?act=${A}`)).status), 'the old session is refused');
+  assert.ok([401, 403].includes((await ah(GIL, 'GET', `/api/accounts/${A}`)).status), 'the brand is not theirs any more');
+});
+
+await check('the old public connect link: for a set-up client a store or Google Ads ID is only kept and the team confirms it; the old form hands out no connect link; the hourly Google request skips them; older clients unchanged', async () => {
+  const { connectToken, onboardAdsTick } = await import('./src/connect.js');
+  const j = await sendOne('Door Links', 'Dot Ng', 'dot@door.example.com', { send: { welcome: false, agreement: false, invoice: false } });
+  const A = j.act;
+  const tok = await connectToken(ahEnv, A);
+  const tw = await ah(null, 'POST', `/api/connect/${tok}`, { key: 'tw', value: 'someone-else.myshopify.com' });
+  assert.equal(tw.status, 200, JSON.stringify(tw.j));
+  assert.ok(!db.prepare(`SELECT 1 FROM connections WHERE brand_id = ? AND kind = 'triple_whale'`).get(A), 'not linked from the old page');
+  assert.equal(row(A).conn.tw.team.inputs.shop_url, 'someone-else.myshopify.com');
+  const from = log.length;
+  const ga = await ah(null, 'POST', `/api/connect/${tok}`, { key: 'google_ads', value: '222-333-4444' });
+  assert.equal(ga.status, 200, JSON.stringify(ga.j));
+  assert.ok(!getSetting(`connectPending:${A}`)?.google_ads, 'no pending link that would attach it later');
+  assert.ok(!log.slice(from).some(x => /googleads|customerClientLinks/i.test(x.u)), 'no manager request');
+  assert.ok(!db.prepare(`SELECT 1 FROM connections WHERE brand_id = ? AND kind = 'google_ads'`).get(A));
+  const lines = (await onb.onboardLines(ahEnv)).filter(l => l.act === A);
+  assert.ok(lines.some(l => l.kind === 'confirm_tw'), 'Confirm the store');
+  assert.ok(lines.some(l => l.kind === 'confirm_gads' && /old connect link/.test(l.detail)), 'Confirm the Google Ads ID');
+  /* The old onboarding form: no connect link for this brand, Locus instead. (Production adds p_br_onboard.name with a
+     guarded ALTER the shim never ran.) */
+  try { db.exec(`ALTER TABLE p_br_onboard ADD COLUMN name TEXT`); } catch { /* already there */ }
+  const ft = db.prepare(`SELECT token FROM p_br_onboard WHERE act_id = ?`).get(A).token;
+  const form = await pf(null, 'GET', `/api/onboard/${ft}`);
+  assert.equal(form.status, 200, JSON.stringify(form.j)); assert.equal(form.j.links.connect, undefined); assert.match(form.j.links.locus, /\/profit\/v5\/$/);
+  /* An older client (no checklist): the old page and form work as they did. */
+  db.prepare(`INSERT INTO brands (id, slug, name, status, currency, tz, source) VALUES ('brand_beta', 'beta', 'Beta Golf', 'active', 'USD', 'America/Chicago', 'locus')`).run();
+  db.prepare(`INSERT INTO p_br_onboard (act_id, token, answers_json) VALUES ('brand_beta', ?, ?)`).run('b'.repeat(32), JSON.stringify({ gads_id: '555-666-7777' }));
+  db.prepare(`UPDATE p_br_onboard SET answers_json = json_set(answers_json, '$.gads_id', '888-999-0000') WHERE act_id = ?`).run(A);
+  const asked = [];
+  await onboardAdsTick(ahEnv, async (env, id) => { asked.push(id); return {}; });
+  assert.ok(asked.includes('5556667777'), 'an older client still gets the request'); assert.ok(!asked.includes('8889990000'), 'a set-up client is skipped');
+  const btok = await connectToken(ahEnv, 'brand_beta');
+  assert.equal((await ah(null, 'POST', `/api/connect/${btok}`, { key: 'tw', value: 'beta-golf.myshopify.com' })).status, 200);
+  assert.ok(db.prepare(`SELECT 1 FROM connections WHERE brand_id = 'brand_beta' AND kind = 'triple_whale'`).get(), 'an older client links as before');
+  assert.ok((await pf(null, 'GET', `/api/onboard/${'b'.repeat(32)}`)).j.links.connect, 'the old form still hands out its connect link');
+  /* The team's tick is what links the set-up client's ID. */
+  const tick = await ah(TEAM, 'PUT', '/api/onboard/connect', { act: A, platform: 'google_ads', layer: 'team', ticked: true });
+  assert.equal(tick.status, 200, JSON.stringify(tick.j));
+  assert.ok(db.prepare(`SELECT 1 FROM connections WHERE brand_id = ? AND kind = 'google_ads'`).get(A), 'the team\'s tick links it');
+});
+
+await check('limits hold under a burst: parallel hand offs mail one per address per step and five a day; parallel code requests send one code; two logins made at the same moment are both kept', async () => {
+  const j = await sendOne('Burst Links', 'Bea Ng', 'bea@burst.example.com');
+  const A = j.act, BEA = mint('bea@burst.example.com');
+  const out0 = outbox.length;
+  const same = await Promise.all(Array.from({ length: 4 }, () => ah(BEA, 'POST', '/api/onboard/handoff', { act: A, step: 'brief', email: 'cy@burst.example.com', name: 'Cy Ng' })));
+  assert.equal(outbox.slice(out0).filter(m => m.to === 'cy@burst.example.com').length, 1, 'one mail to one address for one step');
+  assert.equal(same.filter(x => x.status === 200).length, 1, same.map(x => x.status).join(','));
+  const many = await Promise.all(Array.from({ length: 8 }, (_, i) => ah(BEA, 'POST', '/api/onboard/handoff', { act: A, step: i % 2 ? 'connect' : 'assets', email: `m${i}@burst.example.com`, name: 'M ' + i })));
+  const mailed = outbox.slice(out0).filter(m => /^m\d@burst\.example\.com$/.test(m.to));
+  assert.equal(mailed.length, 4, 'five a day per brand, the burst included');
+  assert.equal(many.filter(x => x.status === 429).length, 4, many.map(x => x.status).join(','));
+  assert.equal(row(A).rem.handoffs.length, 5);
+  /* Codes. */
+  const inv = getSetting('clientUsers')['bea@burst.example.com'].invite.token;
+  const c0 = outbox.length;
+  const codes = await Promise.all(Array.from({ length: 6 }, () => ah(null, 'POST', '/api/clients/code', { invite: inv })));
+  assert.equal(outbox.slice(c0).filter(m => m.subject === 'Your Locus code').length, 1, 'one code mail');
+  assert.equal(codes.filter(x => x.j && x.j.wait).length, 5);
+  assert.equal(getSetting(`code:${inv}`).sends.length, 1);
+  /* Two logins made at the same moment (two steps handed in parallel) are both kept. */
+  const k = await sendOne('Burst Two', 'Bo Ng', 'bo@bursttwo.example.com');
+  const BO = mint('bo@bursttwo.example.com');
+  const two = await Promise.all([
+    ah(BO, 'POST', '/api/onboard/handoff', { act: k.act, step: 'brief', email: 'q1@bursttwo.example.com', name: 'Q One' }),
+    ah(BO, 'POST', '/api/onboard/handoff', { act: k.act, step: 'connect', email: 'q2@bursttwo.example.com', name: 'Q Two' })]);
+  assert.deepEqual(two.map(x => x.status), [200, 200]);
+  const u = getSetting('clientUsers');
+  assert.deepEqual(u['q1@bursttwo.example.com'].onboard_only, ['brief']); assert.deepEqual(u['q2@bursttwo.example.com'].onboard_only, ['connect']);
+  assert.ok(u['bo@bursttwo.example.com'], 'the client\'s own login is untouched');
+});
+
+await check('billing edges: paid outside Stripe counts, a part payment does not; a subscription this run made is reused; a webhook during Check if paid is kept; another brand on the same Stripe customer never holds this one', async () => {
+  const r = await ah(OWNER, 'POST', '/api/onboard/send', { ...FORM, name: 'Wire Tees', contact_name: 'Wes Ng', contact_email: 'wes@wire.example.com', confirm: true });
+  assert.equal(r.status, 200, JSON.stringify(r.j));
+  const run = db.prepare(`SELECT * FROM p_newclient WHERE act_id = ?`).get(r.j.act);
+  const st = JSON.parse(run.steps_json).stripe;
+  const now = Math.floor(Date.now() / 1000);
+  const base = { ...S.invoices[st.invoice], status: 'paid', amount_paid: 0, total: 400000, status_transitions: { paid_at: now } };
+  assert.equal(await newclient.markFirstPaid(ahEnv, run, { ...base, amount_remaining: 150000 }), null, 'part paid starts nothing');
+  const n0 = Object.keys(S.subs).length;
+  const paid = await newclient.markFirstPaid(ahEnv, run, { ...base, amount_remaining: 0, paid_out_of_band: true });
+  assert.ok(paid && paid.subscription && paid.paid, 'a check or a wire marked paid in Stripe counts');
+  assert.equal(Object.keys(S.subs).length, n0 + 1);
+  /* The id lost from the row (an older copy written over it): Stripe's own is reused, never a second. */
+  db.prepare(`UPDATE p_newclient SET steps_json = json_remove(steps_json, '$.stripe.subscription') WHERE id = ?`).run(run.id);
+  const again = await newclient.markFirstPaid(ahEnv, run, { ...base, amount_remaining: 0, paid_out_of_band: true });
+  assert.equal(again.subscription, paid.subscription); assert.equal(Object.keys(S.subs).length, n0 + 1, 'reused');
+  /* The webhook lands while "Check if paid" reads Stripe: what it wrote is kept. */
+  const r2 = await ah(OWNER, 'POST', '/api/onboard/send', { ...FORM, name: 'Race Tees', contact_name: 'Ria Ng', contact_email: 'ria@race.example.com', confirm: true });
+  const run2 = db.prepare(`SELECT * FROM p_newclient WHERE act_id = ?`).get(r2.j.act);
+  S.hook = () => db.prepare(`UPDATE p_newclient SET steps_json = json_set(steps_json, '$.stripe.paid', json('true'), '$.stripe.subscription', 'sub_webhook', '$.stripe.billing_day', 5) WHERE id = ?`).run(run2.id);
+  const chk = await newclient.runStep(ahEnv, run2.id, 'stripe', {});
+  assert.equal(S.hook, null, 'the webhook ran in the middle');
+  const s2 = JSON.parse(db.prepare(`SELECT steps_json FROM p_newclient WHERE id = ?`).get(run2.id).steps_json).stripe;
+  assert.equal(s2.subscription, 'sub_webhook'); assert.equal(s2.paid, true); assert.equal(s2.billing_day, 5); assert.equal(chk.status, 'done');
+  /* Two brands, one payer email, one Stripe customer. */
+  S.subs.sub_9001 = { id: 'sub_9001', customer: 'cus_shared', metadata: { locus: 'run_b', locus_v: '2' } };
+  S.invoices.in_a1 = { id: 'in_a1', status: 'paid', customer: 'cus_shared', created: now, subscription: 'sub_9000', metadata: { locus: 'run_a' } };
+  const dB = { id: 'in_b1', status: 'draft', customer: 'cus_shared', subscription: 'sub_9001', created: now };
+  S.invoices.in_b1 = { ...dB };
+  assert.equal(await newclient.stripeEvent(ahEnv, { type: 'invoice.created', data: { object: dB } }), 'fine', 'another brand\'s invoice never holds this one');
+  S.invoices.in_b0 = { id: 'in_b0', status: 'paid', customer: 'cus_shared', created: now, metadata: { locus: 'run_b' } };
+  assert.equal(await newclient.stripeEvent(ahEnv, { type: 'invoice.created', data: { object: dB } }), 'held', 'its own first invoice this month still holds it');
+});
+
+await check('one-job logins and small edges: the team making one full clears the limit (its own brand only); a blocked hand off still takes the step from the colleague; the Slack welcome only asks to sign what there is; the last welcome card says Cole\'s words', async () => {
+  const j = await sendOne('Job Links', 'Jo Ng', 'jo@job.example.com', { sign_pay: false });
+  const A = j.act, JO = mint('jo@job.example.com');
+  assert.equal((await ah(JO, 'POST', '/api/onboard/handoff', { act: A, step: 'brief', email: 'kai@job.example.com', name: 'Kai Ng' })).status, 200);
+  assert.deepEqual(getSetting('clientUsers')['kai@job.example.com'].onboard_only, ['brief']);
+  const bl = await ah(JO, 'POST', '/api/onboard/handoff', { act: A, step: 'brief', email: 'nick@alpha.example.com', name: 'Nick' });
+  assert.equal(bl.status, 200); assert.equal(bl.j.text, 'We emailed them.');
+  assert.equal(getSetting('clientUsers')['kai@job.example.com'], undefined, 'the colleague lost the step to the blocked hand off');
+  assert.equal(row(A).steps.brief.holder, 'nick@alpha.example.com');
+  /* One-job login made full by the team: refused for another brand, cleared for its own. */
+  assert.equal((await ah(JO, 'POST', '/api/onboard/handoff', { act: A, step: 'connect', email: 'lin@job.example.com', name: 'Lin Ng' })).status, 200);
+  const bad = await ah(OWNER, 'POST', '/api/clients/invite', { emails: ['lin@job.example.com'], brands: ['brand_alpha'] });
+  assert.equal(bad.j.failed[0]?.email, 'lin@job.example.com', JSON.stringify(bad.j)); assert.match(bad.j.failed[0].error, /one-job setup login/);
+  assert.deepEqual(getSetting('clientUsers')['lin@job.example.com'].onboard_only, ['connect']);
+  const good = await ah(OWNER, 'POST', '/api/clients/invite', { emails: ['lin@job.example.com'], brands: [A] });
+  assert.equal(good.status, 200, JSON.stringify(good.j));
+  assert.equal(getSetting('clientUsers')['lin@job.example.com'].onboard_only, undefined, 'a full login now');
+  /* The Slack welcome on join: no sign line when there is nothing to sign; the full line when there is. */
+  const welcomeFor = async act => {
+    const ch = db.prepare(`SELECT slack_client FROM p_newclient WHERE act_id = ?`).get(act).slack_client;
+    assert.ok(ch, 'a client channel');
+    S.slackJoin = true; const p0 = S.posted.length;
+    try { assert.equal(await newclient.welcomeOnJoinByChannel({ ...ahEnv, SLACK_USER_TOKEN: 'xoxp-test' }, ch), true); } finally { S.slackJoin = false; }
+    return S.posted.slice(p0).map(x => x.text || '').find(t => /What happens next/.test(t)) || '';
+  };
+  const none = await welcomeFor(A);
+  assert.match(none, /Finish Get started/); assert.ok(!/Sign the agreement|first invoice/.test(none), none);
+  const both = await welcomeFor(ACT);
+  assert.match(both, /Sign the agreement and pay the first invoice/);
+  noDashes(none); noDashes(both);
+  /* The last welcome card (profit/v5), exactly. The page module needs a browser, so its constant is read from source. */
+  const src = fs.readFileSync(path.join(root, 'profit', 'v5', 'pages', 'get-started', '_welcome.js'), 'utf8');
+  const cfg = fs.readFileSync(path.join(root, 'profit', 'v5', 'config.js'), 'utf8');
+  const APP = /export const APP_NAME = '([^']+)'/.exec(cfg)[1], OWN = /export const OWNER_FIRST = '([^']+)'/.exec(cfg)[1];
+  const expr = /export const LAST_CARD = ([^\n]+);/.exec(src)[1];
+  const text = new Function('APP_NAME', 'OWNER_FIRST', 'return ' + expr)(APP, OWN);
+  assert.equal(text, 'Locus is new and we keep building it. Look around. If something is missing, confusing, or you have an idea that would help you, tell Cole. Tap below to message the team, or tell him in Slack.');
+  assert.match(src, /p: LAST_CARD, last: true \}/, 'it is the last card');
 });
 
 await check('nothing left for real: no Gmail, no Resend, no Google token call in the whole run; every mail is in the outbox', async () => {

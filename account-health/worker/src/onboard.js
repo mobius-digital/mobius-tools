@@ -28,7 +28,7 @@ import { connectToken, connectPost } from './connect.js';
 import { storeKey as klaviyoStore } from './klaviyo.js';
 import { setTripleWhale, connSet } from './brands.js';
 import { MOBIUS_BM } from './metaaccess.js';
-import { upsertClient, ensureInvite, LINK_PLACEHOLDER } from './clients.js';
+import { upsertClient, ensureInvite, putClientUser, LINK_PLACEHOLDER } from './clients.js';
 import { brandsFor } from './brandguard.js';
 import { roster, insertRun, runStep, getRun, setStep, ensureTable as ensureNewClient, sendReminder, releaseHeld } from './newclient.js';
 import { contractDefaults, contractHtml, resendSigningLink, ensureContractTable } from './contract.js';
@@ -373,8 +373,23 @@ const STEP_META = {
 const shownSteps = row => (!row.extras ? ['connect'] : STEP_KEYS.filter(k => k !== 'sign_pay' || row.sign_pay));
 /** Day 0 for reminders and the client waiting lines: when the welcome email really went, never before. */
 const welcomeAt = g => (g.runSteps.email?.status === 'done' ? (g.runSteps.email.at || g.row.sent_at || null) : null);
+/** The login that holds this address for this brand today: the address itself, or the login that claimed its invite
+ *  with another Google address (clients.js claimInvite moves the login and keeps the invited address as invited_as and
+ *  in claimed_from). The step holder and the run's contact stay the INVITED address, so every reminder, line and hand
+ *  off resolves through here and mails the live login. null = no login for this brand (removed: never emailed). */
+export function liveLogin(users, email, act) {
+  const e = lower(email);
+  if (!e) return null;
+  const has = u => !!(u && typeof u === 'object' && Array.isArray(u.brands) && u.brands.includes(act));
+  if (has(users[e])) return e;
+  for (const [k, u] of Object.entries(users || {})) {
+    if (!has(u)) continue;
+    if (lower(u.invited_as) === e || (Array.isArray(u.claimed_from) && u.claimed_from.some(x => lower(x) === e))) return k;
+  }
+  return null;
+}
 /** Does this person still have a login for this brand? (A removed login is never emailed or reminded.) */
-const hasLogin = (users, email, act) => { const u = users[lower(email)]; return !!(u && Array.isArray(u.brands) && u.brands.includes(act)); };
+const hasLogin = (users, email, act) => !!liveLogin(users, email, act);
 
 /** Everything one brand's checklist reads, gathered once. `all` = the all-brands integration states (team lines). */
 async function gatherOne(env, row, { all = null } = {}) {
@@ -443,11 +458,14 @@ async function stateFor(env, row, { viewer, only = null, viewerEmail = null, own
   const users = await clientUsers(env);
   const run = g.run || {};
   const contact = { name: run.contact_name || '', email: lower(run.contact_email) };
+  /* The contact's live login (they may have signed up with another Google address). */
+  const contactLive = liveLogin(users, contact.email, row.act_id) || contact.email;
   const visible = (only && only.length ? c.steps.filter(k => only.includes(k)) : c.steps);
   const stepView = k => {
     const s = row.steps[k] || {};
-    const holderEmail = lower(s.holder || contact.email);
-    const holder = { email: holderEmail, name: s.holder_name || (users[holderEmail]?.name) || (holderEmail === contact.email ? contact.name : ''), handed: !!s.handed };
+    const raw = lower(s.holder || contact.email);
+    const holderEmail = liveLogin(users, raw, row.act_id) || raw;
+    const holder = { email: holderEmail, name: s.holder_name || (users[holderEmail]?.name) || (raw === contact.email ? contact.name : ''), handed: !!s.handed };
     const done = !!s.done_at;
     const waiting_on = done ? null
       : k === 'connect' && c.now.connect ? 'us'
@@ -461,7 +479,7 @@ async function stateFor(env, row, { viewer, only = null, viewerEmail = null, own
   const out = {
     act: row.act_id, brand: { id: g.brand.id, name: g.brand.name, slug: v5Slug(g.brand.slug) }, viewer, only: only && only.length ? only : null, extras: !!row.extras,
     sent_at: row.sent_at, finished_at: row.finished_at || null, gated: gatedOf(row),
-    profile: viewer === 'client' ? profileOf(me) : profileOf(users[contact.email]),
+    profile: viewer === 'client' ? profileOf(me) : profileOf(users[contactLive]),
     progress: { done: doneN, total: visible.length },
     steps: visible.map(stepView),
     sign_pay: only && only.length ? null : (row.sign_pay ? { agreement: c.sp.agreement, invoice: c.sp.invoice, declined: c.sp.declined,
@@ -476,9 +494,9 @@ async function stateFor(env, row, { viewer, only = null, viewerEmail = null, own
   if (viewer === 'team') {
     const lines = (await linesForBrand(env, g, c)).filter(l => owner || !l.to.owner_only);
     /* "Copy their link": the invite while they have never signed in (renewed when it ran out), else Get started. */
-    const invite = users[contact.email] && !users[contact.email].last_sign_in ? await ensureInvite(env, contact.email, LOCUS_V5).catch(() => null) : startLink(g.brand.slug);
+    const invite = users[contactLive] && !users[contactLive].last_sign_in ? await ensureInvite(env, contactLive, LOCUS_V5).catch(() => null) : startLink(g.brand.slug);
     out.team = {
-      contact, invite_link: invite, budget: { amount: row.ad_budget == null ? null : Number(row.ad_budget), open: !!row.budget_open },
+      contact: { ...contact, ...(contactLive !== contact.email ? { signed_in_as: contactLive } : {}) }, invite_link: invite, budget: { amount: row.ad_budget == null ? null : Number(row.ad_budget), open: !!row.budget_open },
       reminders: { d3: g.row.rem.d3 || null, d7: g.row.rem.d7 || null, manual: g.row.rem.manual || [] },
       ask_on_call: [
         ...shownQuestions(row.services, row.goal_measure, g.approves).filter(q => !g.answers[q.key] || g.answers[q.key] === '__unsure').map(q => `${q.text}${g.answers[q.key] === '__unsure' ? ' (not sure)' : ''}`),
@@ -661,7 +679,9 @@ async function linesForBrand(env, g, c) {
         { action: { kind: 'tick', platform: 'tw', layer: 'team' }, detail: 'Check the store is really theirs (Triple Whale invite from them, the store name), then tick. The tick connects it.' });
     if (p.key === 'google_ads' && !p.skipped && cj.team?.inputs?.customer_id && cj.team.inputs.confirm && p.layers.team.state !== 'done')
       add(`onb:${act}:confirm_gads:${cj.team.inputs.customer_id}`, 'confirm_gads', 'connect', `Confirm ${B}'s Google Ads ID: ${fmtGads(cj.team.inputs.customer_id)}`, toTeam,
-        { action: { kind: 'tick', platform: 'google_ads', layer: 'team' }, detail: cj.team.inputs.confirm === 'managed' ? 'That account is already under the Mobius manager, so Locus did not link it by itself. Check it is really theirs, then tick. The tick links it.' : 'Locus could not send the manager request. Send it from the Mobius manager by hand, then tick once they accept. The tick links it.' });
+        { action: { kind: 'tick', platform: 'google_ads', layer: 'team' }, detail: cj.team.inputs.confirm === 'managed' ? 'That account is already under the Mobius manager, so Locus did not link it by itself. Check it is really theirs, then tick. The tick links it.'
+          : cj.team.inputs.confirm === 'connect_link' ? 'They typed this on the old connect link, so Locus only kept it. Check it is really theirs and send the manager request if it is not under the Mobius manager yet, then tick. The tick links it.'
+          : 'Locus could not send the manager request. Send it from the Mobius manager by hand, then tick once they accept. The tick links it.' });
     if (!p.skipped && p.layers.team.checks_itself && p.layers.team.state === 'waiting' && cj.team?.said_at && Date.now() - Date.parse(cj.team.said_at) > DAY)
       add(`onb:${act}:team_check:${p.key}`, 'team_check', 'connect', `Check ${B}'s ${p.short} access and tick it`, toTeam, { action: null });
     if (!p.skipped && ['clarity', 'email'].includes(p.key) && cj.team?.said_at && !cj.tool && p.layers.app.state !== 'done')
@@ -921,6 +941,26 @@ async function linkTyped(env, row, key) {
   if (key === 'shopify' && row.extras && inputs.shop_url && !(await hasConn(env, act, 'triple_whale'))) await setTripleWhale(env, act, inputs.shop_url).catch(e => console.log('onboard tw from shopify: ' + e.message));
 }
 
+/** The OLD public connect link (connect.js connectPost, connect.html?c=) for a brand set up through onboarding: a
+ *  Triple Whale store or a Google Ads ID typed there is only STORED, exactly as on Get started, and the team's Confirm
+ *  line (their tick, linkTyped) makes the link. Nothing is linked, requested or put in connectPending. Returns false for
+ *  a brand with no checklist (every older client keeps the old link as it was). */
+export async function storeTypedForTeam(env, act, key, value) {
+  await ensureOnboard(env).catch(() => {});
+  const row = await onbRow(env, act).catch(() => null);
+  if (!row) return false;
+  if (key === 'tw') {
+    if (await hasConn(env, act, 'triple_whale')) throw err(409, 'Your Triple Whale store is already connected. Ask your team to change it.');
+    await setOnb(env, act, 'connect_json', ['tw', 'team', 'inputs'], { shop_url: value, at: nowIso(), via: 'connect_link' });
+  } else if (key === 'google_ads') {
+    if (await hasConn(env, act, 'google_ads')) throw err(409, 'Google Ads is already connected. Ask your team to change it.');
+    await setOnb(env, act, 'connect_json', ['google_ads', 'team', 'inputs'], { customer_id: value, at: nowIso(), confirm: 'connect_link' });
+  } else return false;
+  await dropS(env, `onbConnect:${act}`);
+  await dropS(env, 'onbConnectAll');
+  return true;
+}
+
 /** A Google Ads ID a CLIENT typed. The manager request goes only to an account the Mobius manager does NOT already
  *  reach, once per brand per ID, at most 3 IDs a brand; the client's Accept then links it (connect.js adsPendingCheck).
  *  An ID the manager already reaches, a failed check or test mode (mailTestTo): nothing is sent or linked, and the team
@@ -953,7 +993,9 @@ async function writeConnect(env, row, b, { team, deps }) {
   if (key === 'tw' && !row.extras) throw err(400, 'Unknown platform.');
   const act = row.act_id;
   const cdeps = deps.connectDeps || {};
-  const viaConnect = async body => { if (!CONNECT_KEYS[key]) return null; const tok = await connectToken(env, act); return connectPost(env, tok, { key: CONNECT_KEYS[key], ...body }, { ...cdeps, tellTeam: null }); };
+  /* fromOnboard: this route already decided what may be sent (clientGads), so the old link's store-only rule for
+     checklist brands does not apply to it. */
+  const viaConnect = async body => { if (!CONNECT_KEYS[key]) return null; const tok = await connectToken(env, act); return connectPost(env, tok, { key: CONNECT_KEYS[key], ...body }, { ...cdeps, tellTeam: null, fromOnboard: true }); };
   if (b.layer !== undefined) {
     if (!team) throw err(403, 'Your team ticks that one.');
     if (!['team', 'app'].includes(b.layer)) throw err(400, 'Say which tick: team or app.');
@@ -1022,16 +1064,46 @@ const SENT_TEXT = 'We emailed them.';
 /** A step changes hands: the person who held it before loses it from their one-job login (and the login itself when
  *  it held nothing else). A full login of the brand is never touched. */
 function dropOldHolder(users, row, step, newEmail) {
-  const prev = lower((row.steps[step] || {}).holder);
-  if (!prev || prev === newEmail || !users[prev]) return false;
+  const raw = lower((row.steps[step] || {}).holder);
+  /* The old holder's live login: a colleague who claimed the invite with another Google address is found too. */
+  const prev = raw ? (liveLogin(users, raw, row.act_id) || raw) : '';
+  if (!prev || prev === newEmail || !users[prev]) return null;
   const u = users[prev];
-  if (!Array.isArray(u.onboard_only) || !u.onboard_only.includes(step)) return false;
+  if (!Array.isArray(u.onboard_only) || !u.onboard_only.includes(step)) return null;
   u.onboard_only = u.onboard_only.filter(x => x !== step);
   if (!u.onboard_only.length) {
     const others = (u.brands || []).filter(x => x !== row.act_id);
     if (others.length) { u.brands = others; delete u.onboard_only; } else delete users[prev];
   }
-  return true;
+  return prev;
+}
+
+/* The hand off mail slot, taken BEFORE the mail goes, in one statement (parallel presses all read the same log, so a
+   read-check-write let a burst through): the entry is appended only while this address has none for this step in 20
+   hours and the brand has fewer than five in a day. Old entries (over 7 days) are dropped first, also in one
+   statement. Returns the slot id, or null when refused. */
+async function takeHandoffSlot(env, act, step, to) {
+  const now = Date.now();
+  await env.DB.prepare(`UPDATE p_onboard SET reminders_json = json_set(reminders_json, '$.handoffs',
+      json((SELECT COALESCE(json_group_array(json(j.value)), '[]') FROM json_each(p_onboard.reminders_json, '$.handoffs') AS j WHERE json_extract(j.value, '$.at') >= ?2)))
+    WHERE act_id = ?1 AND json_type(reminders_json, '$.handoffs') = 'array'`).bind(act, new Date(now - 7 * DAY).toISOString()).run().catch(() => {});
+  const n = [...crypto.getRandomValues(new Uint8Array(6))].map(b => b.toString(16).padStart(2, '0')).join('');
+  const entry = { step, to, at: new Date(now).toISOString(), n };
+  const took = await env.DB.prepare(`UPDATE p_onboard SET reminders_json = json_insert(
+      CASE WHEN json_type(reminders_json, '$.handoffs') = 'array' THEN reminders_json ELSE json_set(reminders_json, '$.handoffs', json('[]')) END,
+      '$.handoffs[#]', json(?2)), updated_at = datetime('now')
+    WHERE act_id = ?1
+      AND (SELECT COUNT(*) FROM json_each(p_onboard.reminders_json, '$.handoffs') AS j WHERE json_extract(j.value, '$.at') > ?3) < ?4
+      AND NOT EXISTS (SELECT 1 FROM json_each(p_onboard.reminders_json, '$.handoffs') AS j
+        WHERE json_extract(j.value, '$.step') = ?5 AND json_extract(j.value, '$.to') = ?6 AND json_extract(j.value, '$.at') > ?7)
+    RETURNING act_id`).bind(act, JSON.stringify(entry), new Date(now - DAY).toISOString(), HANDOFF_DAY, step, to, new Date(now - HANDOFF_GAP).toISOString()).first();
+  return took ? n : null;
+}
+/** A slot whose mail never went is given back. */
+async function giveBackHandoffSlot(env, act, n) {
+  await env.DB.prepare(`UPDATE p_onboard SET reminders_json = json_set(reminders_json, '$.handoffs',
+      json((SELECT COALESCE(json_group_array(json(j.value)), '[]') FROM json_each(p_onboard.reminders_json, '$.handoffs') AS j WHERE json_extract(j.value, '$.n') IS NOT ?2)))
+    WHERE act_id = ?1 AND json_type(reminders_json, '$.handoffs') = 'array'`).bind(act, n).run().catch(() => {});
 }
 
 async function handoff(env, row, cs, b, brandName) {
@@ -1063,8 +1135,11 @@ async function handoff(env, row, cs, b, brandName) {
     await setOnb(env, row.act_id, 'steps_json', [step, 'handed_by'], self ? undefined : cs.email);
     await setOnb(env, row.act_id, 'steps_json', [step, 'handoff_blocked'], extra.blocked || undefined);
   };
+  /* Only the logins this press changed are written, each by its own key (putClientUser), so a login another request
+     made at the same moment is never dropped by a whole-blob write from an older copy. */
+  const writeUsers = async keys => { for (const k of [...new Set(keys.filter(Boolean))]) await putClientUser(env, k, users[k] || null); };
   if (self) {
-    if (dropOldHolder(users, row, step, email)) await putS(env, 'clientUsers', users);
+    await writeUsers([dropOldHolder(users, row, step, email)]);
     await setHolder();
     return { ok: true, step, holder: { email, name: users[email]?.name || '' } };
   }
@@ -1072,25 +1147,34 @@ async function handoff(env, row, cs, b, brandName) {
   if (log.filter(x => now - Date.parse(x.at) < DAY).length >= HANDOFF_DAY) throw err(429, 'That is a lot of hand offs for one day. Try again tomorrow, or ask your team.');
   const cur = users[email];
   /* An address that already has a login for ANOTHER brand: nothing is emailed and no login changes; the client gets the
-     same answer as any hand off (so nothing about other brands is told) and the owner decides on My day. */
+     same answer as any hand off (so nothing about other brands is told) and the owner decides on My day. The step has
+     still changed hands, so the colleague who held it before loses it. */
   if (cur && Array.isArray(cur.brands) && cur.brands.some(x => x !== row.act_id)) {
+    await writeUsers([dropOldHolder(users, row, step, email)]);
     await setHolder({ blocked: { email, name, at: nowIso(), by: cs.email, by_name: users[lower(cs.email)]?.name || cs.name || '' } });
     return { ok: true, step, holder: { email, name }, text: SENT_TEXT };
   }
+  /* The mail slot is taken before anything changes or goes; a burst of presses gets no more than the limits allow. */
+  const slot = await takeHandoffSlot(env, row.act_id, step, email);
+  if (!slot) {
+    const fresh = await onbRow(env, row.act_id);
+    const l2 = Array.isArray(fresh?.rem?.handoffs) ? fresh.rem.handoffs : [];
+    if (l2.some(x => x && x.step === step && x.to === email && Date.now() - Date.parse(x.at) < HANDOFF_GAP)) throw err(409, 'We emailed them already today. They can use the link in that email.');
+    throw err(429, 'That is a lot of hand offs for one day. Try again tomorrow, or ask your team.');
+  }
   const full = cur && Array.isArray(cur.brands) && cur.brands.includes(row.act_id) && !(Array.isArray(cur.onboard_only) && cur.onboard_only.length);
-  dropOldHolder(users, row, step, email);
+  const dropped = dropOldHolder(users, row, step, email);
   users[email] = full ? { ...cur, name: cur.name || name || null } : {
     ...(cur || { invited_at: nowIso() }), brands: [row.act_id], name: cur?.name || name || null, invited_by: cs.email, handed_by: cs.email,
     onboard_only: [...new Set([...((cur && cur.onboard_only) || []), step])].filter(x => HANDABLE.includes(x)),
   };
-  await putS(env, 'clientUsers', users);
+  await writeUsers([dropped, email]);
   await setHolder();
   const link = await ensureInvite(env, email, LOCUS_V5);
   const fromName = users[lower(cs.email)]?.name || cs.name || cs.email;
   const t = handoffText({ first: firstName(name), fromName, brand: brandName, step });
   try { await sendMail(env, email, t.subject, t.body.split(LINK_PLACEHOLDER).join(link)); }
-  catch (e) { throw err(502, 'Could not send the email just now. Try again in a minute.'); }
-  await setOnb(env, row.act_id, 'reminders_json', ['handoffs'], [...log, { step, to: email, at: nowIso() }].slice(-30));
+  catch (e) { await giveBackHandoffSlot(env, row.act_id, slot); throw err(502, 'Could not send the email just now. Try again in a minute.'); }
   return { ok: true, step, holder: { email, name }, text: SENT_TEXT };
 }
 
@@ -1117,10 +1201,12 @@ async function remind(env, row, step, { owner, who }) {
     if (!c.steps.includes(step)) throw err(400, 'Unknown step.');
     if (!welcomeAt(g)) throw err(409, 'The welcome email has not gone yet. Send it first.');
     const s = row.steps[step] || {};
-    to = lower(s.holder || g.run?.contact_email);
-    if (!emailOk(to)) throw err(400, 'No email to remind.');
+    const held = lower(s.holder || g.run?.contact_email);
+    if (!emailOk(held)) throw err(400, 'No email to remind.');
     const users = g.users;
-    if (!hasLogin(users, to, row.act_id)) throw err(409, `${maskEmail(to)} has no login for this brand any more.`);
+    /* The live login: the invited address, or the Google address that claimed its invite. */
+    to = liveLogin(users, held, row.act_id);
+    if (!to) throw err(409, `${maskEmail(held)} has no login for this brand any more.`);
     const link = await linkFor(env, to, g.brand.slug);
     const m = reminderText({ first: firstName(s.holder_name || users[to]?.name || g.run?.contact_name), brand: g.brand.name, items: openItems(c, [step]), link });
     await sendMail(env, to, m.subject, m.body);
@@ -1166,9 +1252,14 @@ export async function onboardTick(env, d = {}) {
       const by = {};
       for (const k of HANDABLE) {
         if (!remindable(g, c, k)) continue;
-        const h = lower(row.steps[k]?.holder || g.run?.contact_email);
+        /* Mailed to the live login (a client who signed up with another Google address is still reached). */
+        const h = liveLogin(users, row.steps[k]?.holder || g.run?.contact_email, row.act_id);
+        if (!h) continue;
         (by[h] ||= { name: row.steps[k]?.holder_name || '', steps: [] }).steps.push(k);
       }
+      /* A step still open that nobody could be mailed about: nothing is stamped, so the reminder still goes once
+         the login is back (or the step is handed to someone who has one). */
+      const open = HANDABLE.filter(k => c.steps.includes(k) && !c.now[k]);
       let sent = 0, tried = 0;
       for (const [to, v] of Object.entries(by)) {
         const items = openItems(c, v.steps);
@@ -1178,8 +1269,9 @@ export async function onboardTick(env, d = {}) {
         try { await sendMail(env, to, m.subject, m.body); sent++; } catch (e) { console.log('onboard reminder: ' + e.message); }
       }
       /* Stamped right after the sends (the canAfford check before the brand is what stops a kill in between). Every
-         send failed = nothing stamped, the next hour tries again. Nothing open = stamped. */
-      if (tried && !sent) continue;
+         send failed, or a step is open and nobody was mailed = nothing stamped, a later hour tries again. Nothing open
+         = stamped. */
+      if ((tried && !sent) || (open.length && !sent)) continue;
       const at = nowIso();
       await setOnb(env, row.act_id, 'reminders_json', [which], at);
       if (which === 'd7' && !row.rem.d3) await setOnb(env, row.act_id, 'reminders_json', ['d3'], at);

@@ -40,6 +40,23 @@ async function getJson(env, key, dflt) {
 async function putJson(env, key, v) {
   await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(key, JSON.stringify(v)).run();
 }
+/** One client login written (or removed with rec = null) by its own key inside settings.clientUsers, in one statement,
+ *  so two requests changing two different logins at the same moment never drop each other's write (a whole-blob write
+ *  from an older copy did). An address a JSON path cannot quote safely falls back to the whole-blob write. */
+export async function putClientUser(env, email, rec) {
+  const e = lower(email);
+  if (!e) return;
+  if (/["\\]/.test(e)) {
+    const users = (await getJson(env, 'clientUsers', {})) || {};
+    if (rec) users[e] = rec; else delete users[e];
+    return putJson(env, 'clientUsers', users);
+  }
+  const path = `$."${e}"`;
+  if (!rec) { await env.DB.prepare(`UPDATE settings SET value = json_remove(value, ?2) WHERE key = ?1 AND json_valid(value)`).bind('clientUsers', path).run(); return; }
+  await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, json_object(?2, json(?3)))
+    ON CONFLICT(key) DO UPDATE SET value = json_set(CASE WHEN json_valid(settings.value) AND json_type(settings.value) = 'object' THEN settings.value ELSE '{}' END, ?4, json(?3))`)
+    .bind('clientUsers', e, JSON.stringify(rec), path).run();
+}
 async function brandNames(env, ids) {
   if (!ids.length) return {};
   const ph = ids.map((_, i) => `?${i + 1}`).join(',');
@@ -70,7 +87,7 @@ export async function ensureInvite(env, email, base = LOCUS_URL) {
   const cur = users[e].invite;
   if (cur?.token && Date.parse(cur.exp) > Date.now() + 86400e3) return inviteUrl(cur.token, base);
   users[e].invite = { token: hex(16), exp: new Date(Date.now() + INVITE_DAYS * 86400e3).toISOString() };
-  await putJson(env, 'clientUsers', users);
+  await putClientUser(env, e, users[e]);
   return inviteUrl(users[e].invite.token, base);
 }
 /** Where an emailed sign-in link opens: new Locus (ONBOARD_URL) when any of the login's brands has an onboarding
@@ -113,6 +130,9 @@ export async function claimInvite(env, token, googleEmail) {
       if (!sameBrandOnly) return { error: ONE_JOB_REFUSED };
       users[g] = intoOneJob ? { ...into, onboard_only: [...new Set([...into.onboard_only, ...rec.onboard_only])], name: into.name || rec.name } : { ...into, name: into.name || rec.name };
     } else users[g] = into ? { ...into, brands: [...new Set([...(into.brands || []), ...(rec.brands || [])])], name: into.name || rec.name } : { ...rec, invited_as: hit.email };
+    /* The invited address is remembered on the login that took it over: an onboarding step holder, the run's contact
+       and every reminder still name the invited address, and onboard.js liveLogin finds this login through it. */
+    users[g].claimed_from = [...new Set([...(Array.isArray(users[g].claimed_from) ? users[g].claimed_from : []), ...(Array.isArray(rec.claimed_from) ? rec.claimed_from : []), hit.email])].slice(-10);
     delete users[hit.email];
   } else users[g] = rec;
   await putJson(env, 'clientUsers', users);
@@ -182,14 +202,24 @@ export async function sendCode(env, invite) {
   const hit = findInvite(users, invite);
   if (!hit || !hit.live) return { ok: false, error: 'This invite link is not valid any more. Ask Mobius for a new one.' };
   const key = `code:${invite}`;
-  const cur = await getJson(env, key, null);
   const now = Date.now();
-  const sends = (Array.isArray(cur?.sends) ? cur.sends : []).filter(t => now - t < 3600e3);
-  if (cur?.sent_at && now - cur.sent_at < 60e3) return { ok: true, to: maskEmail(hit.email), wait: true };
-  if (sends.length >= 5) return { ok: false, error: 'That is five codes this hour. Wait a little, or sign in with Google.' };
   const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1000000;
   const code = String(n).padStart(6, '0');
-  await putJson(env, key, { h: await codeHash(env, code, invite), exp: now + CODE_MIN * 60e3, tries: 0, sent_at: now, sends: [...sends, now] });
+  const h = await codeHash(env, code, invite);
+  /* The send slot is taken in ONE statement before the mail goes (parallel presses all read the same row, so a
+     read-check-write let a burst through): the new code is written only when the last send is over a minute old and
+     this hour has fewer than five. The hash is replaced in the same write, so only the newest code works. */
+  await env.DB.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES (?1, '{}')`).bind(key).run();
+  const took = await env.DB.prepare(`UPDATE settings SET value = json_object('h', ?2, 'exp', ?3, 'tries', 0, 'sent_at', ?4,
+      'sends', json_insert((SELECT COALESCE(json_group_array(j.value), '[]') FROM json_each(settings.value, '$.sends') AS j WHERE j.value > ?5), '$[#]', ?4))
+    WHERE key = ?1 AND json_valid(value) AND COALESCE(json_extract(value, '$.sent_at'), 0) <= ?6
+      AND (SELECT COUNT(*) FROM json_each(settings.value, '$.sends') AS j WHERE j.value > ?5) < 5
+    RETURNING key`).bind(key, h, now + CODE_MIN * 60e3, now, now - 3600e3, now - 60e3).first();
+  if (!took) {
+    const cur = await getJson(env, key, null);
+    if (cur?.sent_at && now - cur.sent_at < 60e3) return { ok: true, to: maskEmail(hit.email), wait: true };
+    return { ok: false, error: 'That is five codes this hour. Wait a little, or sign in with Google.' };
+  }
   await sendProductMail(env, hit.email, 'Your Locus code', `Your code is ${code.slice(0, 3)} ${code.slice(3)}. It works for ${CODE_MIN} minutes. If you did not ask for it, ignore this email.`);
   return { ok: true, to: maskEmail(hit.email) };
 }
@@ -259,6 +289,14 @@ export async function upsertClient(env, email, brands, by, name, readOnly) {
   if ((await teamGuests(env)).includes(e)) return `${e} is on the team list (Team and access). Remove them there first if they should be a client.`;
   const users = (await getJson(env, 'clientUsers', {})) || {};
   const cur = users[e] && typeof users[e] === 'object' ? users[e] : { invited_at: new Date().toISOString(), invited_by: by || 'admin' };
+  /* A one-job login (a colleague handed one setup step) that the team now makes a FULL login: the job limit goes when
+     the team names every brand that login has, so the person is not locked to one step. Naming only another brand
+     would turn the one job into a whole brand they were never given, so that is refused with a plain reason. */
+  if (Array.isArray(cur.onboard_only) && cur.onboard_only.length) {
+    const had = Array.isArray(cur.brands) ? cur.brands : [];
+    if (!had.every(b => brands.includes(b))) return `${e} has a one-job setup login for another brand. Finish or remove it in Clients first.`;
+    delete cur.onboard_only; delete cur.handed_by;
+  }
   cur.brands = [...new Set([...(Array.isArray(cur.brands) ? cur.brands : []), ...brands])];
   if (name && !cur.name) cur.name = String(name).trim().slice(0, 80);
   /* Look-and-approve login (brandguard.js READONLY_CLIENT_MAY). An invite only ever narrows it; POST /api/clients/access widens. */

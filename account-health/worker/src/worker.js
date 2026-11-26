@@ -8259,7 +8259,7 @@ const AH_APP = {
         /* New clients made from Locus: tell the team when the onboarding form is sent. */
         ran.newClient = await newClientTick(env).catch(e => ({ error: e.message }));
         /* Client onboarding (onboard.js): the day 3 and day 7 client reminders, then one website read. Per brand it
-           checks canAfford(15) before starting it, never mid brand. */
+           checks canAfford(60) before starting it, never mid brand. */
         if (subCanAfford(40)) ran.onboarding = await onboardTick(env, { canAfford: n => subCanAfford(n), centralHour, centralDate, mintSession }).catch(e => ({ error: e.message }));
         /* Meta partner sweep first (metaaccess.js): assigns the team + Mobius Tools on what clients shared, so a new
            client's ad account is visible to the auto-connect right after it. Small: ~30 reads an hour. */

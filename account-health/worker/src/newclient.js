@@ -729,7 +729,12 @@ export async function markFirstPaid(env, r, inv) {
   if (st.subscription) return st;
   /* Only THIS run's first invoice, paid in full, starts billing. An empty draft settles at $0 as "paid" (a first try that
      stopped before its line), and that must never open the gate, set a billing day or skip the first month. */
-  if (!inv || !st.invoice || inv.id !== st.invoice || !(Number(inv.amount_paid) >= Math.round(r.retainer * 100))) return null;
+  const cents = Math.round(r.retainer * 100);
+  /* Paid in full: by card (amount_paid), or marked paid outside Stripe (a check or a wire), or settled with a credit or
+     a coupon (status paid, nothing left to pay, and the invoice was for the whole retainer). */
+  const fullyPaid = inv && (Number(inv.amount_paid) >= cents
+    || (inv.status === 'paid' && (inv.paid_out_of_band === true || Number(inv.amount_remaining) === 0) && Number(inv.total ?? inv.amount_due) >= cents));
+  if (!inv || !st.invoice || inv.id !== st.invoice || !fullyPaid) return null;
   const paidSec = Number(inv?.status_transitions?.paid_at) || Math.floor(Date.now() / 1000);
   const { anchor, day } = nextAnchor(paidSec);
   const customer = st.customer || (typeof inv.customer === 'string' ? inv.customer : inv.customer?.id);
@@ -742,7 +747,11 @@ export async function markFirstPaid(env, r, inv) {
       if (pm) { await stripe(env, 'POST', `customers/${customer}`, { invoice_settings: { default_payment_method: pm } }); card = pm; }
     } catch { card = null; }
   }
-  const sub = await stripe(env, 'POST', 'subscriptions', {
+  /* A subscription this run already made (a "Check if paid" and the webhook in the same second, or a retry after the
+     idempotency key ran out) is reused, never made twice. */
+  const mine = await stripe(env, 'GET', `subscriptions?${form({ customer, status: 'all', limit: 20 })}`).catch(() => null);
+  const have = (mine?.data || []).find(x => String(x.metadata?.locus || '') === r.id && x.status !== 'canceled' && x.status !== 'incomplete_expired');
+  const sub = have || await stripe(env, 'POST', 'subscriptions', {
     customer, items: [{ price_data: { currency: 'usd', unit_amount: Math.round(r.retainer * 100), recurring: { interval: 'month' }, product: await stripeProduct(env) } }],
     billing_cycle_anchor: anchor, proration_behavior: 'none', collection_method: card ? 'charge_automatically' : 'send_invoice', ...(card ? { default_payment_method: card } : { days_until_due: 7 }),
     description: `${r.name} monthly retainer`, metadata: { brand: r.name, locus: r.id, locus_v: '2' },
@@ -769,8 +778,12 @@ async function holdCheck(env, inv) {
   const customer = typeof inv.customer === 'string' ? inv.customer : inv.customer?.id;
   const open = await stripe(env, 'GET', `invoices?${form({ customer, status: 'open', limit: 5 })}`);
   const month = await stripe(env, 'GET', `invoices?${form({ customer, 'created[gte]': centralMonthStart(), limit: 10 })}`);
-  const why = (open.data || []).some(i => i.id !== inv.id) ? 'the last one is not paid'
-    : (month.data || []).some(i => i.id !== inv.id && i.status !== 'void') ? 'there is already an invoice this month' : null;
+  /* Only THIS run's invoices count (its subscription, or its first invoice): two brands paid by the same email share
+     one Stripe customer, and one brand's invoice must never hold the other's every month. */
+  const runId = String(sub.metadata?.locus || '');
+  const ours = i => i.id !== inv.id && (subOf(i) === subId || (runId && String(i.metadata?.locus || '') === runId));
+  const why = (open.data || []).some(ours) ? 'the last one is not paid'
+    : (month.data || []).some(i => ours(i) && i.status !== 'void') ? 'there is already an invoice this month' : null;
   if (!why) return 'fine';
   await stripe(env, 'POST', `invoices/${inv.id}`, { auto_advance: false });
   const run = sub.metadata?.locus ? await getRun(env, String(sub.metadata.locus)) : null;
@@ -912,6 +925,12 @@ export async function runStep(env, runId, step, b = {}) {
      the folder ids): a step that was done stays done with the error as a note. */
   const prev = safeJson((await getRun(env, r.id)).steps_json, {})[step] || {};
   const at = new Date().toISOString();
+  /* Billing written by the other path while this one ran (the invoice.paid webhook during a "Check if paid") is read
+     fresh and kept: the paid flag, the subscription and the billing day are never overwritten by an older copy. */
+  if (step === 'stripe' && res.status !== 'failed' && prev.subscription && !res.subscription) {
+    for (const k of ['paid', 'paid_at', 'subscription', 'anchor', 'billing_day', 'autopay', 'held', 'released']) { if (prev[k] === undefined) delete res[k]; else res[k] = prev[k]; }
+    if (prev.text && prev.paid) res.text = prev.text;
+  }
   const out = res.status !== 'failed' ? { ...res, at }
     : prev.status === 'done' ? { ...prev, notes: [`Last try failed: ${res.text}`] }
     : { ...prev, status: 'failed', text: res.text, at };
@@ -1180,10 +1199,31 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
       /* The onboarding checklist goes with it (onboard.js p_onboard): no more reminders, team lines or Get started gate
          for a client Cole removed. Only this run's row; the table may not exist yet. */
       if (r.act_id) await env.DB.prepare(`DELETE FROM p_onboard WHERE act_id = ?1 AND run_id = ?2`).bind(r.act_id, r.id).run().catch(() => {});
-      return json({ ok: true });
+      /* v2: Send made the client login itself (and any colleague a step was handed to). With the checklist gone nothing
+         would hold them on Get started, so the brand comes off every client login, the same way POST
+         /api/clients/remove takes a brand away; a login left with no brand goes (its invite link with it). */
+      let logins = 0;
+      if (isV2(r) && r.act_id) logins = await dropBrandFromClients(env, r.act_id);
+      return json({ ok: true, logins_removed: logins });
     }
     return json({ error: 'not found' }, 404);
   } catch (e) { return json({ error: e.message }, e.status && e.status !== 401 ? e.status : 500); }
+}
+
+/** Take one brand off every client login (settings.clientUsers); a login left with no brand is removed. Returns how
+ *  many logins changed. */
+async function dropBrandFromClients(env, act) {
+  const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'clientUsers'`).first().catch(() => null);
+  const users = safeJson(row?.value, {}) || {};
+  let n = 0;
+  for (const [e, u] of Object.entries(users)) {
+    if (!u || typeof u !== 'object' || !Array.isArray(u.brands) || !u.brands.includes(act)) continue;
+    u.brands = u.brands.filter(b => b !== act);
+    if (!u.brands.length) delete users[e];
+    n++;
+  }
+  if (n) await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('clientUsers', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(JSON.stringify(users)).run();
+  return n;
 }
 
 /** The client's Your ads page: the same stable token as their report archive (worker.js reportToken). */
@@ -1235,6 +1275,13 @@ async function welcomeOnJoin(env, r) {
   const people = ['strategist', 'buyer', 'editor', 'designer'].flatMap(k => roleList(team[k]).map(e => `• ${ids[e] ? `<@${ids[e]}>` : `*${nameOf(e)}*`}, ${ROLE_LABEL[k]}`));
   const st = safeJson(r.steps_json, {});
   const v2 = st.v === 2;
+  /* v2: a client set up with no agreement or invoice (p_onboard.sign_pay 0) is never told to sign anything. */
+  const onbRow = v2 && r.act_id ? await env.DB.prepare(`SELECT sign_pay, uses_agreement, uses_invoice FROM p_onboard WHERE act_id = ?1`).bind(r.act_id).first().catch(() => null) : null;
+  const signLine = !onbRow ? (r.retainer > 0 ? 'Sign the agreement and pay the first invoice, if you have not already. Both are on your checklist.' : 'Sign the agreement, if you have not already. It is on your checklist.')
+    : !onbRow.sign_pay ? null
+    : onbRow.uses_agreement && onbRow.uses_invoice ? 'Sign the agreement and pay the first invoice, if you have not already. Both are on your checklist.'
+    : onbRow.uses_agreement ? 'Sign the agreement, if you have not already. It is on your checklist.'
+    : onbRow.uses_invoice ? 'Pay the first invoice, if you have not already. It is on your checklist.' : null;
   const links = v2 ? [
     `• Your setup in Locus (sign and pay, connect, ten questions, your photos link): ${ONBOARD_V5}`,
     r.act_id ? `• Every ad we run for you, newest first: ${await yourAdsUrl(env, r.act_id)}` : null,
@@ -1250,9 +1297,9 @@ async function welcomeOnJoin(env, r) {
      only branch is whether a retainer was entered at setup, which never changes afterwards. */
   const next = v2 ? [
     'Finish Get started in Locus, if you have not already. Connecting your accounts is the part that unlocks everything else.',
-    r.retainer > 0 ? 'Sign the agreement and pay the first invoice, if you have not already. Both are on your checklist.' : 'Sign the agreement, if you have not already. It is on your checklist.',
+    signLine,
     'Then we start: research, first briefs, first ads.',
-  ].map((s, i) => `${i + 1}. ${s}`) : [
+  ].filter(Boolean).map((s, i) => `${i + 1}. ${s}`) : [
     'Finish your onboarding link, if you have not already. Giving us access to Meta, Google and Shopify is the part that unlocks everything else.',
     'Book the strategy call, if you have not already. We go through your answers together.',
     r.retainer > 0 ? 'Pay the first invoice and sign the agreement, if you have not already. Both came by email.' : 'Sign the agreement, if you have not already. It came by email.',
