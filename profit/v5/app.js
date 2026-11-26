@@ -116,7 +116,7 @@ async function boot() {
   /* The welcome cards are decided on a FRESH /api/me: a saved boot copy can still say welcome_seen false after the
      cards were closed. A copy under a minute old is not refreshed (cached maxAge), so it counts as fresh. */
   let decided = false, started = false, freshSeen = false;
-  const decide = () => { if (decided || !started) return; decided = true; welcomeCards(); };
+  const decide = () => { if (decided || !started) return; decided = true; welcomeCards().then(firstPreset); };
   const onFresh = fresh => { shell.update(fresh.data); freshSeen = true; decide(); };
   onFresh.touch = () => { freshSeen = true; decide(); };
   try {
@@ -149,13 +149,21 @@ async function boot() {
 
 /* The welcome cards: once per person, the first time a real client opens the app past the setup gate.
    Only when the server says welcome_seen is false (an older server that does not know it shows nothing).
-   Sample: ?sample=1&as=client&welcome=1. */
+   Sample: ?sample=1&as=client&welcome=1.
+   Resolves once the cards are up (or not shown), so the first preset sheet that follows always sees them. */
 function welcomeCards() {
   const st = shell.state(), c = st.me && st.me.client;
   const r = router.currentRoute();
-  if (st.realRole !== 'client' || st.asClient || !c || c.welcome_seen !== false || heldHere(st, r)) return;
+  if (st.realRole !== 'client' || st.asClient || !c || c.welcome_seen !== false || heldHere(st, r)) return Promise.resolve();
   const brand = (r && shell.brandBySlug(r.brand)) || st.brands[0] || null;
-  import('./pages/get-started/_welcome.js').then(m => m.showWelcome({ brand, me: st.me })).catch(() => {});
+  return import('./pages/get-started/_welcome.js').then(m => m.showWelcome({ brand, me: st.me })).catch(() => {});
+}
+
+/* How things reach me: asked once per teammate who never saved a preset (pages/profile/_first-preset.js). Called
+   after welcomeCards() has put its cards up, and the sheet waits for them to close. Sample: ?sample=1&firstpreset=1. */
+function firstPreset() {
+  const st = shell.state();
+  import('./pages/profile/_first-preset.js').then(m => m.askOnce({ st, held: heldHere(st, router.currentRoute()) })).catch(() => {});
 }
 
 /* The agency feature switches (Creator program, Social posting): a line whose switch is off leaves the menus.

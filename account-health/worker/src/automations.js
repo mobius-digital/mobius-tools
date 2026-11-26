@@ -61,7 +61,7 @@
  *   GET    /api/automations/people, PUT /api/automations/people   who does what (roles per brand) and the team list
  *   GET    /api/me/delivery, PUT /api/me/delivery   how things reach me
  *   GET    /api/notices, POST /api/notices/done */
-import { catalogTypes, catalogView, notifyOf, applyBody, saveNotify, ensureNotify } from './notify.js';
+import { catalogTypes, catalogView, notifyOf, applyBody, saveNotify, savedNotify, ensureNotify } from './notify.js';
 import { featuresNow } from './jobflags.js';
 
 const ORG = 'default';
@@ -1098,6 +1098,8 @@ export async function handleAutomations(request, env, path, json, d) {
     const copiesOn = lower(await d.getSetting(env, 'notifyCopies').catch(() => '')) === 'on';
     return json({ ok: true, email: me.email, delivery: await deliveryOf(env, me.email), per, modes: MODES,
       notify: await notifyOf(env, me.email, who), catalog: catalogView(d, who, copiesOn),
+      /* false = this person never saved a notify choice (v5 asks once, pages/profile/_first-preset.js) */
+      notify_chosen: (await savedNotify(env, me.email)) != null,
       ways: { home: !me.client, bell: true, slack: !me.client, email: true }, ways_note: { bell: 'Always on. The bell is the record.', email: d.sendEmail ? null : 'Your choice is saved. Email starts when the mail address for this product is set up. Until then it waits in the bell.',
         slack: d.slackApi ? null : 'Slack is not connected, so everything lands in the app.' } });
   }
