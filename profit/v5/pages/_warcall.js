@@ -7,6 +7,10 @@
      windows    the store in three windows: Since last check-in, Today, This week (sales, spend, MER)
      light      the store light, the gate: green (raises allowed, cuts held), amber (cuts only), red (cuts only, and the
                 biggest spender is cut when no campaign qualifies)
+   THE NOW DECIDES (rule w2): every call, the store light and each campaign, is made on Since last check-in and Today.
+   This week is shown as context: it only breaks a tie (Since and Today disagree) or adds a note, and never blocks a
+   raise on its own. One bad day does not decide what happens now. The minimum spend guards stay, so a tiny window
+   (under MIN_STORE_SPEND today, under MIN_SINCE_SPEND or MIN_CAMP_SPEND since) never decides.
      camps      every live campaign with its own three windows and its own ROAS in each (Triple Whale attributed, last
                 click), its own call (Raise 50%, Raise 25%, Hold, Cut 25%, Put it back) against the campaign ROAS line,
                 and the guards (pace, Meta limit room, "not read yet" warning). Never a forced wait.
@@ -29,6 +33,8 @@ export const FIRST_HOUR = 8;          // the first check-in of the day, Central
 export const LAST_HOUR = 22;          // no check-in after 10pm Central
 export const CADENCE_CHOICES = [3, 4, 6, 8, 10];
 export const BE_ROAS_DIV = 1.25;      // break-even ROAS when the record has none: goal ROAS / 1.25 (stated on the page)
+export const FAST_BUDGET = 1000;      // live Meta budgets at or over this a day: the page SUGGESTS every 4 hours, never sets it
+export const FAST_CADENCE = 4;
 
 const ok = n => n != null && isFinite(n);
 const num = v => (ok(+v) && v !== null && v !== '' ? +v : null);
@@ -63,6 +69,13 @@ export const clockCT = ms => new Date(ms).toLocaleTimeString('en-US', { hour: 'n
 export function cadenceOf(answers) {
   const v = Math.round(num(answers && answers.checkin_hours));
   return v >= 2 && v <= 12 ? v : CADENCE_DEFAULT;
+}
+/** A check-in rhythm to suggest (never set): every 4 hours when the brand's live Meta budgets are big, else null.
+    Only the brand's saved setting (or the 6 hour default) changes the rhythm. No brand has a default of its own. */
+export function cadenceSuggest(cur, cad) {
+  const on = num(cur && cur.meta && cur.meta.on);
+  if (!(on >= FAST_BUDGET) || cad <= FAST_CADENCE) return null;
+  return { hours: FAST_CADENCE, why: `Live Meta budgets are ${'$' + Math.round(on).toLocaleString('en-US')} a day, so ${cad} hours can move a lot of money. A suggestion only: nothing changes unless you pick it.` };
 }
 /** Due hours in a day: 8am, then every N hours while at or before 10pm. */
 export function dueHours(cad) {
@@ -133,12 +146,14 @@ function campSpendRev(c, pc, basis) {
   const week = { spend: ok(r.w_spend) ? r.w_spend : r.t_spend, rev: ok(r.w_spend) ? r.w_rev : r.t_rev };
   let since = null;
   if (basis) {
-    if (!pc) since = { ...today };
+    /* copy: no real Since cut could be made (campaign not in the previous record, an earlier week, or no week
+       numbers), so Since is Today again. It is shown but never read as a second window. */
+    if (!pc) since = { ...today, copy: true };
     else {
       const p = campRev(pc);
       if (basis.same === 'day') since = { spend: Math.max(0, r.t_spend - p.t_spend), rev: Math.max(0, r.t_rev - p.t_rev) };
       else if (basis.same === 'week' && ok(r.w_spend) && ok(p.w_spend)) since = { spend: Math.max(0, r.w_spend - p.w_spend), rev: Math.max(0, r.w_rev - p.w_rev) };
-      else since = { ...today };
+      else since = { ...today, copy: true };
     }
   }
   return { since, today, week };
@@ -150,21 +165,50 @@ const PCT = { raise50: 0.5, raise25: 0.25, cut: -0.25 };
 /** The amount for a step: rounded to $5, never under $5. */
 export const stepTo = (daily, pct) => Math.max(MIN_BUDGET, Math.round(daily * (1 + pct) / 5) * 5);
 
-/** The store light from the three windows. */
+/** The store light, decided on the now (Since last check-in and Today). This week only breaks a tie or adds a note.
+    Returns { light, why, note, tie }: note is the week's context line when the week reads differently from the now. */
 export function storeLight(W, goal, be) {
   const { since: S, today: T, week: K } = W;
   if (!ok(goal)) return { light: null, why: 'No goal set, so no calls.' };
-  const tRead = T.readable && ok(T.mer), sRead = !!(S && S.readable && ok(S.mer)), kRead = K.readable && ok(K.mer);
+  const tRead = T.readable && ok(T.mer), sRead = !!(S && S.readable && ok(S.mer)), kRead = !!(K && K.readable && ok(K.mer));
   const fx = v => v.toFixed(2) + 'x';
-  if ((kRead && K.mer < be) || (tRead && T.mer < be && sRead && S.mer < be)) {
-    return { light: 'red', why: kRead && K.mer < be ? `Store MER ${fx(K.mer)} this week is under the ${fx(be)} break-even.` : `Store MER under the ${fx(be)} break-even today and since the last check-in.` };
-  }
-  if (tRead && T.mer >= goal && kRead && K.mer >= goal && (!sRead || S.mer >= be)) return { light: 'green', why: `Store MER at or over the ${fx(goal)} goal today and this week.` };
+  const band = v => (v >= goal ? 'over' : v >= be ? 'mid' : 'under');
+  const weekNote = light => {
+    if (!kRead) return '';
+    const k = band(K.mer);
+    if (light === 'green' && k !== 'over') return `This week is ${fx(K.mer)}, under the goal: context only, the now decides.`;
+    if (light !== 'green' && k === 'over') return `This week is ${fx(K.mer)}, over the goal: context only, the now decides.`;
+    return '';
+  };
+  const out = (light, why, tie) => ({ light, why, note: weekNote(light), tie: !!tie });
   if (!tRead) {
-    if (kRead && K.mer >= goal && sRead && S.mer >= goal) return { light: 'green', why: `Too early to read today, but the week and the hours since the last check-in are over the ${fx(goal)} MER goal.` };
-    return { light: 'amber', why: `Too early, ${'$' + Math.round(T.spend || 0).toLocaleString('en-US')} of ads today.`, early: true };
+    /* too little spent today: today cannot decide, and Since alone never raises */
+    /* a small Since window never decides alone: under break-even it is amber with a warning, never a forced cut */
+    if (sRead && S.mer < be) return { light: 'amber', why: `Too early, ${'$' + Math.round(T.spend || 0).toLocaleString('en-US')} of ads today; since the last check-in the store MER is ${fx(S.mer)}, under the ${fx(be)} break-even. Watch it, no forced cut yet.`, early: true, note: '', tie: false };
+    return { light: 'amber', why: `Too early, ${'$' + Math.round(T.spend || 0).toLocaleString('en-US')} of ads today.`, early: true, note: '', tie: false };
   }
-  return { light: 'amber', why: `Store MER is not over the ${fx(goal)} goal in every window, so no raises.` };
+  const t = band(T.mer), sb = sRead ? band(S.mer) : null;
+  if (!sRead) {
+    if (t === 'over') return out('green', `Store MER ${fx(T.mer)} today is over the ${fx(goal)} goal.`);
+    if (t === 'under') return out('red', `Store MER ${fx(T.mer)} today is under the ${fx(be)} break-even.`);
+    return out('amber', `Store MER ${fx(T.mer)} today is between break-even and the ${fx(goal)} goal, so no raises.`);
+  }
+  if (t === 'over' && sb === 'over') return out('green', `Store MER over the ${fx(goal)} goal today and since the last check-in.`);
+  if (t === 'under' && sb === 'under') return out('red', `Store MER under the ${fx(be)} break-even today and since the last check-in.`);
+  if (t === 'mid' && sb === 'mid') return out('amber', `Store MER between break-even and the ${fx(goal)} goal today and since the last check-in, so no raises.`);
+  /* Since and Today disagree: this week breaks the tie */
+  const kb = kRead ? band(K.mer) : null;
+  const tieWhy = `Today ${fx(T.mer)} and since the last check-in ${fx(S.mer)} disagree`;
+  if ((t === 'over' && sb === 'mid') || (t === 'mid' && sb === 'over')) {
+    if (kb === 'over') return out('green', `${tieWhy}; this week ${fx(K.mer)} is over the ${fx(goal)} goal, so it breaks the tie toward raises.`, true);
+    return out('amber', `${tieWhy}${kRead ? `, and this week ${fx(K.mer)} does not break the tie` : ''}, so no raises.`, true);
+  }
+  if ((t === 'under' && sb === 'mid') || (t === 'mid' && sb === 'under')) {
+    if (kb === 'under') return out('red', `${tieWhy}; this week ${fx(K.mer)} is under the ${fx(be)} break-even too, so it breaks the tie toward cuts.`, true);
+    return out('amber', `${tieWhy}, so no raises.`, true);
+  }
+  /* one window over goal, the other under break-even: too mixed to raise, and too mixed to force a cut */
+  return out('amber', `${tieWhy} (one over the goal, one under break-even), so no raises.`, true);
 }
 
 /** The campaign ROAS line for a brand: goal ROAS (the hold line) and break-even ROAS.
@@ -179,16 +223,35 @@ export function roasLine(cur, o = {}) {
   return { goal, be: Math.round(goal / BE_ROAS_DIV * 100) / 100, assumed: true, reason: rec > 0 ? 'over_goal' : 'none', rec: rec > 0 ? rec : null };
 }
 
-/** A campaign's own call from its Triple Whale ROAS in the three windows, against the campaign ROAS line. */
-function ownCall(cw, goal, be) {
+/** A campaign's own call, decided on the now: its Triple Whale ROAS since the last check-in and today, against the
+    campaign ROAS line. This week only breaks a tie (Since and Today disagree) or adds a note; it never blocks a raise. */
+export function ownCall(cw, goal, be) {
   const T = cw.today, S = cw.since, K = cw.week;
-  if (!T.readable) return { call: 'hold', why: 'Too early: under ' + '$' + MIN_CAMP_SPEND + ' spent today.', early: true };
-  const sRead = !!(S && S.readable), kRead = K.readable;
+  if (!T || !T.readable) return { call: 'hold', why: 'Too early: under ' + '$' + MIN_CAMP_SPEND + ' spent today.', early: true, note: '' };
+  const sRead = !!(S && S.readable && !S.copy), kRead = !!(K && K.readable);
   const fx = v => v.toFixed(2) + 'x';
-  if (T.roas >= 1.5 * goal && sRead && S.roas >= goal && kRead && K.roas >= goal) return { call: 'raise50', why: `ROAS today is over 1.5 times the ${fx(goal)} goal ROAS, and the hours since the last check-in and the week are over it.` };
-  if (T.roas >= goal && kRead && K.roas >= goal && (!sRead || S.roas >= be)) return { call: 'raise25', why: `ROAS today and this week is over the ${fx(goal)} goal ROAS` + (sRead ? `, and the hours since the last check-in are over the ${fx(be)} break-even ROAS.` : '.') };
-  if (T.roas < be && kRead && K.roas < be && (!sRead || S.roas < be)) return { call: 'cut', why: `ROAS today and this week is under the ${fx(be)} break-even ROAS` + (sRead ? ', and so are the hours since the last check-in.' : '.') };
-  return { call: 'hold', why: `ROAS between the ${fx(be)} break-even and the ${fx(goal)} goal, or the windows disagree.` };
+  const note = call => {
+    if (!kRead) return '';
+    if ((call === 'raise50' || call === 'raise25') && K.roas < goal) return `This week ${fx(K.roas)} is under the goal ROAS: context only, the now decides.`;
+    if (call === 'cut' && K.roas >= goal) return `This week ${fx(K.roas)} is over the goal ROAS: context only, the now decides.`;
+    return '';
+  };
+  const res = (call, why, tie) => ({ call, why, note: note(call), tie: !!tie });
+  if (T.roas >= 1.5 * goal && sRead && S.roas >= goal) return res('raise50', `ROAS today ${fx(T.roas)} is over 1.5 times the ${fx(goal)} goal ROAS, and since the last check-in ${fx(S.roas)} is over it too.`);
+  if (T.roas >= goal && (!sRead || S.roas >= be)) return res('raise25', `ROAS today ${fx(T.roas)} is over the ${fx(goal)} goal ROAS` + (sRead ? `, and since the last check-in ${fx(S.roas)} is over the ${fx(be)} break-even.` : '.'));
+  if (T.roas < be && (!sRead || S.roas < be)) return res('cut', `ROAS today ${fx(T.roas)} is under the ${fx(be)} break-even ROAS` + (sRead ? `, and so is since the last check-in (${fx(S.roas)}).` : '.'));
+  /* the two windows of the now disagree: this week breaks the tie */
+  if (sRead && T.roas >= goal && S.roas < be) {
+    if (kRead && K.roas >= goal) return res('raise25', `Today ${fx(T.roas)} is over the goal ROAS but since the last check-in ${fx(S.roas)} is under break-even; this week ${fx(K.roas)} is over the goal, so it breaks the tie.`, true);
+    return res('hold', `Today ${fx(T.roas)} is over the goal ROAS but since the last check-in ${fx(S.roas)} is under break-even${kRead ? `, and this week ${fx(K.roas)} does not break the tie` : ''}.`, true);
+  }
+  if (sRead && T.roas < be && S.roas >= be) {
+    /* Since at or over the goal: the newest hours are good, so the week does not push a cut (as the store light) */
+    if (S.roas >= goal) return res('hold', `Today ${fx(T.roas)} is under break-even, but since the last check-in ${fx(S.roas)} is over the ${fx(goal)} goal ROAS: too mixed to cut.`, true);
+    if (kRead && K.roas < be) return res('cut', `Today ${fx(T.roas)} is under break-even and since the last check-in ${fx(S.roas)} is back over it; this week ${fx(K.roas)} is under break-even too, so it breaks the tie.`, true);
+    return res('hold', `Today ${fx(T.roas)} is under break-even, but since the last check-in ${fx(S.roas)} is back over it.`, true);
+  }
+  return res('hold', `ROAS between the ${fx(be)} break-even and the ${fx(goal)} goal right now.`);
 }
 
 /** The two amounts in a Change Log budget summary, in the real forms ("$500/day → $625/day", "$500/day -> $625/day")
@@ -260,7 +323,7 @@ export function brandCalls(o) {
       if (!x) { cw[k] = null; continue; }
       /* ROAS = Triple Whale attributed sales (last click) over the campaign's own spend */
       const roas = x.spend > 0 ? x.rev / x.spend : null;
-      cw[k] = { spend: x.spend, rev: x.rev, roas, readable: x.spend >= MIN_CAMP_SPEND && ok(roas) };
+      cw[k] = { spend: x.spend, rev: x.rev, roas, readable: x.spend >= MIN_CAMP_SPEND && ok(roas), copy: !!x.copy };
     }
     /* no Triple Whale sales on record for this campaign all week: the sync may be behind, so it is not read as 0x */
     const noTw = num(c.w_ord) === 0 && !(num(c.w_roas) > 0) && !(num(c.t_roas) > 0) && !(num(c.t_ord) > 0);
@@ -278,9 +341,11 @@ export function brandCalls(o) {
       }
       const own = ownCall(c.w, rGoal, rBe);
       if (c.no_tw) { own.why = 'No Triple Whale sales on record this week, so its ROAS is not read: hold.'; own.early = false; }
-      c.own = own.call; c.call = own.call; c.why = own.why; c.early = !!own.early;
+      c.own = own.call; c.call = own.call; c.why = own.why; c.early = !!own.early; c.tie = !!own.tie;
       if (gate.light === 'green' && c.call === 'cut') { c.call = 'hold'; c.why = 'ROAS under break-even, but the store MER is over the goal: hold, it needs new ads.'; c.needs_ads = true; }
       if (gate.light !== 'green' && (c.call === 'raise50' || c.call === 'raise25')) { c.call = 'hold'; c.why = 'Its own numbers would raise, but ' + gate.why.charAt(0).toLowerCase() + gate.why.slice(1); }
+      /* the week note explains the campaign's own call, so it only shows when the gate left that call standing */
+      if (own.note && !c.no_tw && c.call === own.call) c.notes.push(own.note);
     }
     if (gate.light === 'red' && !camps.some(c => c.call === 'cut' && !c.abo)) {
       const big = camps.filter(c => !c.abo && c.spent > 0).sort((p, q) => q.spent - p.spent)[0];
@@ -307,7 +372,7 @@ export function brandCalls(o) {
       const verb = lc.undone ? 'Put back' : ok(lc.from) && ok(lc.to) ? (lc.to > lc.from ? 'Raised' : 'Cut') : 'Changed';
       c.last = { ...lc, spent_since: since, read: !young && !little };
       if (young || little) c.warn = `${verb} to ${ok(newDaily) ? '$' + Math.round(newDaily).toLocaleString('en-US') : 'a new budget'} at ${clockCT(lc.at)}, ${agoWords(now - lc.at)} and $${Math.round(since).toLocaleString('en-US')} ago, not read yet.`;
-      else if (!numbersOnly && gate.light && verb === 'Raised' && c.w.since && c.w.since.readable && ok(rBe) && c.w.since.roas < rBe && ok(lc.from) && c.daily) {
+      else if (!numbersOnly && gate.light && verb === 'Raised' && c.w.since && c.w.since.readable && !c.w.since.copy && ok(rBe) && c.w.since.roas < rBe && ok(lc.from) && c.daily) {
         const back = Math.max(MIN_BUDGET, Math.round(lc.from));
         if (gate.light === 'green') {
           /* rule w3: never cut while the store is over goal */

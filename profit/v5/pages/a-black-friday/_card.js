@@ -1,10 +1,11 @@
 /* The client update card for Black Friday weekend: one layout, drawn two ways.
      cardHtml(d)    HTML for the page preview and the public snapshot link (POST /api/snapshot, opened at s.html?t=)
-     cardCanvas(d)  Canvas 2D at 1200 wide, for Download image and Copy image (no route, no library)
+     cardCanvas(d)  Canvas 2D at 1200 wide, for Copy as PNG, Download PNG and Download PDF (no route, no library)
    d = { brand, when, goal, tiles: [{ label, mer, sales, spend, readable }], changes: [{ line, why }], next }
    Nothing internal goes on it: no break-even, no budget room, no campaign returns. Sales are Triple Whale. */
 
 import { tierOf } from '../_warcall.js';
+import { copyCanvas, downloadCanvas, downloadPdf } from './_export.js';
 
 const C = { bg: '#FFFFFF', tile: '#F5F7FB', line: '#E3E8F0', text: '#0E1B2E', dim: '#66748C', blue: '#2A9FD8', blueBg: '#EAF6FC' };
 const FONT = "Inter, system-ui, -apple-system, 'Segoe UI', Arial, sans-serif";
@@ -128,25 +129,15 @@ export async function cardCanvas(d) {
   return cv;
 }
 
-const blobOf = cv => new Promise(res => cv.toBlob(b => res(b), 'image/png'));
 /** Save the card as a PNG file. */
 export async function downloadCard(d, file) {
-  const b = await blobOf(await cardCanvas(d));
-  if (!b) throw new Error('The browser could not draw the picture.');
-  const url = URL.createObjectURL(b), a = document.createElement('a');
-  a.href = url; a.download = file || 'black-friday-update.png';
-  document.body.append(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  await downloadCanvas(await cardCanvas(d), file || 'black-friday-update.png');
 }
 /** Copy the card as a picture. Falls back to a download when the browser will not copy images. Returns 'copied' or 'downloaded'. */
 export async function copyCard(d, file) {
-  try {
-    const cv = await cardCanvas(d);
-    if (!navigator.clipboard || !window.ClipboardItem) throw new Error('no image clipboard');
-    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blobOf(cv) })]);
-    return 'copied';
-  } catch {
-    await downloadCard(d, file);
-    return 'downloaded';
-  }
+  return copyCanvas(await cardCanvas(d), file || 'black-friday-update.png');
+}
+/** Save the card as a one page PDF (drawn in the browser, no route). */
+export async function downloadCardPdf(d, file) {
+  await downloadPdf([await cardCanvas(d)], file || 'black-friday-update.pdf', { fit: true });
 }
