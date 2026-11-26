@@ -61,6 +61,10 @@ await check('lines: a person gets only their brands, sorted by name; no numbers 
 await check('the tick: before the hour nothing; at the hour each opted-in person gets one DM with their lines, once a day; a client only its brand', async () => {
   await updatePrefs(env, 'ahsan@go-mobius-digital.com', { morning_dm: true });
   settings.delete('userPrefs:old@x.com');
+  /* 2026-11-26 (jobflags.js): the morning line DM can go quiet. Default = today (runs); only 'off' quiets it. */
+  settings.set('jobOn:morningLineDm', 'off');
+  hour = 8; slackCalls = []; assert.deepEqual(await morningTick(env, deps), { skipped: 'quiet' }); assert.equal(slackCalls.length, 0);
+  settings.delete('jobOn:morningLineDm');
   hour = 6; assert.deepEqual(await morningTick(env, deps), { skipped: 'before 7am Central' });
   hour = 8; slackCalls = []; profitCalls = 0;
   const r = await morningTick(env, deps);

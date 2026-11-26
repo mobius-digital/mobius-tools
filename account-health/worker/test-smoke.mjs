@@ -130,6 +130,20 @@ eq(plan.map(c => c.id), plan.map((_, i) => i), 'ids are positions');
 const one = buildPlan(brands, { from: 'a', to: 'b', only: 'brand_bonk' });
 ok(one.length && one.every(c => c.act === 'brand_bonk'), 'a one-brand run checks only that brand');
 
+/* ================= 2b. switched off (jobflags.js jobOn:smokePost is off): state written, nothing posted ================= */
+reset();
+putSetting(null, 'strategistChannel', 'C_STRAT');
+putSetting(null, 'jobOn:smokePost', 'off');
+HOUR = 6;
+FAIL.set('/api/hub/paid?platform=meta&act=brand_bonk', { status: 500, body: { error: 'D1_ERROR: no such column' } });
+const q1 = await smokeTick(env, d);
+ok(q1.finished, 'quiet: the run still finishes');
+eq(slack.filter(s => s.method === 'chat.postMessage').length, 0, 'quiet: nothing posted');
+const qLast = JSON.parse(await getSetting(null, 'smokeLast'));
+ok(qLast.failed.length === 1 && qLast.posted === 'quiet', 'quiet: smokeLast still keeps the failure');
+delSetting('smokeRun'); delSetting('smokeLast'); delSetting('smokePosted');
+delSetting('jobOn:smokePost');
+
 /* ================= 3. the tick: waits for its hour, runs, posts failures once ================= */
 reset();
 putSetting(null, 'strategistChannel', 'C_STRAT');

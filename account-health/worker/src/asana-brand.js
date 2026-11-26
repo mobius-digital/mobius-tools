@@ -3,6 +3,7 @@ import { mirrorOn, pullStories, pruneFiles, briefFromAsana, briefHash, ensureWor
 import { metaOf, resolveBrandId, addConnection, connSet } from './brands.js';
 import { laneBlocks, laneWho, laneOwner, fyi } from './lane.js';
 import { teamOf } from './calendar.js';
+import { jobOn } from './jobflags.js';
 /**
  * Asana <-> Locus for the Brand tab (2026-09-24).
  *
@@ -994,6 +995,8 @@ export async function runMondayPlan(env, payload) {
   return say({ replace_original: true, text: `${plan.text}\n${result}`, blocks: [...sections(plan.text), { type: 'context', elements: [{ type: 'mrkdwn', text: result }] }] });
 }
 export async function postMonday(env, act, { auto = false } = {}) {
+  /* 2026-11-26: the scheduled (auto) post is a quiet job (jobflags.js jobOn:mondayTestPost); a post asked for from Locus runs. */
+  if (auto && !(await jobOn(env, 'mondayTestPost'))) return { skipped: 'quiet' };
   const m = await mondayCalls(env, act);
   if (m.error) return m;
   if (!m.channel || !env.SLACK_BOT_TOKEN) return { ...m, error: 'This brand has no internal Slack channel (Settings).' };

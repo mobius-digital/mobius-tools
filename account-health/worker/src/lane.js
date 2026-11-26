@@ -33,6 +33,7 @@
  * already have. Client channels never come through here (client sends, Pulse "send to all clients", the welcome). */
 import { tagOf, teamPost } from './morningcard.js';
 import { houseMessage, LIMITS, clip, noEmoji, plainOf } from './house.js';
+import { jobOn } from './jobflags.js';
 
 export const COLE = 'U06C37MDWD7';
 export const LANES = ['MEDIA BUYING', 'CREATIVE', 'CREATORS', 'CLIENT', 'EMAIL', 'OPS'];
@@ -265,6 +266,8 @@ export function roundupMessage(brand, date, rows, { act } = {}) {
 export async function roundupTick(env, d) {
   const get = async k => (d.getSetting ? d.getSetting(env, k) : (await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(k).first().catch(() => null))?.value ?? null);
   const put = (k, v) => (d.putSetting ? d.putSetting(env, k, v) : env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(k, String(v)).run());
+  /* 2026-11-26: a quiet job (jobflags.js jobOn:fyiRoundup): runs unless settings jobOn:fyiRoundup = 'off' (default: runs, as today); the older switch still counts too. */
+  if (!(await jobOn(env, 'fyiRoundup', (e, k) => get(k)))) return { skipped: 'quiet' };
   if ((await get('fyiRoundup')) === 'off') return { skipped: 'off' };
   const raw = await get('fyiRoundupHour');
   const h = raw == null || raw === '' ? NaN : +raw;

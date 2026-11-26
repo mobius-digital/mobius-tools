@@ -13,6 +13,7 @@
  *   2026-10-13: OFF while the morning card is on (settings.morningCard); the card reuses readToday and messageFor. */
 import { SKIP as PAUSED } from './moved.js';
 import { laneBlocks, noDash } from './lane.js';
+import { jobOn } from './jobflags.js';
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 export const TODAY_HOUR = 8, TODAY_LAST_HOUR = 13;
@@ -75,6 +76,8 @@ export function messageFor(brand, rows, who) {
 }
 
 export async function todayTick(env, d) {
+  /* 2026-11-26: a quiet job (jobflags.js jobOn:todayPost): runs unless settings jobOn:todayPost = 'off' (default: runs, as today); the older switch still counts too. */
+  if (!(await jobOn(env, 'todayPost', d.getSetting))) return { skipped: 'quiet' };
   if ((await d.getSetting(env, 'todayPost')) === 'off') return { skipped: 'off' };
   /* 2026-10-13: the morning card (morningcard.js) carries today's calls as one line and this list in its thread. */
   if (d.cardOn && await d.cardOn(env)) return { skipped: 'the morning card carries it' };

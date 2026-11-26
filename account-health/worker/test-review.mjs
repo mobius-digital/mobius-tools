@@ -83,6 +83,14 @@ await check('the brand list: paused brands and the test account are never in it;
   assert.equal(bs.filter(b => !b.skip).length, 3);
 });
 
+await check('switched off (jobflags.js jobOn:mondayReview is off): nothing asked, nothing posted', async () => {
+  await putSetting(env, 'jobOn:mondayReview', 'off');
+  const r = await reviewTick(env, d);
+  assert.equal(r.skipped, 'quiet');
+  assert.equal(asked.length, 0); assert.equal(slackCalls.length, 0);
+});
+await putSetting(env, 'jobOn:mondayReview', '');
+
 await check('off by default: nothing asked, nothing posted', async () => {
   const r = await reviewTick(env, d);
   assert.equal(r.off, true);

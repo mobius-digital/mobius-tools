@@ -234,7 +234,7 @@ await check('v5: the "Who it comes from" group renders, locked rows are disabled
   await S.save();
   assert.equal(puts.length, 1, 'Save sends one PUT'); assert.deepEqual(puts[0], { k: 'agency.senders', v: { all: 'cole', kinds: {} } });
   /* data.js sends agency.senders to the worker */
-  assert.match(fs.readFileSync(new URL('../../profit/v5/data.js', import.meta.url), 'utf8'), /'senders'\];/);
+  assert.match(fs.readFileSync(new URL('../../profit/v5/data.js', import.meta.url), 'utf8'), /AGENCY_KEYS = \[[^\]]*'senders'/);
 });
 
 console.log(`\n${n}/${n + bad} passed`);

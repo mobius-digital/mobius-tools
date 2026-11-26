@@ -47,6 +47,7 @@ import { listBoard } from './production.js';
 import { DEFAULT_PEOPLE } from './checkin.js';
 import { permalink } from './slackindex.js';
 import { onboardLines, lineFor, myWorkItem } from './onboard.js';
+import { allSavedNotify, cleanNotify, catalogTypes, wants } from './notify.js';
 
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const LOCUS_V5 = `${LOCUS}v5/`;
@@ -302,14 +303,44 @@ export async function dmPeople(env, d) {
   return Array.isArray(set) ? set.map(x => clean(x, 30)).filter(Boolean) : DM_PEOPLE;
 }
 
+/** Is this email on today's morning brief DM list (settings myworkDmPeople or the names in code, matched on the
+ *  roster)? Used by GET/PUT /api/me/delivery so a person with nothing saved sees Slack DM on, as it really is. */
+export async function onMorningDmList(env, d, email) {
+  const em = String(email || '').trim().toLowerCase();
+  if (!em || !d || !d.getSetting) return false;
+  if ((await d.getSetting(env, 'myworkDm').catch(() => null)) === 'off') return false;
+  const people = await teamPeople(env, d), names = (await dmPeople(env, d)).map(n => n.toLowerCase());
+  const p = people.find(x => x.email && x.email.toLowerCase() === em);
+  return !!p && names.includes(p.name.toLowerCase());
+}
+
+/** Who gets the morning brief DM (2026-11-26, notify.js). Pure.
+ *  (today's list: settings myworkDmPeople, else the names in code) UNION (people whose saved notify wants the morning
+ *  brief by Slack DM) MINUS (people whose SAVED notify has morning_brief.slack_dm off or channels.slack_dm off).
+ *  A code list name with no email on the roster keeps today's behavior. saved = { email: raw notify }. */
+export function dmRecipients(names, people, saved, { slackReady = true } = {}) {
+  const cat = catalogTypes({ owner: true });
+  const resolved = {};
+  for (const [e, raw] of Object.entries(saved || {})) resolved[String(e).toLowerCase()] = cleanNotify(raw, cat);
+  const out = [], seen = new Set();
+  const add = p => { if (p && !seen.has(p.name)) { seen.add(p.name); out.push(p); } };
+  for (const nm of names || []) add((people || []).find(x => x.name.toLowerCase() === String(nm).toLowerCase()));
+  if (slackReady) for (const p of people || []) if (p.email && resolved[p.email] && wants(resolved[p.email], 'morning_brief', 'slack_dm')) add(p);
+  return out.filter(p => {
+    const n = p.email ? resolved[p.email] : null;
+    if (!n) return true;
+    return !!(n.channels.slack_dm && n.types.morning_brief && n.types.morning_brief.slack_dm);
+  });
+}
+
 export async function myWorkDmTick(env, d) {
   if ((await d.getSetting(env, 'myworkDm')) === 'off') return { skipped: 'off' };
   const date = d.centralDate(), hour = d.centralHour();
   if (!dmWindow(date, hour)) return { skipped: 'outside 5am on a weekday' };
   const people = await teamPeople(env, d), names = await dmPeople(env, d);
+  const saved = await allSavedNotify(env).catch(() => ({}));
   const due = [];
-  for (const nm of names) {
-    const p = people.find(x => x.name.toLowerCase() === nm.toLowerCase());
+  for (const p of dmRecipients(names, people, saved, { slackReady: !!d.slackApi })) {
     if (p && p.slack && !(await d.getSetting(env, `myworkDm:${date}:${p.name}`))) due.push(p);
   }
   if (!due.length) return { sent: [], note: 'everyone had theirs' };
@@ -381,4 +412,4 @@ export async function handleMyWork(request, env, url, path, json, d) {
   } catch (e) { return json({ error: e.message }, e.status || 500); }
 }
 
-export const _test = { goalMonthsDue, goalItems, peopleFrom, access, forPerson, dmText, dmMessage, dmWindow, isPerson, myWorkDmTick, handleMyWork, slackTitle };
+export const _test = { goalMonthsDue, goalItems, peopleFrom, access, forPerson, dmText, dmMessage, dmWindow, isPerson, myWorkDmTick, handleMyWork, slackTitle, dmRecipients };

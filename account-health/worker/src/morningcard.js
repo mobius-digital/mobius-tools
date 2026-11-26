@@ -36,6 +36,7 @@ import { ensureActions, markDone, reminderMessage, ROSTER } from './actions.js';
 import { breakoutsFor } from './social.js';
 import { readKept } from './morning.js';
 import { laneLines, laneName, laneOfArea, laneOwner, fyi } from './lane.js';
+import { jobOn } from './jobflags.js';
 
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 export const DEFAULT_MORNING_HOUR = 5;
@@ -276,14 +277,18 @@ export async function buildCard(env, d, a, today, shared = {}) {
          every other day reads the list with the last check's verdicts, at no AI cost. */
       const L = await d.leaks(env, a.act_id, { ai: monday });
       const big = ((L && L.leaks) || []).filter(l => (l.cost || 0) >= LEAK_FLOOR);
-      leakIds = big.map(l => l.id);
       const prev = (await loadCard(env, a.act_id, yday))?.leaks;
+      /* 2026-11-26: the leak line is a quiet job (jobflags.js jobOn:leakLine). While quiet the card carries the last
+         SHOWN ids forward, so a leak first seen while quiet still reads as new once the line is switched back on. */
+      const leakOn = await jobOn(env, 'leakLine');
+      leakIds = leakOn ? big.map(l => l.id) : (Array.isArray(prev) ? prev : null);
       /* Monday (2026-10-14, Cole: "when does it show up in Slack, and what?"): the weekly check's ONE summary line, the
          biggest leak to act on and how many there are, tagged to its owner. Tuesday to Sunday: a line only when a NEW
          leak over LEAK_FLOOR appeared since yesterday's card. Both point at the brand's Overview, where the list lives. */
       const actOn = ((L && L.leaks) || []).filter(l => l.verdict !== 'not_the_cause' && l.verdict !== 'measurement');
       const nw = Array.isArray(prev) ? big.find(l => !prev.includes(l.id)) : null;
-      if (monday && actOn.length) {
+      if (!leakOn) { /* quiet: the leaks list on the brand Overview has it */ }
+      else if (monday && actOn.length) {
         const top = actOn[0], n = (L.leaks || []).length, neg = (L.leaks || []).find(l => l.apply && l.apply.kind === 'negative');
         items.push({ key: 'leak:weekly', kind: 'leak', text: `Fix the biggest leak: ${words(top.title, 80)} (${moneyK(top.cost || 0, a.currency)} a month, est.; ${n} in all on Overview)`, who: top.owner || '', lane: 'MEDIA BUYING', rank: top.cost || 0 });
       } else if (nw) items.push({ key: `leak:${nw.id}`, kind: 'leak', text: `Fix a new leak: ${words(nw.title, 80)} (${moneyK(nw.cost, a.currency)} a month, est.)`, who: nw.owner || '', lane: 'MEDIA BUYING', rank: nw.cost });

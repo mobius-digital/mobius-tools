@@ -1,7 +1,50 @@
 {
- "note": "Sample. Every row is invented. The same shape as GET /api/notices. A row with client: true is one a client sees. when is sample only: the real rows carry created_at.",
+ "note": "Sample. Every row is invented. The same shape as GET /api/notices. A row with client: true is one a client sees. when is sample only: the real rows carry created_at. alerts lists the open alert rows (kind alert) in the order the server sends them, outage first.",
  "email": "sam@agency.example",
  "home": [
+  {
+   "id": "nt_alert2",
+   "kind": "alert",
+   "type": "outage",
+   "urgent": true,
+   "thing": "outage:meta",
+   "title": "Meta is reporting a problem",
+   "body": "The Meta status page says ads reporting is slow. Numbers may lag until it is fixed.",
+   "brand_id": null,
+   "state": "open",
+   "home": true,
+   "held_until": null,
+   "button": {
+    "kind": "open",
+    "page": "a-status/index",
+    "label": "Open"
+   },
+   "created_at": "2026-11-24T14:30:00Z",
+   "seen_at": "2026-11-24T16:00:00Z",
+   "when": "2 hours"
+  },
+  {
+   "id": "nt_alert1",
+   "kind": "alert",
+   "type": "spend_high",
+   "urgent": true,
+   "thing": "spend_high:brand_northlake_golf",
+   "title": "Northlake Golf is spending far above normal",
+   "body": "Spent $900 against a normal $400 (budgets included). Check for a budget typo, a doubled campaign or a new ad set.",
+   "brand_id": "brand_northlake_golf",
+   "state": "open",
+   "home": true,
+   "held_until": null,
+   "button": {
+    "kind": "open",
+    "page": "meta/live-now",
+    "brand_id": "brand_northlake_golf",
+    "label": "Open"
+   },
+   "created_at": "2026-11-24T15:00:00Z",
+   "seen_at": "2026-11-24T16:00:00Z",
+   "when": "1 hour"
+  },
   {
    "id": "nt_sample1",
    "kind": "proposal",
@@ -43,6 +86,49 @@
   }
  ],
  "bell": [
+  {
+   "id": "nt_alert2",
+   "kind": "alert",
+   "type": "outage",
+   "urgent": true,
+   "thing": "outage:meta",
+   "title": "Meta is reporting a problem",
+   "body": "The Meta status page says ads reporting is slow. Numbers may lag until it is fixed.",
+   "brand_id": null,
+   "state": "open",
+   "home": true,
+   "held_until": null,
+   "button": {
+    "kind": "open",
+    "page": "a-status/index",
+    "label": "Open"
+   },
+   "created_at": "2026-11-24T14:30:00Z",
+   "seen_at": "2026-11-24T16:00:00Z",
+   "when": "2 hours"
+  },
+  {
+   "id": "nt_alert1",
+   "kind": "alert",
+   "type": "spend_high",
+   "urgent": true,
+   "thing": "spend_high:brand_northlake_golf",
+   "title": "Northlake Golf is spending far above normal",
+   "body": "Spent $900 against a normal $400 (budgets included). Check for a budget typo, a doubled campaign or a new ad set.",
+   "brand_id": "brand_northlake_golf",
+   "state": "open",
+   "home": true,
+   "held_until": null,
+   "button": {
+    "kind": "open",
+    "page": "meta/live-now",
+    "brand_id": "brand_northlake_golf",
+    "label": "Open"
+   },
+   "created_at": "2026-11-24T15:00:00Z",
+   "seen_at": "2026-11-24T16:00:00Z",
+   "when": "1 hour"
+  },
   {
    "id": "nt_sample1",
    "kind": "proposal",
@@ -124,7 +210,58 @@
  ],
  "morning": [],
  "counts": {
-  "open": 4,
-  "taps": 2
+  "open": 6,
+  "taps": 2,
+  "alerts": 2
+ },
+ "alerts": [
+  {
+   "id": "nt_alert2",
+   "kind": "alert",
+   "type": "outage",
+   "urgent": true,
+   "thing": "outage:meta",
+   "title": "Meta is reporting a problem",
+   "body": "The Meta status page says ads reporting is slow. Numbers may lag until it is fixed.",
+   "brand_id": null,
+   "state": "open",
+   "home": true,
+   "held_until": null,
+   "button": {
+    "kind": "open",
+    "page": "a-status/index",
+    "label": "Open"
+   },
+   "created_at": "2026-11-24T14:30:00Z",
+   "seen_at": "2026-11-24T16:00:00Z",
+   "when": "2 hours"
+  },
+  {
+   "id": "nt_alert1",
+   "kind": "alert",
+   "type": "spend_high",
+   "urgent": true,
+   "thing": "spend_high:brand_northlake_golf",
+   "title": "Northlake Golf is spending far above normal",
+   "body": "Spent $900 against a normal $400 (budgets included). Check for a budget typo, a doubled campaign or a new ad set.",
+   "brand_id": "brand_northlake_golf",
+   "state": "open",
+   "home": true,
+   "held_until": null,
+   "button": {
+    "kind": "open",
+    "page": "meta/live-now",
+    "brand_id": "brand_northlake_golf",
+    "label": "Open"
+   },
+   "created_at": "2026-11-24T15:00:00Z",
+   "seen_at": "2026-11-24T16:00:00Z",
+   "when": "1 hour"
+  }
+ ],
+ "features": {
+  "creatorProgram": true,
+  "socialPosting": false,
+  "siteReviewsOpen": false
  }
 }

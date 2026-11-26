@@ -16,9 +16,9 @@
   "parked"
  ],
  "counts": {
-  "total": 100,
-  "notOnRenderer": 69,
-  "keep": 54,
+  "total": 101,
+  "notOnRenderer": 70,
+  "keep": 55,
   "move": 25,
   "off after Dec 2": 20,
   "parked": 1
@@ -2215,6 +2215,86 @@
           "text": {
            "type": "plain_text",
            "text": "Open Status"
+          },
+          "url": "https://example.test/locus"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "alarm_bridge_dm",
+   "group": "Alerts when something breaks",
+   "name": "Urgent alarm DM (until Dec 5)",
+   "channel": "Slack DM",
+   "who": "The brand's buyer and the owner",
+   "kind": "internal_alert",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "When an ad account is blocked or unpaid, a live campaign stopped spending, or ads spend with no store order for hours; once per thing per day, only until per person delivery copies go live on Dec 5.",
+   "why": "Money stops right now and the bell is not on phones yet, so the row in Locus also gets a Slack DM.",
+   "where": [
+    "urgent.js:copies"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Alerts to the team",
+   "example": {
+    "text": "Northlake Golf: ads spending, no order in 5 hours. Check the store and the checkout.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Northlake Golf: ads spending, no order in 5 hours"
+      }
+     }
+    ],
+    "attachments": [
+     {
+      "color": "#E01E5A",
+      "blocks": [
+       {
+        "type": "section",
+        "text": {
+         "type": "mrkdwn",
+         "text": "Check the store and the checkout."
+        }
+       },
+       {
+        "type": "section",
+        "fields": [
+         {
+          "type": "mrkdwn",
+          "text": "*Since the last order*\n$180 ad spend"
+         },
+         {
+          "type": "mrkdwn",
+          "text": "*Normal gap*\nabout 2 hours"
+         }
+        ]
+       },
+       {
+        "type": "context",
+        "elements": [
+         {
+          "type": "mrkdwn",
+          "text": "Triple Whale, Meta · 2:10pm CT"
+         }
+        ]
+       },
+       {
+        "type": "actions",
+        "elements": [
+         {
+          "type": "button",
+          "action_id": "noop_open",
+          "text": {
+           "type": "plain_text",
+           "text": "Open in Locus"
           },
           "url": "https://example.test/locus"
          }

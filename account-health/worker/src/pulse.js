@@ -108,7 +108,7 @@ export async function pulseImport(env, { state, history }) {
 }
 
 /* ---------------- the 5-minute tick ---------------- */
-export async function pulseTick(env, { F = fetch, slackApi } = {}) {
+export async function pulseTick(env, { F = fetch, slackApi, urgent } = {}) {
   const prevState = (await get(env, K.state)) || {};
   const results = await Promise.all(PLATFORMS.filter(p => p.type !== 'link').map(p => poll(p, F)));
   const now = new Date().toISOString(), next = {}, changes = [];
@@ -126,6 +126,19 @@ export async function pulseTick(env, { F = fetch, slackApi } = {}) {
       }
     }
     next[r.id] = { name: r.name, worst: r.worst, ok: r.ok, error: r.error || null, services: svc, checkedAt: now };
+  }
+  /* 2026-11-26 (urgent.js, passed in by worker.js): the owner's Locus alert row for Meta, Google Ads and Shopify. A feed
+     that never loaded ('unknown') neither raises nor clears. A clear runs only when the platform was not operational at
+     the last look (or there was no last look), so a healthy platform costs no D1 write every 5 minutes. The #outages
+     post below is unchanged. */
+  if (urgent) for (const id of ALERT_ON) {
+    const n = next[id];
+    if (!n || n.worst === 'unknown') continue;
+    if (n.worst !== 'operational') {
+      const bad = Object.values(n.services || {}).find(s => s.state === n.worst);
+      await Promise.resolve(urgent.raise({ type: 'outage', thing: id, title: `${n.name} is having problems`,
+        body: `${bad ? `${bad.name}: ${bad.note || n.worst}` : `Status: ${n.worst}`}. Check whether clients should hear about it.` })).catch(() => {});
+    } else if (!prevState[id] || prevState[id].worst !== 'operational') await Promise.resolve(urgent.clear('outage', id)).catch(() => {});
   }
   const writes = [put(env, K.lastRun, now)];
   const stable = o => JSON.stringify(o).replace(/"checkedAt":"[^"]*"/g, '');
