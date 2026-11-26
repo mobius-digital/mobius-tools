@@ -188,6 +188,22 @@ await ok('morning brief DM recipients: the code list, opt ins, saved opt outs', 
   assert.deepEqual(names(myWork.dmRecipients(['Drew'], people, {})), ['Drew'], 'a name with no email keeps today\'s behavior');
   assert.deepEqual(names(myWork.dmRecipients([], people, { 'casey@agency.example': on }, { slackReady: false })), [], 'no Slack: no opt in joins');
 });
+await ok('notify_chosen: false until a notify save, a delivery only save does not count, a dismiss (the default) does', async () => {
+  fresh(); as('new@agency.example');
+  assert.equal((await call('GET', '/api/me/delivery')).body.notify_chosen, false, 'never saved: v5 asks once');
+  const p0 = await call('PUT', '/api/me/delivery', { delivery: { mode: 'mute' } });
+  assert.equal(p0.body.notify_chosen, false, 'the older delivery fields are not a preset choice');
+  const p1 = await call('PUT', '/api/me/delivery', { notify: { preset: 'urgent_brief' } });
+  assert.equal(p1.body.notify_chosen, true, 'the default saved by a dismiss counts as chosen');
+  assert.equal(p1.body.notify.preset, 'urgent_brief');
+  assert.equal((await call('GET', '/api/me/delivery')).body.notify_chosen, true, 'never asked again');
+  as('pick@agency.example');
+  const p2 = await call('PUT', '/api/me/delivery', { notify: { preset: 'only_urgent' } });
+  assert.equal(p2.body.notify.preset, 'only_urgent'); assert.equal(p2.body.notify_chosen, true);
+  fresh(); as('pat@northlake.example', { email: 'pat@northlake.example', ids: new Set(['brand_northlake_golf']) });
+  assert.equal((await call('GET', '/api/me/delivery')).body.notify_chosen, false, 'a client is asked too');
+  assert.equal((await call('PUT', '/api/me/delivery', { notify: { preset: 'everything' } })).body.notify_chosen, true);
+});
 await ok('saveNotify makes the row with the old columns at their defaults', async () => {
   fresh(); as('sam@agency.example');
   await call('GET', '/api/me/delivery');

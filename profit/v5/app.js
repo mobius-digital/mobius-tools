@@ -116,7 +116,7 @@ async function boot() {
   /* The welcome cards are decided on a FRESH /api/me: a saved boot copy can still say welcome_seen false after the
      cards were closed. A copy under a minute old is not refreshed (cached maxAge), so it counts as fresh. */
   let decided = false, started = false, freshSeen = false;
-  const decide = () => { if (decided || !started) return; decided = true; welcomeCards(); };
+  const decide = () => { if (decided || !started) return; decided = true; welcomeCards(); firstPreset(); };
   const onFresh = fresh => { shell.update(fresh.data); freshSeen = true; decide(); };
   onFresh.touch = () => { freshSeen = true; decide(); };
   try {
@@ -156,6 +156,13 @@ function welcomeCards() {
   if (st.realRole !== 'client' || st.asClient || !c || c.welcome_seen !== false || heldHere(st, r)) return;
   const brand = (r && shell.brandBySlug(r.brand)) || st.brands[0] || null;
   import('./pages/get-started/_welcome.js').then(m => m.showWelcome({ brand, me: st.me })).catch(() => {});
+}
+
+/* How things reach me: asked once per person who never saved a preset (pages/profile/_first-preset.js waits for the
+   welcome cards to close). Sample: ?sample=1&firstpreset=1. */
+function firstPreset() {
+  const st = shell.state();
+  import('./pages/profile/_first-preset.js').then(m => m.askOnce({ st, held: heldHere(st, router.currentRoute()) })).catch(() => {});
 }
 
 /* The agency feature switches (Creator program, Social posting): a line whose switch is off leaves the menus.
