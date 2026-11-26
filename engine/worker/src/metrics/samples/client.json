@@ -205,5 +205,6 @@
   }
  },
  "live_as_of": null,
- "hours": null
+ "hours": null,
+ "goals_planned": true
 }

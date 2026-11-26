@@ -482,6 +482,10 @@ function goalsFor(acct, ym) {
   return { ...inheritedGoals(g, ym), ...(g[ym] || {}) };
 }
 const marginOverride = (acct, ym) => goalsFor(acct, ym).cm_pct ?? null;
+/* NO GOAL SET (2026-11-26): a month counts as planned only when its OWN key carries a sales goal. A margin save, a
+   spend-only save or the strategist's goals tool can leave goals_json[ym] as {} or { cm_pct }: that month is NOT
+   planned, and goalsFor still hands back the inherited goal. Same test as account-health briefData and reportData. */
+export const goalsPlanned = (acct, ym) => safeJson(acct.goals_json, {})?.[ym]?.sales != null;
 const pubAccount = a => ({ act_id: a.act_id, name: a.name, currency: a.currency, tz: a.tz, tw_shop: a.tw_shop });
 
 /* ---------------- the money model ----------------
@@ -1914,7 +1918,7 @@ export default {
         const { rows, margin_pct, exp, rules } = await seriesFor(env, acct, from, to);
         const t = totals(rows);
         const g = goalsFor(acct, ym);
-        const planned = safeJson(acct.goals_json, {})[ym]?.sales != null; // own sales goal, not a key a margin save made
+        const planned = goalsPlanned(acct, ym); // own sales goal, not a key a margin save made
         // Profit is shown only when we would trust it internally. A client should
         // never be the first person to see a number the Costs page calls broken.
         const snap = await env.DB.prepare(`SELECT verdict FROM p_cost_health WHERE act_id = ?1`).bind(acct.act_id).first().catch(() => null);
@@ -2336,6 +2340,9 @@ export default {
             channels: channels || undefined,
             goals: g.sales != null || g.spend != null ? g : null,
             plan, live_as_of: live ? live.as_of : null,
+            /* The month the goals and plan are for, and whether that month has its own sales goal typed (goalsPlanned).
+               False = the goals above are inherited from an earlier month: show no goal for it. */
+            goals_planned: goalsPlanned(a, ym), month: ym,
             margin_pct, cost_health: health, shipping,
             slack_channel: a.slack_channel || null, brief_channel: a.brief_channel || null,
             brief_enabled: !!a.brief_enabled,
@@ -2387,6 +2394,8 @@ export default {
           totals: totals(rows), mtd: totals(mtdRows),
           goals: goalsFor(acct, ym), plan,
           live_as_of: liveAsOf, hours,
+          /* The month goals and plan are for (the brand's own month today) has its own sales goal typed (goalsPlanned). */
+          goals_planned: goalsPlanned(acct, ym),
         });
       }
 
@@ -2495,8 +2504,9 @@ export default {
           goals: goalsFor(acct, ym), plan: saved || null,
           // A month only counts as planned if somebody planned THAT month. The
           // `default` block is an inheritance convenience and would otherwise make
-          // every future month look like it already had a plan.
-          planned: !!safeJson(acct.goals_json, {})[ym],
+          // every future month look like it already had a plan. And only with a sales
+          // goal of its own (goalsPlanned): a margin or spend-only save makes a key too.
+          planned: goalsPlanned(acct, ym),
           current_month: today2,
           at_current_pace: fc ? { projected: fc.at_current_pace?.sales ?? null, month: fc.month } : null,
         });

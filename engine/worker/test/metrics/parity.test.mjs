@@ -108,3 +108,34 @@ test('same answer as the old engine with no history at all: the forecast says so
     assert.deepEqual(differences(old.json, now.json), [], path);
   }
 });
+
+/* NO GOAL SET (2026-11-26): goals_planned on /api/client and /api/overview (with month), and planned on /api/plan,
+   count a month as planned only when its own key carries a sales goal. Old and new answer the same for each case. */
+const GOAL_CASES = [
+  ['no key for the month (only the default)', { default: { sales: 40000, spend: 9000 } }, false],
+  ['an empty key', { default: { sales: 40000 }, [ym]: {} }, false],
+  ['a spend only key', { default: { sales: 40000 }, [ym]: { spend: 11000 } }, false],
+  ['a margin only key', { default: { sales: 40000 }, [ym]: { cm_pct: 0.5 } }, false],
+  ['a sales goal of its own', { [ym]: { sales: 52000, spend: 11000 } }, true],
+  ['a sales goal of 0', { [ym]: { sales: 0 } }, true],
+];
+for (const [label, goals, want] of GOAL_CASES) {
+  test(`goals_planned and planned, old and new agree: ${label}`, async () => {
+    const env = makeEnv({ groups: ['metrics'], rows: storeData() });
+    setGoals(env);
+    env.DB.raw.prepare('UPDATE brands SET goals_json = ? WHERE id = ?').run(JSON.stringify(goals), NORTH);
+    for (const [path, read] of [
+      [`/api/client?act=${NORTH}`, j => j.goals_planned],
+      ['/api/overview', j => { const a = j.accounts.find(x => x.act_id === NORTH); assert.equal(a.month, ym); return a.goals_planned; }],
+      [`/api/plan?act=${NORTH}`, j => j.planned],
+    ]) {
+      forgetStale();
+      const now = await call(env, 'GET', `/pw${path}`, { token: asCaller('owner') });
+      assert.equal(now.engine, 'new', path);
+      const old = await askOld(env, path === '/api/overview' ? `${path}?fresh=1` : path);
+      assert.deepEqual(differences(old.json, now.json).slice(0, 12), [], `${label}: ${path}`);
+      assert.equal(read(now.json), want, `${label}: ${path} new`);
+      assert.equal(read(old.json), want, `${label}: ${path} old`);
+    }
+  });
+}

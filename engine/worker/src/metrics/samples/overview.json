@@ -203,6 +203,8 @@
     }
    },
    "live_as_of": null,
+   "goals_planned": true,
+   "month": "2026-01",
    "margin_pct": null,
    "cost_health": {
     "act_id": "brand_north_kites",
@@ -433,6 +435,8 @@
     }
    },
    "live_as_of": null,
+   "goals_planned": false,
+   "month": "2026-01",
    "margin_pct": 0.55,
    "cost_health": {
     "act_id": "brand_river_tea",

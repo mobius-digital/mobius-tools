@@ -28,6 +28,10 @@ export function goalsFor(acct, ym) {
 
 export const marginOverride = (acct, ym) => goalsFor(acct, ym).cm_pct ?? null;
 
+/* A month counts as planned only when its own key carries a sales goal (old goalsPlanned, 2026-11-26). A margin or a
+   spend-only save leaves a key without one: that month is not planned, and goalsFor hands back the inherited goal. */
+export const goalsPlanned = (acct, ym) => safeJson(acct.goals_json, {})?.[ym]?.sales != null;
+
 export const pubAccount = a => ({ act_id: a.act_id, name: a.name, currency: a.currency, tz: a.tz, tw_shop: a.tw_shop });
 
 /* The tracker rows of one window only. */
