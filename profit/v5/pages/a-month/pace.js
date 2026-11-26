@@ -51,7 +51,7 @@ function render(el, d, ctx) {
     sort: { key: 'pace', dir: 'asc' }, rows, total,
     cols: [
       { key: 'name', label: 'Brand', class: 'name', render: r => r.total ? r.name : brandName(r, ctx, r.href) },
-      { key: 'sales', label: 'Sales', num: true, sortable: true, class: 'strong', value: r => r.sales ?? -1, render: r => !r.store ? noStore() : [money(r.sales), planned && !r.total ? h('span', { class: 'sub' }, ok(r.plan_sales) ? `plan to date ${money(r.plan_sales)}` : 'no plan') : null] },
+      { key: 'sales', label: 'Sales', num: true, sortable: true, class: 'strong', value: r => r.sales ?? -1, render: r => !r.store ? noStore() : [money(r.sales), planned && !r.total ? h('span', { class: 'sub' }, ok(r.plan_sales) ? `plan to date ${money(r.plan_sales)}` : r.no_goal ? `No goal set for ${r.no_goal}` : 'no plan') : null] },
       planned && { key: 'pace', label: dl('Of plan', 'plan_to_date'), num: true, sortable: true, value: r => r.st.pace ?? 9, render: r => ok(r.st.pace) ? pct(r.st.pace) : '' },
       planned && { key: 'g', label: 'Against plan', width: 170, class: 'g hide-md', render: r => r.store && ok(r.plan_sales) ? against(r.sales, r.plan_sales, r.st.tone === 'off' ? '' : r.st.tone) : '' },
       { key: 'spend', label: 'Ad spend', num: true, sortable: true, value: r => r.spend ?? -1, render: r => [money(r.spend), planned && ok(r.plan_spend) && !r.total ? h('span', { class: 'sub' }, `plan ${money(r.plan_spend)}`) : null] },
@@ -59,7 +59,7 @@ function render(el, d, ctx) {
       { key: 'st', label: 'Status', render: r => r.total ? '' : planned ? state(r) : ok(r.goal_mer) && r.store ? statusDot(merTone(r), r.mer >= r.goal_mer ? 'At goal MER' : 'Under goal MER') : r.store ? '' : state(r) },
     ].filter(Boolean),
     item: (r, isTotal) => ({ href: r.href, head: isTotal ? h('b', null, r.name) : brandName(r, ctx), tail: isTotal || !planned ? null : state(r),
-      figs: [['Sales', r.store ? money(r.sales) : noStore()], [planned ? 'Of plan' : 'Ad spend', planned ? (ok(r.st.pace) ? pct(r.st.pace) : quiet(r.store ? 'no plan' : '')) : money(r.spend)], ['MER', r.store ? x(r.mer) : quiet('no data')]],
+      figs: [['Sales', r.store ? money(r.sales) : noStore()], [planned ? 'Of plan' : 'Ad spend', planned ? (ok(r.st.pace) ? pct(r.st.pace) : quiet(r.store ? (r.no_goal ? 'no goal' : 'no plan') : '')) : money(r.spend)], ['MER', r.store ? x(r.mer) : quiet('no data')]],
       gauge: planned && r.store && ok(r.plan_sales) && !isTotal ? against(r.sales, r.plan_sales, r.st.tone === 'off' ? '' : r.st.tone) : null }),
   });
 
