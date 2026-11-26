@@ -47,7 +47,7 @@
 
 import { APP_NAME, OWNER_FIRST, workers, token } from '../../config.js';
 import { h, put, money, x, pill, button, card, empty, sheet, toast, addStyles, segmented, platformChip, lineChart, legend, table, tipShow, tipHide, tipRow } from '../../kit.js';
-import { defined, defLabel, pageHelp } from '../../defs.js';
+import { defined, defLabel, pageHelp, glossaryFor } from '../../defs.js';
 import { fixture } from '../../data.js';
 import { undoSheet } from '../meta/_write.js';
 import { forgetWaiting } from '../../bell.js';
@@ -113,8 +113,15 @@ const CSS = `
 .wr3-act{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .wr3-act .lx-btn{min-height:40px}
 /* brand cards: one style for every brand */
-.wr3-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-5);align-items:start}
-.wr3-grid.one{grid-template-columns:minmax(0,1fr)}
+.wr3-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--sp-5);align-items:start}
+@media (min-width:1100px){
+  .wr3-b{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);column-gap:var(--sp-6)}
+  .wr3-b>*{grid-column:1/-1}
+  .wr3-b>.wr3-tiles{grid-column:1;grid-row:3}
+  .wr3-b>.wr3-spark{grid-column:2;grid-row:3;align-self:stretch}
+  .wr3-b:not(:has(>.wr3-spark))>.wr3-tiles{grid-column:1/-1}
+  .wr3-ct .lx-table th{white-space:nowrap}
+}
 .wr3-b{position:relative;display:grid;gap:var(--sp-4);min-width:0;overflow:hidden}
 .wr3-b.yes::before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:var(--watch)}
 .wr3-r1{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;min-width:0}
@@ -189,7 +196,6 @@ const CSS = `
 .wr3-msg{white-space:pre-line;background:var(--surface-2);border-radius:12px;padding:12px 14px;font-size:13.5px;line-height:1.5;color:var(--ink)}
 .wr3-cu{display:grid;gap:var(--sp-4);min-width:0}
 .wr3-cu .wcc{max-width:100%}
-@media (max-width:1100px){.wr3-grid{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:900px){.wr3-hk{grid-template-columns:1fr 1fr}.wr3-hk>:first-child{grid-column:1/-1}}
 @media (max-width:759px){
   .wr3-bar .btns{width:100%}
@@ -680,7 +686,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
       { key: 'today', label: defLabel('ROAS today', 'roas'), num: true, render: cp => roasCell(cp.w.today, c) },
       { key: 'week', label: defLabel('ROAS this week', { title: 'ROAS this week', body: 'This campaign\'s ROAS from Monday 12am Central to now. Context only: it breaks a tie or adds a note, it never blocks a raise.' }), num: true, class: 'hide-sm',
         render: cp => roasCell(cp.w.week, c) },
-      { key: 'call', label: defLabel('Call', 'calls'), num: true, width: 82, render: cp => {
+      { key: 'call', label: defLabel('Call', c.roas && ok(c.roas.be) ? { title: 'The call', body: `${glossaryFor('calls').definition} This brand's break-even ROAS: ${fx(c.roas.be)}${c.roas.assumed ? `, ${assumedWhy(c.roas)}` : ''}.` } : 'calls'), num: true, width: 82, render: cp => {
         const word = callWord(c, cp), tone = cp.done ? 'good' : cp.move && !S.probing ? CALL_TONE[cp.call] : '';
         const p = pill(tone, word);
         defined(p, callKey(c, cp));
@@ -705,7 +711,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     else if (done.length) dec = done.map(doneText);
     else if (!c.camps.length) { dec = 'No live campaign in Meta'; dim = true; }
     else dec = c.camps.some(cp => cp.needs_ads) ? 'Hold all campaigns, new ads needed' : 'Hold all campaigns';
-    const sinceLabel = c.basis ? `Since last check-in (${c.basis.short})` : 'Since last check-in';
+    const sinceLabel = c.basis ? `Since the ${c.basis.short} check-in` : 'Since last check-in';
     const warns = [];
     if (c.mode === 'live' && !S.probing && c.gate && (c.gate.light === 'amber' || c.gate.light === 'red') && c.gate.why) warns.push(c.gate.why);
     if (c.roas && c.roas.unread) warns.push('The goal ROAS could not be read, so there are no campaign calls.');
@@ -723,7 +729,6 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
       warns.map(t => h('p', { class: 'wr3-amber' }, t)),
       one ? null : sparkFor(c),            // one brand: the hero above already draws its today by the hour
       campTable(c),
-      c.roas && c.roas.assumed && c.camps.length ? h('p', { class: 'wr3-quiet' }, defLabel('Break-even ROAS', 'break_even_roas'), ` ${fx(c.roas.be)}, ${assumedWhy(c.roas)}.`) : null,
       c.roas && c.roas.unread ? h('div', { class: 'wr3-act' }, button('Read the goal ROAS again', { onclick: e => refresh(e.currentTarget) })) : null,
       h('div', { class: 'wr3-foot' },
         write ? button('Client update', { onclick: () => clientSheet(c) }) : null,
