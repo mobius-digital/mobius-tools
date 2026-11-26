@@ -4,7 +4,7 @@
 import { domains } from '../domains.js';
 import { buildTable } from './table.js';
 import { identify } from './auth.js';
-import { check, filterAnswer } from './access.js';
+import { check, filterAnswer, GATED_CODE } from './access.js';
 import { door } from './db.js';
 import { readInput } from './input.js';
 import { read as readFlags } from './flags.js';
@@ -146,7 +146,8 @@ async function route(base, log, { ignoreFlag = false } = {}) {
 function errorAnswer(e, log) {
   if (isEngineError(e)) {
     log.refused = e.code || e.message.slice(0, 80);
-    return json({ error: e.message }, e.status, { [ENGINE_HEADER]: 'new' });
+    /* A brand still held on Get started says so, the way the old brand guard answers it. */
+    return json({ error: e.message, ...(e.code === GATED_CODE ? { gated: true } : {}) }, e.status, { [ENGINE_HEADER]: 'new' });
   }
   log.level = 'error';
   log.error = String((e && e.stack) || e).slice(0, 1200);

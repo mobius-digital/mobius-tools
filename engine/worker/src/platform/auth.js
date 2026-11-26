@@ -39,7 +39,19 @@ async function clientCaller(env, me, counters) {
   const read_only = row.readOnly === true || (hq && c.readOnly === true);
   return { kind: 'client', email, name: c.name || '', view_only: read_only, brand_ids,
     ids: await expandIds(env, brand_ids, counters),
-    client: { name: c.name || null, hq, read_only }, via: 'session', me };
+    client: { name: c.name || null, hq, read_only, ...setupOf(c, brand_ids) }, via: 'session', me };
+}
+
+/* The Get started hold (2026-11-26): the old side's /api/me already says which brands of this login are still being
+   set up (client.onboarding, account-health onboard.js onboardGate), so it costs nothing here. held = the brand ids the
+   access check keeps out of every route that is not part of setting up; one_job = a colleague handed one setup step,
+   who only ever opens Get started. A gated answer with no list (an older old side) holds every brand. */
+function setupOf(c, brand_ids) {
+  const o = isPlainObject(c.onboarding) && c.onboarding.gated === true ? c.onboarding : null;
+  if (!o) return { held: [], one_job: false };
+  const one_job = Array.isArray(o.only) && o.only.length > 0;
+  const held = one_job || !Array.isArray(o.gated_brands) ? [...brand_ids] : brand_ids.filter(id => o.gated_brands.includes(id));
+  return { held, one_job };
 }
 
 async function teamCaller(env, me, counters) {
@@ -72,7 +84,10 @@ export async function identify(request, env, counters = {}) {
   const token = tokenOf(request);
   if (!token) return NOBODY;
   const fresh = !new URL(request.url).pathname.startsWith('/pw/');
-  const me = await who(env, token, { fresh });
+  let me = await who(env, token, { fresh });
+  /* A login held on Get started is asked again on every request, so finishing opens the app at once. */
+  const setup = me && me.role === 'client' && isPlainObject(me.client) && isPlainObject(me.client.onboarding) && me.client.onboarding.gated === true;
+  if (setup && !fresh) me = await who(env, token, { fresh: true });
   if (!me) return NOBODY;
   return me.role === 'client' ? clientCaller(env, me, counters) : teamCaller(env, me, counters);
 }
