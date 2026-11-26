@@ -3,7 +3,7 @@
 import { dailyPost, noGoalLine } from './src/clientpost.js';
 import { _test } from './src/mywork.js';
 import { readFacts } from './src/reportread.js';
-import { monthPlanned } from './src/goalplan.js';
+import { monthPlanned, keepDefaultMonth } from './src/goalplan.js';
 const { goalMonthsDue, goalItems, forPerson, dmText, dmMessage } = _test;
 let n = 0, bad = 0;
 const ok = (c, m) => { n++; if (!c) { bad++; console.log('FAIL', m); } };
@@ -103,10 +103,32 @@ ok(monthPlanned({ '2026-11': { spend: 500 }, default: { spend: 500 } }, '2026-11
 ok(monthPlanned({ '2026-10': { sales: 7 } }, '2026-11') === false, 'previous month only: unplanned');
 ok(monthPlanned({ '2026-10': { sales: 7 }, default: { cm_pct: 0.4 } }, '2026-11') === false, 'previous month and a margin-only default: unplanned');
 ok(monthPlanned({}, '2026-11') === false && monthPlanned(null, '2026-11') === false && monthPlanned('not json', '2026-11') === false, 'nothing: unplanned');
-ok(goalMonthsDue(typedDefault, '2026-11-26').length === 0, 'My day: default typed, nothing due (next month falls back to default too)');
+ok(goalMonthsDue(typedDefault, '2026-11-24').length === 0, 'My day: November covered by default, nothing due before the 25th');
 ok(goalMonthsDue({ '2026-10': { sales: 7 } }, '2026-11-02').join() === '2026-11', 'My day: previous month only, still due');
-const gDef = { ...g, goals: [{ act_id: 'brand_dartee_golf', name: 'Brand A', goals_json: JSON.stringify(typedDefault), brief_enabled: 1 }] };
-ok(goalItems(gDef, noma).length === 0, 'My day: no Set goal line when default is typed');
+
+// 9. Default cannot say which month it was typed for (every save writes the month key AND default), so it covers only
+//    up to DEFAULT_LAST_MONTH and only while no later month has a key. The save shape {default, last month} must not
+//    plan December or any later month, so "Set December's goal" still shows and Dec 1 reads "No goal set".
+const saved = { default: { sales: 100 }, '2026-10': { sales: 100 } };   // what every save path leaves behind
+ok(monthPlanned(saved, '2026-11') === true, 'save shape: November planned by the legacy default');
+ok(monthPlanned(saved, '2026-12') === false, 'save shape: December NOT planned');
+ok(monthPlanned(saved, '2027-03') === false, 'save shape: a later month NOT planned');
+ok(monthPlanned(saved, '2026-09') === false, 'save shape: a month before a dated key is not planned by default');
+ok(monthPlanned({ default: { sales: 5 } }, '2026-12') === false, 'default only: December still needs its own key');
+ok(monthPlanned({ default: { sales: 5 }, '2026-12': { sales: 5 } }, '2026-11') === false, 'a later key means default was rewritten: November not planned by it');
+ok(monthPlanned({ default: { sales: 5 }, '2026-12': { sales: 5 } }, '2026-12') === true, 'the later month planned by its own key');
+ok(goalMonthsDue(saved, '2026-11-26').join() === '2026-12', 'My day: from the 25th December is due even with a default');
+ok(goalMonthsDue(saved, '2026-12-01').join() === '2026-12', 'My day: Dec 1, still due until typed');
+const gDef = { ...g, goals: [{ act_id: 'brand_dartee_golf', name: 'Brand A', goals_json: JSON.stringify(saved), brief_enabled: 1 }] };
+ok(goalItems(gDef, noma).length === 1 && goalItems(gDef, noma)[0].text === "Set December's goal for Brand A", 'My day: Set December line with a default');
+// keepDefaultMonth: a save for another month first writes the legacy goal into November's own key.
+const k1 = keepDefaultMonth({ default: { sales: 100, cm_pct: 0.4 }, '2026-10': { sales: 90 } }, '2026-12');
+ok(k1['2026-11']?.sales === 100 && k1['2026-11'].cm_pct === 0.4 && k1['2026-10'].sales === 90, 'keep: November gets the default goal');
+const k2 = keepDefaultMonth({ default: { sales: 100 }, '2026-11': { cm_pct: 0.3 } }, 'default');
+ok(k2['2026-11'].sales === 100 && k2['2026-11'].cm_pct === 0.3, 'keep: an own margin-only key keeps its margin');
+ok(!('2026-11' in keepDefaultMonth({ default: { sales: 100 } }, '2026-11')), 'keep: a save for November itself needs nothing');
+ok(!('2026-11' in keepDefaultMonth({ default: { sales: 100 }, '2026-12': { sales: 1 } }, '2027-01')), 'keep: default no longer covers November, nothing written');
+ok(!('2026-11' in keepDefaultMonth({ '2026-10': { sales: 9 } }, '2026-12')), 'keep: no default goal, nothing written');
 
 console.log(`${n - bad}/${n} passed`);
 if (bad) process.exit(1);

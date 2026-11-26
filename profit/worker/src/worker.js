@@ -479,20 +479,39 @@ function inheritedGoals(g, ym) {
 }
 function goalsFor(acct, ym) {
   const g = safeJson(acct.goals_json, {});
-  return { ...inheritedGoals(g, ym), ...(g[ym] || {}) };
+  // When default is what plans this month (defaultCovers), its numbers are the month's numbers: planned and the goal
+  // shown always come from the same place.
+  return { ...inheritedGoals(g, ym), ...(defaultCovers(g, ym) ? g.default : {}), ...(g[ym] || {}) };
 }
 const marginOverride = (acct, ym) => goalsFor(acct, ym).cm_pct ?? null;
 /* NO GOAL SET (2026-11-26): is a month PLANNED (somebody typed its sales goal) or only carrying an earlier month's?
-   Planned when the month's own key has a sales goal, or when it does not (no key at all, or a key a margin or
-   spend-only save left without sales) and "default" has a sales goal: brands keep the current month's goal in default
-   on purpose. Only falling back to a PREVIOUS MONTH's key (inheritedGoals) is unplanned. The one helper for this
-   worker; the same rule as account-health goalplan.js monthPlanned and the engine's series.js goalsPlanned. */
+   Planned when the month's own key has a sales goal, or when defaultCovers says "default" holds this month's goal.
+   Both save paths write the month key AND default on every save, so default alone cannot say which month it was typed
+   for. A sales goal in default with no key for the month is the legacy "current month's goal" brands kept there: it
+   covers months up to DEFAULT_LAST_MONTH, and only while no LATER month has a key (a later save rewrote default).
+   After DEFAULT_LAST_MONTH a month needs its own key. Before a save rewrites default, keepDefaultMonth writes the
+   legacy goal into DEFAULT_LAST_MONTH's own key so the save cannot unplan that month or change its number.
+   The one helper for this worker; the same rule as account-health goalplan.js and engine series.js. */
+export const DEFAULT_LAST_MONTH = '2026-11';
+export function defaultCovers(g, ym) {
+  if (!g || typeof g !== 'object' || !(ym <= DEFAULT_LAST_MONTH)) return false;
+  const d = g.default;
+  if (!(d && typeof d === 'object' && d.sales != null)) return false;
+  return !Object.keys(g).some(k => /^\d{4}-\d{2}$/.test(k) && k > ym);
+}
 export function monthPlanned(g, ym) {
   if (!g || typeof g !== 'object') return false;
   const own = g[ym];
   if (own && typeof own === 'object' && own.sales != null) return true;
-  const d = g.default;
-  return !!(d && typeof d === 'object' && d.sales != null);
+  return defaultCovers(g, ym);
+}
+/* Mutates `goals` before a save for `ym`: when default is what plans DEFAULT_LAST_MONTH, that goal moves into the
+   month's own key first. Nothing to do when the save is for that month or default does not plan it. */
+export function keepDefaultMonth(goals, ym) {
+  const L = DEFAULT_LAST_MONTH;
+  if (ym === L || !defaultCovers(goals, L) || goals[L]?.sales != null) return goals;
+  goals[L] = { ...goals.default, ...(goals[L] || {}) };
+  return goals;
 }
 export const goalsPlanned = (acct, ym) => monthPlanned(safeJson(acct.goals_json, {}), ym);
 const pubAccount = a => ({ act_id: a.act_id, name: a.name, currency: a.currency, tz: a.tz, tw_shop: a.tw_shop });
@@ -2550,6 +2569,7 @@ export default {
         if (b.spend != null && b.spend !== '') m.spend = +b.spend;
         if (b.amer != null && b.amer !== '') m.amer = +b.amer;
         if (keep != null) m.cm_pct = keep;
+        keepDefaultMonth(goals, ym);   // the legacy default goal keeps its month before default is rewritten
         goals[ym] = m;
         goals.default = { ...m };
         await env.DB.prepare(`UPDATE brands SET goals_json = ?2 WHERE id = ?1`)
@@ -2815,10 +2835,12 @@ export default {
         const per = months.map(ym => {
           const mr = rows.filter(r => r.date.startsWith(ym));
           const t = mr.length ? totals(mr) : null;
-          // Only an EXPLICIT entry counts as planned - `default` is inheritance.
-          const g = gjson[ym] || null;
+          // Planned = goalsPlanned, the same test as every other surface (own sales goal, or the legacy default
+          // that covers this month); the goal shown then comes from goalsFor, never a previous month's key.
+          const planned = monthPlanned(gjson, ym);
+          const g = planned ? goalsFor(acct, ym) : null;
           return {
-            month: ym, planned: !!g,
+            month: ym, planned,
             goal_sales: g?.sales ?? null, goal_spend: g?.spend ?? null,
             sales: t?.sales ?? null, spend: t?.spend ?? null, cm: t?.cm ?? null,
             days: mr.length, days_in_month: daysInMonth(ym),
@@ -2969,6 +2991,7 @@ export default {
         const m = {};
         for (const k of ['sales', 'spend', 'amer']) if (b[k] != null && b[k] !== '') m[k] = +b[k];
         if (keep != null) m.cm_pct = keep;
+        keepDefaultMonth(goals, ym);   // the legacy default goal keeps its month before default is rewritten
         goals[ym] = m;
         goals.default = { ...m };
         await env.DB.prepare(`UPDATE brands SET goals_json = ?2 WHERE id = ?1`)

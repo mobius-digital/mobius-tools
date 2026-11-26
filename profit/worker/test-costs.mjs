@@ -654,6 +654,27 @@ await check('18. goals_planned (client, overview with month) and planned (plan):
   } finally { db.prepare(`UPDATE brands SET goals_json = ? WHERE id = 'brand_alpha'`).run(was ?? null); }
 });
 
+await check('19. a save for a later month keeps the legacy default goal on its month; the quarter uses the same test', async () => {
+  const was = db.prepare(`SELECT goals_json FROM brands WHERE id = 'brand_alpha'`).get().goals_json;
+  const read = () => JSON.parse(db.prepare(`SELECT goals_json FROM brands WHERE id = 'brand_alpha'`).get().goals_json);
+  try {
+    // The shape every save leaves: default = the last typed goal, plus that month's own key.
+    db.prepare(`UPDATE brands SET goals_json = ? WHERE id = 'brand_alpha'`).run(JSON.stringify({ default: { sales: 40000, spend: 9000 }, '2026-10': { sales: 40000, spend: 9000 } }));
+    const q1 = (await call('GET', '/api/quarter?act=brand_alpha&q=2026-Q4')).j;
+    assert.deepEqual(q1.per.map(x => x.planned), [true, true, false], 'quarter: Oct own key, Nov legacy default, Dec unplanned');
+    assert.equal(q1.per[1].goal_sales, 40000, 'quarter: November shows the default goal');
+    assert.deepEqual(q1.unplanned, ['2026-12'], 'quarter: only December unplanned');
+    const r = await call('PUT', '/api/goals', { act: 'brand_alpha', month: '2026-12', sales: 61000, spend: 15000 });
+    assert.equal(r.status, 200, 'goals save');
+    const g = read();
+    assert.equal(g['2026-11']?.sales, 40000, 'November got its own key with the legacy goal');
+    assert.equal(g['2026-12'].sales, 61000, 'December saved'); assert.equal(g.default.sales, 61000, 'default rewritten');
+    const q2 = (await call('GET', '/api/quarter?act=brand_alpha&q=2026-Q4')).j;
+    assert.deepEqual(q2.per.map(x => x.goal_sales), [40000, 40000, 61000], 'quarter after the save: November keeps its number');
+    assert.deepEqual(q2.unplanned, [], 'quarter after the save: all planned');
+  } finally { db.prepare(`UPDATE brands SET goals_json = ? WHERE id = 'brand_alpha'`).run(was ?? null); }
+});
+
 const pass = checks.filter(Boolean).length;
 console.log(`\n${pass}/${checks.length} passed`);
 process.exit(pass === checks.length ? 0 : 1);

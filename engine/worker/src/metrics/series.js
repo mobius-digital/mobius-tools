@@ -23,21 +23,29 @@ function inheritedGoals(g, ym) {
 
 export function goalsFor(acct, ym) {
   const g = safeJson(acct.goals_json, {});
-  return { ...inheritedGoals(g, ym), ...(g[ym] || {}) };
+  // When default is what plans this month (defaultCovers), its numbers are the month's numbers.
+  return { ...inheritedGoals(g, ym), ...(defaultCovers(g, ym) ? g.default : {}), ...(g[ym] || {}) };
 }
 
 export const marginOverride = (acct, ym) => goalsFor(acct, ym).cm_pct ?? null;
 
-/* Is a month PLANNED (old goalsPlanned, 2026-11-26)? Planned when its own key has a sales goal, or when it does not
-   (no key at all, or a key a margin or spend-only save left without sales) and "default" has a sales goal: brands keep
-   the current month's goal in default on purpose. Only falling back to a PREVIOUS MONTH's key (inheritedGoals) is
-   unplanned. Same rule as account-health goalplan.js and profit worker.js monthPlanned. */
+/* Is a month PLANNED (old goalsPlanned, 2026-11-26)? Planned when its own key has a sales goal, or when defaultCovers
+   says "default" holds this month's goal. Every save writes the month key AND default, so default cannot say which
+   month it was typed for: a sales goal in default with no key for the month is the legacy current-month goal, and it
+   covers months up to DEFAULT_LAST_MONTH only while no LATER month has a key. Same rule as account-health goalplan.js
+   and profit worker.js (which also keeps that goal in its own key on save, keepDefaultMonth). */
+export const DEFAULT_LAST_MONTH = '2026-11';
+export function defaultCovers(g, ym) {
+  if (!g || typeof g !== 'object' || !(ym <= DEFAULT_LAST_MONTH)) return false;
+  const d = g.default;
+  if (!(d && typeof d === 'object' && d.sales != null)) return false;
+  return !Object.keys(g).some(k => /^\d{4}-\d{2}$/.test(k) && k > ym);
+}
 export function monthPlanned(g, ym) {
   if (!g || typeof g !== 'object') return false;
   const own = g[ym];
   if (own && typeof own === 'object' && own.sales != null) return true;
-  const d = g.default;
-  return !!(d && typeof d === 'object' && d.sales != null);
+  return defaultCovers(g, ym);
 }
 export const goalsPlanned = (acct, ym) => monthPlanned(safeJson(acct.goals_json, {}), ym);
 

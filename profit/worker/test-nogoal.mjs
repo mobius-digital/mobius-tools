@@ -9,10 +9,17 @@ import { hideUnsetGoals, goalsPlanned } from './src/worker.js';
    proven in test-costs.mjs (section 18). */
 {
   const a = g => ({ goals_json: g == null ? g : JSON.stringify(g) });
-  assert.equal(goalsPlanned(a({ default: { sales: 9000 } }), '2026-12'), true, 'default only: planned (typed there on purpose)');
+  // Default covers months up to DEFAULT_LAST_MONTH (2026-11) and only while no later month has a key.
+  assert.equal(goalsPlanned(a({ default: { sales: 9000 } }), '2026-11'), true, 'default only: November planned (legacy)');
+  assert.equal(goalsPlanned(a({ default: { sales: 9000 } }), '2026-12'), false, 'default only: December needs its own key');
   assert.equal(goalsPlanned(a({ '2026-08': { sales: 1 }, default: { sales: 9000 }, '2026-10': { sales: 9000 } }), '2026-11'), true, 'no own key, previous months and default: planned');
+  const saved = a({ default: { sales: 100 }, '2026-10': { sales: 100 } });   // the shape every save leaves
+  for (const ym of ['2026-12', '2027-03']) assert.equal(goalsPlanned(saved, ym), false, `save shape: ${ym} not planned`);
+  assert.equal(goalsPlanned(saved, '2026-09'), false, 'save shape: a month before a dated key not planned');
+  assert.equal(goalsPlanned(a({ default: { sales: 5 }, '2026-12': { sales: 5 } }), '2026-11'), false, 'a later key: default no longer covers November');
   assert.equal(goalsPlanned(a({ '2026-12': { sales: 7000 }, default: { sales: 9000 } }), '2026-12'), true, 'own key and default');
-  assert.equal(goalsPlanned(a({ '2026-12': { cm_pct: 0.5 }, default: { sales: 9000, cm_pct: 0.5 } }), '2026-12'), true, 'margin-only own key falls back to default sales');
+  assert.equal(goalsPlanned(a({ '2026-11': { cm_pct: 0.5 }, default: { sales: 9000, cm_pct: 0.5 } }), '2026-11'), true, 'margin-only own key falls back to default sales (November)');
+  assert.equal(goalsPlanned(a({ '2026-12': { cm_pct: 0.5 }, default: { sales: 9000, cm_pct: 0.5 } }), '2026-12'), false, 'margin-only own key in December: unplanned');
   assert.equal(goalsPlanned(a({ '2026-12': { spend: 4000 }, default: { spend: 4000 } }), '2026-12'), false, 'spend-only own key, spend-only default');
   assert.equal(goalsPlanned(a({ '2026-11': { sales: 9000 }, default: { cm_pct: 0.5 } }), '2026-12'), false, 'previous month and a margin-only default');
   assert.equal(goalsPlanned(a({ '2026-11': { sales: 9000 } }), '2026-12'), false, 'an earlier month does not plan this one');

@@ -301,9 +301,9 @@ profit/
   margin, so it is gated on the same cost-health check as everything else.
 - **A quarter is only as planned as its months.** `/api/quarter` rolls up the three
   monthly plans rather than introducing a quarterly goal with its own agreement flow -
-  one target, one sign-off, no second place for a number to drift. Months without an
-  EXPLICIT `goals_json[ym]` entry are named as unplanned and excluded from the total,
-  never filled from `default`. Do not add a standalone quarterly target.
+  one target, one sign-off, no second place for a number to drift. A month is planned by
+  the same `monthPlanned` test as every other surface (2026-11-26); unplanned months are
+  named and excluded from the total. Do not add a standalone quarterly target.
 - **"Repeat share" counts ORDERS, not people, and must never be called a returning-
   customer rate.** It is `returning orders / total orders`; one shopper buying three
   times counts three times. A true returning-CUSTOMER rate needs per-customer history,
@@ -430,12 +430,17 @@ profit/
   forecast and pacing, sets `no_goal`) and the profit share page (`no_goal`). Internal screens may show it as a gray
   "Last set goal (<Month>): $X" hint (Brief tab flag). The strategist (mywork.js STRAT, else OWNER_EMAIL) gets "Set
   <Month>'s goal for <Brand>" in My day from the 25th of the month before until it is typed (never in the 5am DM).
-  "Typed" (planned, 2026-11-26 later) = the month's OWN key carries a sales goal, or it does not (no key at all, or an
-  empty, cm_pct-only or spend-only key a margin save or spend-only save made) and `goals_json.default` carries a sales
-  goal: brands keep the current month's goal in default on purpose. Only falling back to a PREVIOUS month's key
-  (inheritedGoals) is unplanned. One helper per worker: account-health `goalplan.js monthPlanned`, profit worker.js
-  `monthPlanned`/`goalsPlanned`, engine series.js `monthPlanned`/`goalsPlanned`. Same test in briefData, reportData
-  (forecast.months, pacing.planned), /api/client, /api/overview, /api/plan, the profit share and My day. The weekly
+  "Typed" (planned, 2026-11-26 final) = the month's OWN key carries a sales goal, or `defaultCovers` says
+  `goals_json.default` holds this month's goal. Every save (PUT /api/plan, PUT /api/goals) writes the month key AND
+  default, so default cannot say which month it was typed for: a sales goal in default with no key for the month is the
+  legacy current-month goal and covers months up to `DEFAULT_LAST_MONTH` ('2026-11') only, and only while no LATER month
+  has a key (a later save rewrote default). From December 2026 a month needs its own key. `goalsFor` takes default's
+  numbers for a month default covers, so planned and the goal shown never come from different places. Before any save
+  rewrites default, `keepDefaultMonth` writes the legacy goal into 2026-11's own key (both profit saves and the
+  Strategist's set_goals). A previous month's key alone is never a plan. One helper per worker: account-health
+  `goalplan.js`, profit worker.js `monthPlanned`/`goalsPlanned`/`defaultCovers`, engine series.js the same. Same test
+  in briefData, reportData (forecast.months, pacing.planned), /api/client, /api/overview, /api/plan, /api/quarter, the
+  profit share and My day. The weekly
   and monthly "How we read it" draft (reportread.js readFacts) gets no goal, plan or projection for such a month, only
   `no_goal_set`. Tests: test-nogoal.mjs in both workers.
 - **`GET /api/profit/:token` is client-facing: everything about THEIR business, none

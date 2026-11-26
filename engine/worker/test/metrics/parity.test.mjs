@@ -4,7 +4,8 @@
    series has its own checks in metrics.test.mjs.) */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import oldProfit from '../../../../profit/worker/src/worker.js';
+import oldProfit, { DEFAULT_LAST_MONTH as OLD_DEFAULT_LAST_MONTH, monthPlanned as oldMonthPlanned } from '../../../../profit/worker/src/worker.js';
+import { DEFAULT_LAST_MONTH, monthPlanned, goalsFor } from '../../src/metrics/series.js';
 import { makeEnv, asCaller, call, NORTH, RIVER } from '../../src/platform/testkit/index.mjs';
 import { differences } from '../../src/platform/compare.js';
 import { addDays, monthOf } from '../../src/platform/time.js';
@@ -113,19 +114,38 @@ test('same answer as the old engine with no history at all: the forecast says so
    count a month as planned when its own key carries a sales goal, else when default does (a goal typed into default
    counts). Only falling back to a previous month's key is unplanned. Old and new answer the same for each case. */
 const prevYm = (() => { const d = new Date(ym + '-15T12:00:00Z'); d.setUTCMonth(d.getUTCMonth() - 1); return d.toISOString().slice(0, 7); })();
+/* Default covers a month only up to DEFAULT_LAST_MONTH (2026-11) and only while no later month has a key: every save
+   writes default, so it cannot say which month it was typed for. The clock decides which answer a default case wants. */
+const legacy = ym <= DEFAULT_LAST_MONTH;
+const nextYm = (() => { const d = new Date(ym + '-15T12:00:00Z'); d.setUTCMonth(d.getUTCMonth() + 1); return d.toISOString().slice(0, 7); })();
 const GOAL_CASES = [
-  ['default only', { default: { sales: 40000, spend: 9000 } }, true],
-  ['no own key, a previous month and default', { [prevYm]: { sales: 30000 }, default: { sales: 40000, spend: 9000 } }, true],
+  ['default only', { default: { sales: 40000, spend: 9000 } }, legacy],
+  ['no own key, a previous month and default (the save shape)', { [prevYm]: { sales: 30000 }, default: { sales: 40000, spend: 9000 } }, legacy],
+  ['no own key, a LATER month and default', { [nextYm]: { sales: 30000 }, default: { sales: 30000 } }, false],
   ['own key and default', { [ym]: { sales: 52000 }, default: { sales: 40000 } }, true],
-  ['an empty own key and default', { default: { sales: 40000 }, [ym]: {} }, true],
-  ['a spend only own key and default', { default: { sales: 40000 }, [ym]: { spend: 11000 } }, true],
-  ['a margin only own key and default', { default: { sales: 40000 }, [ym]: { cm_pct: 0.5 } }, true],
+  ['an empty own key and default', { default: { sales: 40000 }, [ym]: {} }, legacy],
+  ['a spend only own key and default', { default: { sales: 40000 }, [ym]: { spend: 11000 } }, legacy],
+  ['a margin only own key and default', { default: { sales: 40000 }, [ym]: { cm_pct: 0.5 } }, legacy],
   ['a spend only own key, a spend only default', { default: { spend: 11000 }, [ym]: { spend: 11000 } }, false],
   ['previous month only', { [prevYm]: { sales: 30000, spend: 9000 } }, false],
   ['a margin only own key, previous month, no default', { [prevYm]: { sales: 30000 }, [ym]: { cm_pct: 0.5 } }, false],
   ['a sales goal of its own', { [ym]: { sales: 52000, spend: 11000 } }, true],
   ['a sales goal of 0', { [ym]: { sales: 0 } }, true],
 ];
+/* The rule on fixed months, whatever today is: the save shape plans no month after DEFAULT_LAST_MONTH, and the goal a
+   covered month reads is default's, not the previous month's key. Same answer as the old worker. */
+test('goal rule on fixed months: default covers up to November 2026 only, and its number is the goal', () => {
+  assert.equal(DEFAULT_LAST_MONTH, OLD_DEFAULT_LAST_MONTH, 'one cut-off month in both');
+  const saved = { default: { sales: 100 }, '2026-10': { sales: 90 } };
+  for (const [m, want] of [['2026-09', false], ['2026-10', true], ['2026-11', true], ['2026-12', false], ['2027-03', false]]) {
+    assert.equal(monthPlanned(saved, m), want, `${m} new`);
+    assert.equal(oldMonthPlanned(saved, m), want, `${m} old`);
+  }
+  assert.equal(goalsFor({ goals_json: JSON.stringify(saved) }, '2026-11').sales, 100, 'November reads the default goal');
+  assert.equal(goalsFor({ goals_json: JSON.stringify(saved) }, '2026-12').sales, 90, 'December still inherits (unplanned, shown as no goal)');
+  assert.equal(monthPlanned({ default: { sales: 5 }, '2026-12': { sales: 5 } }, '2026-11'), false, 'a later key: November not planned by default');
+});
+
 for (const [label, goals, want] of GOAL_CASES) {
   test(`goals_planned and planned, old and new agree: ${label}`, async () => {
     const env = makeEnv({ groups: ['metrics'], rows: storeData() });

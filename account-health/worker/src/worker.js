@@ -2,7 +2,7 @@ import { useFetch as tiktokFetch, tiktokStatus, tiktokStart, tiktokCallback, tik
 import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick, assetFile, removeLook, tagBacklog } from './assets.js';
 import { guardBrands, brandsFor, openIdsFor, clientScope, isClientEmail } from './brandguard.js';
 import { handleCommand } from './command.js';
-import { monthPlanned } from './goalplan.js';
+import { monthPlanned, defaultCovers } from './goalplan.js';
 import { handleAgency } from './agency.js';
 import { handleClients, clientAsk, clientOwnsRun, touchClient, meClient, claimInvite, hqSignin } from './clients.js';
 import { handleOnboard, onboardTick } from './onboard.js';
@@ -2338,7 +2338,8 @@ function inheritedGoals(g, ym) {
 }
 function goalsFor(acct, ym) {
   const g = safeJson(acct.goals_json, {});
-  const m = { ...inheritedGoals(g, ym), ...(g[ym] || {}) };
+  // A month default covers (goalplan.js defaultCovers) takes default's numbers: planned and the goal shown agree.
+  const m = { ...inheritedGoals(g, ym), ...(defaultCovers(g, ym) ? g.default : {}), ...(g[ym] || {}) };
   return m.sales != null || m.spend != null ? m : null;
 }
 
