@@ -47,7 +47,7 @@ export const DEF = {
   bought_since: { name: 'Bought since', definition: 'Share of these new subscribers who have ordered since they joined.', source: KL + ' and the store' },
   list_size: { name: 'List size', definition: 'Everyone on the main newsletter list today who can still be sent to.', source: KL },
   new_customer_roas_plan: { name: 'New customer ROAS the plan needs', definition: 'Sales from first-time customers for every ad dollar the plan has to hit to reach its sales goal at its ad budget.', source: TW },
-  growth_on_last: { name: 'Growth on October sales', definition: 'How much higher than last month\'s store sales this option sets the goal.' },
+  growth_on_last: { name: "Growth on last month's sales", definition: 'How much higher than last month\'s store sales this option sets the goal.' },
   stock_call: { name: 'Call', definition: 'Watch: sells slowly, no action yet. Ease off ads: stock runs out before the restock lands. Push to clear: slow stock with money tied up, sell it with an offer. Safe to scale: enough stock for more ads.' },
   stock_lasts: { name: 'Stock lasts', definition: 'Days until this product runs out at the last 30 days\' sales rate. Red when under 30 days with no restock on the way.' },
 };

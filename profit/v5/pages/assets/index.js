@@ -6,7 +6,7 @@
      PUT /api/brand/assets-link { act, url, label }   url '' removes it
    Client and team both read and change it. Sample mode: _sample/index.json, nothing is sent. */
 
-import { h, button, field, toast, empty, em, put, statusDot, card, addStyles } from '../../kit.js';
+import { h, button, field, toast, empty, em, put, statusDot, card, addStyles, safeHref } from '../../kit.js';
 import { pageHelp } from '../../defs.js';
 import { APP_NAME } from '../../config.js';
 
@@ -37,7 +37,7 @@ function draw(el, d, ctx) {
         h('div', { class: 'as-one' },
           h('dl', null, A.at ? [h('dt', null, 'Added'), h('dd', null, dateOf(A.at))] : null, h('dt', null, 'Link'), h('dd', null, A.url)),
           A.from === 'drive' ? statusDot('warn', 'This is the older Drive folder. Paste the link you use now if it moved.') : null,
-          h('div', { class: 'as-acts' }, button('Open the folder', { primary: true, href: A.url, target: '_blank', icon: 'arrow', title: 'Opens the folder in a new tab' }),
+          h('div', { class: 'as-acts' }, safeHref(A.url) && button('Open the folder', { primary: true, href: safeHref(A.url), target: '_blank', icon: 'arrow', title: 'Opens the folder in a new tab' }),
             button('Copy link', { ghost: true, onclick: copy }),
             button('Change the link', { ghost: true, onclick: () => { editing = true; draw(el, d, ctx); } }))))));
   }

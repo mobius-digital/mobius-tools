@@ -3,7 +3,7 @@
    "Example" chip for a part that has no data feed yet, a share bar and a stacked split bar. */
 
 import { exampleChip as kitExampleChip } from '../../kit.js';
-import { h, money, num, pct, button, empty, statusDot, addStyles, tipShow, tipHide, sheet } from '../../kit.js';
+import { h, money, num, pct, button, empty, statusDot, addStyles, tipShow, tipHide, sheet, safeHref } from '../../kit.js';
 import { dl } from '../home/_biz.js';
 
 export const ok = n => n != null && isFinite(n);
@@ -210,7 +210,7 @@ export function openCampaign(r) {
       h('small', null, [sms ? 'Text' : 'Email', r.sent ? 'sent ' + shortDate(r.sent) : 'not sent yet', ok(r.recipients) ? 'to ' + num(r.recipients) + ' people' : null].filter(Boolean).join(', ')),
       content ? [r.thumbnail ? h('img', { src: r.thumbnail, alt: '', loading: 'lazy' }) : null,
         h('b', null, r.subject || r.name), r.preview_text ? h('p', null, r.preview_text) : null,
-        r.html_url ? h('a', { href: r.html_url, target: '_blank', rel: 'noopener noreferrer' }, 'Open the ' + (sms ? 'text' : 'email')) : null]
+        safeHref(r.html_url) ? h('a', { href: safeHref(r.html_url), target: '_blank', rel: 'noopener noreferrer' }, 'Open the ' + (sms ? 'text' : 'email')) : null]
         : h('p', { class: 'quiet' }, 'Preview not available yet: the subject and content are not read for this send.')),
     r.sent ? h('div', { class: 'tiles' },
       tile(dl('Opened', 'open_rate'), sms ? 'text' : ok(r.open_rate) ? pct(r.open_rate, { digits: 1 }) : 'no data', ok(opened) ? num(opened) + ' people' : ''),
