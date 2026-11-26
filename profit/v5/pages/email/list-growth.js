@@ -1,11 +1,11 @@
 /* Email & SMS > List growth. "Is the list growing?"
    Live: who joined and who left by day, email and text (Klaviyo, GET /api/klaviyo?what=daily) and the biggest
    lists with their size (GET /api/klaviyo?what=overview), both on the account-health worker.
-   No route yet: where the new subscribers came from. That card is drawn from the example file with a chip. */
+   No route yet: where the new subscribers came from. That card shows in sample mode only, never on a real brand. */
 
 import { put } from '../../kit.js';
 import { h, em, card, kpi, kpis, table, legend, lineChart, skeleton } from '../../kit.js';
-import { ok, sum, shortDate, inRange, noteAt, css, head, barCell, split, exampleChip, kl, example, notConnected, num, pct } from './_em.js';
+import { ok, sum, shortDate, inRange, noteAt, css, head, barCell, split, exampleChip, kl, notConnected, num, pct } from './_em.js';
 
 function shape(ctx, daily, ov, ex) {
   if (daily.error) return { connected: false, klaviyo: false, klaviyo_error: daily.error };
@@ -85,8 +85,8 @@ export default {
 
   async load(ctx) {
     if (!ctx.brand) return { connected: false };
-    const [daily, ov, ex] = await Promise.all([kl(ctx, 'daily'), kl(ctx, 'overview'), example(ctx, 'list-growth')]);
-    return shape(ctx, daily, ov, ex);
+    const [daily, ov] = await Promise.all([kl(ctx, 'daily'), kl(ctx, 'overview')]);
+    return shape(ctx, daily, ov, null);   /* load() is real mode only: the sign-up forms example shows in sample mode only */
   },
 
   skeleton(el) { put(el, h('div', { class: 'lx-skel-grid' }, skeleton('kpi', 4)), skeleton('chart'), skeleton('row', 4)); },
