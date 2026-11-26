@@ -12,6 +12,8 @@
  *   GET  /api/clients?act=            team: the client logins (a limited teammate sees only their brands' rows)
  *   GET  /api/clients/draft           team: the invite email text for {brands, name, email}
  *   POST /api/clients/invite          OWNER: add or update clients and, with send:true + approved:true, email them
+ *                                      (read_only:true = a look-and-approve login)
+ *   POST /api/clients/access          OWNER: {email, read_only} turns look-and-approve on or off for one login
  *   POST /api/clients/remove          OWNER: {email, brand?} take one brand or the whole login away
  *   POST /api/clients/preview         OWNER: {email} a session token for an invited client, to see Locus as they do
  *   GET  /api/clients/me              the signed-in client: their brands, creator link
@@ -166,7 +168,7 @@ Talk soon,`,
 async function teamGuests(env) { return ((await getJson(env, 'allowedEmails', [])) || []).map(lower); }
 
 /** Add brands to (or create) one client login. Returns an error string or null. */
-async function upsertClient(env, email, brands, by, name) {
+async function upsertClient(env, email, brands, by, name, readOnly) {
   const e = lower(email);
   if (!emailOk(e)) return `${email || 'That'} does not look like an email address.`;
   if (e.endsWith('@' + DOMAIN) || e === lower(env.OWNER_EMAIL || OWNER)) return `${e} is a Mobius account. Mobius people go in Team and access, not here.`;
@@ -175,6 +177,8 @@ async function upsertClient(env, email, brands, by, name) {
   const cur = users[e] && typeof users[e] === 'object' ? users[e] : { invited_at: new Date().toISOString(), invited_by: by || 'admin' };
   cur.brands = [...new Set([...(Array.isArray(cur.brands) ? cur.brands : []), ...brands])];
   if (name && !cur.name) cur.name = String(name).trim().slice(0, 80);
+  /* Look-and-approve login (brandguard.js READONLY_CLIENT_MAY). An invite only ever narrows it; POST /api/clients/access widens. */
+  if (readOnly) cur.readOnly = true;
   users[e] = cur;
   await putJson(env, 'clientUsers', users);
   return null;
@@ -297,7 +301,7 @@ export async function handleClients(request, env, path, json, { isAdmin, session
     const names = await brandNames(env, allIds);
     const rows = Object.entries(users).map(([email, u]) => ({ email, name: u.name || null, brands: (u.brands || []).filter(b => !only || only.has(b)).map(b => ({ id: b, name: names[b] || b })),
       invited_at: u.invited_at || null, invited_by: u.invited_by || null, last_invite: u.last_invite || null, last_sign_in: u.last_sign_in || null, last_seen: u.last_seen || null,
-      invited_as: u.invited_as || null }))
+      invited_as: u.invited_as || null, read_only: u.readOnly === true }))
       .filter(r => r.brands.length && (!act || act === 'all' || r.brands.some(b => b.id === act)))
       .sort((a, b) => a.email.localeCompare(b.email));
     /* `access` and `switches` stay in the answer (always everything) for any screen that still reads them. */
@@ -329,7 +333,7 @@ export async function handleClients(request, env, path, json, { isAdmin, session
     if (send && (!subject || !text)) return json({ error: 'The email needs a subject and a message.' }, 400);
     const failed = [], added = [], sent = [];
     for (const e of emails) {
-      const err = await upsertClient(env, e, brands, who, emails.length === 1 ? b.name : '');
+      const err = await upsertClient(env, e, brands, who, emails.length === 1 ? b.name : '', b.read_only === true);
       if (err) { failed.push({ email: e, error: err }); continue; }
       added.push(e);
     }
@@ -365,6 +369,19 @@ export async function handleClients(request, env, path, json, { isAdmin, session
     if (!mintSession) return json({ error: 'preview is not wired' }, 500);
     const s = await mintSession(env, e);
     return json({ ...s, role: 'client', name: users[e].name || '', brands: users[e].brands || [] });
+  }
+
+  /* Look-and-approve switch for one client login (journey audit 2026-11-26). Owner. read_only true = it may approve,
+     comment and read, and every other change is refused (brandguard.js). Lucky HQ logins take theirs from the HQ pass. */
+  if (path === '/api/clients/access' && request.method === 'POST') {
+    const e = lower(b.email);
+    if (typeof b.read_only !== 'boolean') return json({ error: 'Say read_only: true or false.' }, 400);
+    const users = (await getJson(env, 'clientUsers', {})) || {};
+    if (!users[e] || typeof users[e] !== 'object') return json({ error: 'No client login with that email.' }, 404);
+    if (users[e].hq) return json({ error: 'A Lucky HQ login takes its access from Lucky HQ (Settings, People).' }, 400);
+    if (b.read_only) users[e].readOnly = true; else delete users[e].readOnly;
+    await putJson(env, 'clientUsers', users);
+    return json({ ok: true, email: e, read_only: b.read_only });
   }
 
   if (path === '/api/clients/remove' && request.method === 'POST') {

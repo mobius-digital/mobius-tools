@@ -1,13 +1,15 @@
 /* The client's review page. "Which of these ads are good to go?"
    What waits on the client, one ad at a time, large, with the words that run with it and the notes so far.
-   Approve and Request changes sit in a bar that never leaves the screen. In this batch a press opens the
-   existing review link (the card's own link, where the answer is saved); nothing is written from here.
+   Approve and Request changes sit in a bar that never leaves the screen. For a client signed in, one tap saves the
+   answer for the ad on screen (account-health POST /api/production/decide { id, file_id, ok, body }) and moves to the
+   next ad waiting. The team's "See as client" keeps the old link buttons: a team press would answer as the team and
+   clear the client's flag. Sample mode changes the ad on the page only.
    Shown for Production > Board when a client is signed in or "See as client" is on.
    Data: GET /api/production?act= (a client login gets its own Needs you and Coming up; the team's answer is
    the whole board and the same two lists are read out of it), then GET /api/production/card?id= for up to
    three waiting cards. Both on the account-health worker. */
 
-import { h, statusDot, button, empty, em, card, relativeTime, skeleton } from '../../kit.js';
+import { h, statusDot, button, empty, em, card, relativeTime, skeleton, sheet, toast } from '../../kit.js';
 import { put, css, day, daysFrom, todayOf, picture, who, cardLink, plural, lucide } from './_ui.js';
 import { briefLines, adState, fileOf } from './_sheet.js';
 import { addStyles } from '../../kit.js';
@@ -157,6 +159,9 @@ const CSS = `
 .rv-bar p b{color:var(--ink)}
 .rv-bar .lx-btn{white-space:nowrap}
 .rv-bar .lx-btn.primary{min-width:150px}
+.rv-bar .rv-short{display:none}
+.rv-ask{display:grid;gap:12px}
+.rv-ask .lx-input{width:100%;font-size:15px}
 @media (max-width:1040px){
   .rv{grid-template-columns:minmax(0,1fr) 300px}
   .rv-list{display:none}
@@ -168,7 +173,11 @@ const CSS = `
   .rv-nav{display:none}
   .rv-bar{bottom:calc(var(--tabbar-h) + env(safe-area-inset-bottom,0px) + 10px);padding:10px;gap:8px}
   .rv-bar p{display:none}
-  .rv-bar .lx-btn{flex:1;height:48px;font-size:15px;min-width:0!important}
+  .rv-bar .lx-btn{flex:1;height:48px;font-size:15px;min-width:0!important;justify-content:center}
+}
+@media (max-width:399px){
+  .rv-bar .rv-long{display:none}
+  .rv-bar .rv-short{display:inline}
 }
 `;
 
@@ -204,6 +213,50 @@ export default {
     }
     const st = { card: ready[0].id, ad: -1 };
     const root = h('div', { style: { display: 'grid', gap: 'var(--sp-6)' } });
+    /* One tap answers for a real client login (and in sample mode); the team's preview keeps the link. */
+    const oneTap = ctx.isClient && (ctx.sample || !ctx.asClient);
+    let busy = false;
+    const nextWaiting = ads => { const after = ads.findIndex((a, i) => i > st.ad && a.status === 'review'); return after >= 0 ? after : Math.max(0, ads.findIndex(a => a.status === 'review')); };
+    async function answer(need, sh, ad, ok, note) {
+      if (busy) return false;
+      busy = true; draw();
+      try {
+        let all = false;
+        if (ctx.sample) { ad.status = ok ? 'approved' : 'changes'; toast('Sample: nothing saved'); }
+        else {
+          const r = await ctx.api('/api/production/decide', { worker: 'ah', method: 'POST', body: { id: need.id, file_id: ad.file_id, ok, ...(ok ? {} : { body: note }) } });
+          /* An idea card answers for the whole idea and the server sends no ads back: every ad on it takes the answer. */
+          const idea = need.what === 'idea' || (sh.card && sh.card.needs_client === 'idea');
+          if (r && Array.isArray(r.ads) && r.ads.length) sh.ads = r.ads;
+          else if (idea) sh.ads.forEach(a => { a.status = ok ? 'approved' : 'changes'; });
+          else ad.status = ok ? 'approved' : 'changes';
+          all = !!(r && r.all_approved);
+          toast(ok ? (all ? 'All approved. Thank you.' : 'Approved') : 'Sent to the team');
+        }
+        if (!ok && note) (sh.comments = sh.comments || []).push({ id: 'local' + Date.now(), file_id: ad.file_id, kind: 'change_request', body: note, who: 'You', created_at: new Date().toISOString() });
+        busy = false;
+        st.ad = nextWaiting(sh.ads);
+        draw();
+        return true;
+      } catch (e) {
+        busy = false; draw();
+        toast('Not saved: ' + ((e && e.message) || 'no answer from the server.'), { tone: 'bad', ms: 6000 });
+        return false;
+      }
+    }
+    function askChanges(need, sh, ad) {
+      const box = h('textarea', { class: 'lx-input', rows: 5, placeholder: 'What should change on this ad?', 'aria-label': 'What should change' });
+      const send = button('Send', { primary: true, large: true, disabled: true });
+      box.addEventListener('input', () => { send.disabled = !box.value.trim(); });
+      const panel = sheet({ title: 'Ask for changes on Ad ' + ad.ad, side: 'bottom', body: h('div', { class: 'rv-ask' }, box, send) });
+      send.addEventListener('click', async () => {
+        const note = box.value.trim();
+        if (!note) return;
+        send.disabled = true;
+        if (await answer(need, sh, ad, false, note)) panel.close(); else send.disabled = false;
+      });
+      setTimeout(() => box.focus(), 50);
+    }
     const draw = () => {
       const need = ready.find(n => n.id === st.card) || ready[0], sh = data.sheets[need.id], ads = sh.ads;
       if (st.ad < 0 || st.ad >= ads.length) st.ad = Math.max(0, ads.findIndex(a => a.status === 'review'));
@@ -221,10 +274,12 @@ export default {
           progress(ads, st.ad, pick)),
         h('div', { class: 'rv' }, listOf(sh, st.ad, pick), stage(sh, st.ad, pick), side(sh, st.ad, photos)),
         h('div', { class: 'rv-bar' },
-          h('p', null, say, ' Your answer is saved on the review link.'),
+          h('p', null, say, oneTap ? ' One tap saves your answer.' : ' The answer is saved on the review link.'),
           h('span', { class: 'lx-sp' }),
-          button('Request changes', { large: true, href: link, target: '_blank' }),
-          button('Approve', { primary: true, large: true, iconLeft: 'check', href: link, target: '_blank' })),
+          oneTap ? button(h('span', null, h('span', { class: 'rv-long' }, 'Request changes'), h('span', { class: 'rv-short' }, 'Changes')), { large: true, disabled: busy, onclick: () => askChanges(need, sh, ad) })
+            : button('Request changes', { large: true, href: link, target: '_blank' }),
+          oneTap ? button(ad.status === 'approved' ? 'Approved' : 'Approve', { primary: true, large: true, iconLeft: 'check', disabled: busy || ad.status === 'approved', onclick: () => answer(need, sh, ad, true, '') })
+            : button('Approve', { primary: true, large: true, iconLeft: 'check', href: link, target: '_blank' })),
         comingUp(data.coming, today));
     };
     draw();

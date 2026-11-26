@@ -1,10 +1,10 @@
-/* Agency settings > Sending and notifications. What Locus sends, to whom, and when: a send time per message,
-   the agency time zone, quiet hours, and who gets what.
-   Real mode: account-health GET /api/settings for the settings the workers keep today
-     morningHour (the morning message hour), morningCard (morning message on), todayPost, actionRemind, slackSendWho.
-   Those save back through ctx.saveSetting (PUT /api/settings). Every other time and switch here has no server home yet:
-   it opens on the example and is kept on this device until the settings release. The previews, the people table, the
-   counts at the top and the stopped list are drawn from the example file in real mode (marked). */
+/* Agency settings > Sending and notifications. What Locus sends, to whom, and when.
+   Real mode: account-health GET /api/settings for the settings the workers keep today, saved back one key at a time
+   through PUT /api/settings (each after the Save bar's confirm sheet):
+     morningHour (the morning message hour), morningCard (morning message on), todayPost, actionRemind.
+   todayPost shows only while the morning message is off: the worker ignores it while the card is on.
+   Only those are drawn in real mode. Every other time, switch, preview and table here has no server home yet: it
+   shows in sample mode only, so no switch on a real brand saves nothing. */
 
 import { put } from '../../kit.js';
 import { h, em, empty, card, table, kpis, kpi, avatar, statusDot, addStyles } from '../../kit.js';
@@ -25,7 +25,12 @@ function draw(el, data, ctx) {
   css(); addStyles('lx-sn-css', CSS);
   if (!data) return put(el, empty({ title: 'Settings did not answer', text: 'Try again in a minute.' }));
   const ex = new Set(data.example || []), d = data.values || {};
-  const S = stage(ctx, { live: { 'agency.morningHour': d.morningHour, 'agency.morningCard': d.morningCard, 'agency.todayPost': d.todayPost, 'agency.actionRemind': d.actionRemind } });
+  const live = { 'agency.morningHour': d.morningHour, 'agency.morningCard': d.morningCard, 'agency.todayPost': d.todayPost, 'agency.actionRemind': d.actionRemind };
+  /* through data.js saveSetting, so the session's cached agency settings are cleared too, and the page's own copy follows */
+  const one = name => async v => { await ctx.saveSetting('agency.' + name, v); d[name] = v; };
+  const S = stage(ctx, { live, savers: { 'agency.morningHour': one('morningHour'), 'agency.morningCard': one('morningCard'), 'agency.todayPost': one('todayPost'), 'agency.actionRemind': one('actionRemind') },
+    names: { 'agency.morningHour': 'Morning message hour', 'agency.morningCard': 'Morning message on', 'agency.todayPost': 'Today’s calls in the brand channel', 'agency.actionRemind': 'Action reminders' } });
+  if (!ctx.sample) return drawReal(el, S, d, ctx);
   const people = data.people || [];
   const team = [{ id: 'owner', label: 'The owner' }, { id: 'lead', label: 'The brand’s account lead' }, { id: 'each', label: 'Each person, as a DM' }, { id: 'client', label: 'The client channel' }, { id: 'channel', label: 'A team channel' }];
 
@@ -102,6 +107,30 @@ function draw(el, data, ctx) {
     ])));
 }
 
+/** Real mode: only what saves on the server. */
+function drawReal(el, S, d, ctx) {
+  const events = table({
+    cols: [
+      { key: 'name', label: 'Message', render: r => h('b', null, r.name) },
+      { key: 'says', label: 'What it says', class: 'hide-md', render: r => h('span', { class: 'lx-sn-dim' }, r.says) },
+      { key: 'when', label: 'When', class: 'hide-sm' },
+      { key: 'on', label: 'On', num: true, render: r => onOff(S, r.key, d[r.key.split('.')[1]] ?? true, r.name) },
+    ],
+    rows: [
+      { key: 'agency.actionRemind', name: 'Action reminders', says: 'A promise from a meeting is due', when: 'The morning it is due' },
+      /* The worker skips this post while the morning message is on (todaypost.js), so the switch only shows when it is off. */
+      d.morningCard === false ? { key: 'agency.todayPost', name: 'Today’s calls in the brand channel', says: 'The day’s ad calls for that brand', when: 'At 8am, only while the morning message is off' } : null,
+    ].filter(Boolean),
+  });
+  put(el, h('div', { class: 'lx-st' },
+    saveBar(S, ctx, { note: 'Each change saves for everyone, after a check.' }),
+    group('The morning message', 'One message a day, at one hour (Central time)',
+      row('Send at', 'The hour every morning post goes out.', h('div', { class: 'lx-st-times' }, timePick(S, 'agency.morningHour', d.morningHour ?? 5, { hours: true, label: 'Morning message hour' }))),
+      row('Morning message on', d.morningCard === false ? 'While it is off, today’s calls post on their own in each brand channel.' : 'It carries today’s calls for each brand.', onOff(S, 'agency.morningCard', d.morningCard ?? true, 'Morning message on'))),
+    card({ title: 'Only when something happens', flush: true, class: 'lx-st-card' }, events),
+    h('p', { class: 'lx-foot' }, 'More sending settings come when they save on the server.')));
+}
+
 const CSS = `
 .lx-sn-msg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr) 230px;gap:18px 28px;padding:20px 28px;border-top:1px solid var(--line);align-items:start}
 .lx-sn-msg:first-child{border-top:0}
@@ -133,16 +162,8 @@ export default {
   eyebrow: 'Agency settings',
   ranges: false,
   async load(ctx) {
-    const [s, fx] = await Promise.all([
-      ctx.api('/api/settings', { worker: 'ah', signal: ctx.signal }),
-      ctx.fixture('sending.json').catch(() => null),
-    ]);
-    const f = fx || {};
-    return {
-      ...f,
-      values: { ...(f.values || {}), morningHour: s.morningHour, morningCard: s.morningCard, todayPost: s.todayPost, actionRemind: s.actionRemind, slackSendWho: s.slackSendWho },
-      example: ['stats', 'messages', 'people'],
-    };
+    const s = await ctx.api('/api/settings', { worker: 'ah', signal: ctx.signal });
+    return { values: { morningHour: s.morningHour, morningCard: s.morningCard, todayPost: s.todayPost, actionRemind: s.actionRemind } };
   },
   render: draw,
 };

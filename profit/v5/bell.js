@@ -4,7 +4,7 @@
    Sample mode: pages/_sample/notifications.json.
    Real mode, team: the My work list old Locus already keeps (GET /api/mywork, account-health, read only).
      late or due today  -> Needs you      this week -> Watching      ticked -> Done today
-   Real mode, client: open approvals and questions on the brand's requests (GET /api/requests?act=<brand id>).
+   Real mode, client: open approvals and questions on each of the client's brands (GET /api/requests?act=<brand id>, account-health).
    Every mode, when automations have left rows for this person: GET /api/notices (account-health, read only), added
    to the same three lists. That read can fail or come back empty and the bell is unchanged.
    Nothing here writes. A row's button is a link to the page where the thing is done.
@@ -84,8 +84,10 @@ export function noticeRows(n, { brands = [], brand = null, client = false } = {}
     if (r.state === 'done') { if (SAMPLE || now - Date.parse(r.done_at || r.created_at) < 864e5) out.done.push({ ...row, when: 'done', btn: null }); }
     else if (r.state === 'open') {
       const top = !held && (waits || r.home || client);
+      /* A hand off about a card (team rows only: a client's row carries no button) opens the board. */
+      const toCard = !client && r.button && r.button.kind === 'card';
       (top ? out.needs : out.watching).push({ ...row, when: held ? 'waits for your morning read' : row.when,
-        btn: { label: waits ? 'Answer' : 'Open', line: 'notifications', tab: top ? 'needs-you' : 'watching', primary: waits } });
+        btn: toCard ? { label: 'Open card', line: 'production', tab: 'board' } : { label: waits ? 'Answer' : 'Open', line: 'notifications', tab: top ? 'needs-you' : 'watching', primary: waits } });
     }
   }
   return out;
@@ -109,9 +111,14 @@ export async function loadBell({ me = {}, role = 'team', asClient = false, brand
   }
   if (asClient) return { needs: [], watching: [], done: [], error: 'This is the client\'s own list. It shows when the client is signed in.' };
   if (client) {
-    if (!brand) return withNotices({ needs: [], watching: [], done: [] }, opts);
-    const rec = await cached('bell|' + brand.id, () => api('/api/requests?act=' + encodeURIComponent(brand.id)), null, { maxAge: 60e3 });
-    return withNotices(fromRequests(rec.data, brand), opts);
+    if (!brand && !(brands || []).length) return withNotices({ needs: [], watching: [], done: [] }, opts);
+    /* Requests live on account-health only. A client with more than one brand reads each of them. */
+    const list = (brands || []).length ? brands : [brand];
+    const parts = await Promise.all(list.map(b => cached('bell-rq|' + b.id, () => api('/api/requests?act=' + encodeURIComponent(b.id), { worker: 'ah' }), null, { maxAge: 60e3 })
+      .then(rec => fromRequests(rec.data, b)).catch(() => ({ needs: [], watching: [], done: [] }))));
+    const merged = { needs: [], watching: [], done: [] };
+    for (const x of parts) for (const k of Object.keys(merged)) merged[k].push(...x[k]);
+    return withNotices(merged, opts);
   }
   const rec = await cached('bell', () => api('/api/mywork' + (me.email ? '?who=' + encodeURIComponent(me.email) : ''), { worker: 'ah' }), null, { maxAge: 60e3 });
   return withNotices(fromMyWork(rec.data), opts);

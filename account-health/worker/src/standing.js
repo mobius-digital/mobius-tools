@@ -20,7 +20,7 @@ import { dmPerson } from './morning.js';
 import { adNumbers, metaActsOf, sumAds, withCovers } from './buyerai.js';
 import { buildBuyerList } from './buyerlist.js';
 import { standingCard, clientCard } from './standingdm.js';
-import { boardSvg, brandSvg, toPng } from './standingimg.js';
+import { boardSvg, brandSvg, opsBrandSvg, callWarn, toPng } from './standingimg.js';
 
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
@@ -111,12 +111,115 @@ async function metaSide(env, md, act, today) {
   }
   /* Meta would not say: the limits Cole listed on 2026-11-22 (raise requests pending), labelled as such. */
   if (limit == null && KNOWN_LIMITS[act]) { limit = KNOWN_LIMITS[act]; src = 'known'; }
-  return { camp: camp ? { id: camp.id, name: camp.name, daily: camp.daily || null, spent: spent ? (spent[camp.id] || 0) : null } : null, on, limit, limit_src: limit ? src : null, limit_error: limitErr, headroom: limit ? limit - on : null };
+  const camps = await campList(env, act, ml, spent || {}, today, md).catch(() => []);
+  return { camps, camp: camp ? { id: camp.id, name: camp.name, daily: camp.daily || null, spent: spent ? (spent[camp.id] || 0) : null } : null, on, limit, limit_src: limit ? src : null, limit_error: limitErr, headroom: limit ? limit - on : null };
 }
 
+/* Every live campaign of a brand (Cole 2026-11-25: "is this the Black Friday campaign? the evergreen? should I be
+   adjusting other campaigns too?"): today's spend against its budget (Meta), and its return over the last 3 finished
+   days (Triple Whale lastPlatformClick on its ads; spend from ad_daily). Campaign returns are ad-platform credit, not
+   the store MER the call runs on, so the card labels them. */
+const KIND = n => SALE_RE.test(n || '') ? 'sale' : /giveaway|lead/i.test(n || '') ? 'leads' : /creator|trybe|\bace\b/i.test(n || '') ? 'creators' : /\[md\]|evergreen|cbo|abo/i.test(n || '') ? 'evergreen' : 'other';
+async function campList(env, act, ml, spent, today, md = null) {
+  const cs = Object.entries((ml && ml.campaigns) || {}).map(([id, c]) => ({ id, name: c.name, daily: c.daily || null, status: c.status, spent: spent[id] || 0 }))
+    .filter(c => c.status === 'ACTIVE' && (c.spent > 0 || c.daily));
+  if (!cs.length) return [];
+  /* Cole 2026-11-25: per campaign, TODAY and THIS WEEK only (the Lucky BF ads went live today, so the days before tell
+     nothing). Week = Monday to now. Spend from Meta's campaign totals; orders and revenue from Triple Whale last click,
+     with yesterday and today pulled live first (the nightly sync never holds them). */
+  const day = n => { const d = new Date(today + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  const dow = new Date(today + 'T12:00:00Z').getUTCDay(), monday = day(-((dow + 6) % 7));
+  if (md && md.twAttr) await md.twAttr(env, act, day(-1) < monday ? today : day(-1), today).catch(() => null);
+  const ws = {};
+  for (const m of md ? await metaActs(env, act).catch(() => []) : []) {
+    const r = await gget(md, env, `${m.act}/insights`, { level: 'campaign', time_range: JSON.stringify({ since: monday, until: today }), fields: 'campaign_id,spend', limit: 200 }).catch(() => null);
+    for (const x of (r && r.data) || []) ws[x.campaign_id] = (ws[x.campaign_id] || 0) + (+x.spend || 0);
+  }
+  const q = await env.DB.prepare(`SELECT a.campaign_id c, SUM(CASE WHEN t.date = ?3 THEN t.revenue ELSE 0 END) tr, SUM(CASE WHEN t.date = ?3 THEN t.orders ELSE 0 END) tt,
+      SUM(t.revenue) wr, SUM(t.orders) wo FROM tw_ad_attr t JOIN ads a ON a.ad_id = t.ad_id
+      WHERE t.act_id = ?1 AND t.model = 'lastPlatformClick' AND t.date >= ?2 AND t.date <= ?3 GROUP BY a.campaign_id`)
+    .bind(act, monday, today).all().catch(() => ({ results: [] }));
+  const rv = {}; for (const x of q.results || []) rv[x.c] = x;
+  return cs.map(c => {
+    const v = rv[c.id] || {}, wsp = ws[c.id] != null ? ws[c.id] : null;
+    return { ...c, kind: KIND(c.name), t_ord: Math.round(v.tt || 0), t_roas: c.spent > 0 ? (v.tr || 0) / c.spent : null,
+      w_spend: wsp, w_ord: Math.round(v.wo || 0), w_roas: wsp > 0 ? (v.wr || 0) / wsp : null };
+  }).sort((a, b) => b.spent - a.spent || (b.daily || 0) - (a.daily || 0)).slice(0, 6);
+}
+
+/* The War Room DM (Cole 2026-11-25): per brand, Last 6 hours / Today / This week like the client update, the campaigns,
+   and the call naming the campaign it changes, with Approve. One colored bar per brand (Today against the goal). */
+const KIND_WORD = { sale: 'sale', evergreen: 'evergreen', leads: 'leads', creators: 'creators', other: 'other' };
+function opsCard(rec) {
+  const hr = +String(rec.slot).split('T')[1], when = hr === 12 ? '12pm' : hr === 0 ? '12am' : hr < 12 ? `${hr}am` : `${hr - 12}pm`;
+  const t = longDay(rec.slot);
+  const blocks = [{ type: 'markdown', text: `# Where we stand · ${when}` },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `${t.day}  ·  MER = store sales ÷ all ad spend, judged against each brand's goal. Campaign returns are Triple Whale last click, last 3 days.` }] }];
+  const attachments = [];
+  const win = (l, p) => p && p.sales != null ? `*${l}*   Sales ${usd(p.sales)}  ·  Ad spend ${usd(p.spend)}  ·  MER *${nx(p.mer)}*` : `*${l}*   no data yet`;
+  for (const b of rec.brands || []) {
+    const line = b.hold ?? (b.kpi ? b.kpi * 0.8 : null), s = b.suggest || {}, m = b.meta || {};
+    const head = `*${b.name}*   goal ${nx(b.kpi)}${line ? `, break-even ${nx(line)}` : ''}`;
+    const out = [{ type: 'section', text: { type: 'mrkdwn', text: `${head}\n${win('Last 6 hours', b.last6)}\n${win('Today', b.today)}\n${win('This week', b.week)}` } }];
+    const camps = m.camps || [];
+    if (camps.length) {
+      const rows = camps.map(c => {
+        const ret = c.t_roas != null ? `${nx(c.t_roas)} today (${c.t_ord} orders), ${nx(c.w_roas)} this week` : 'no spend today';
+        const pick = m.camp && m.camp.id === c.id ? '  ← the call' : '';
+        return `• *${c.name}* (${KIND_WORD[c.kind]})   today ${usd(c.spent)}${c.daily ? ` of ${usd(c.daily)}` : ' (ad set budgets)'}   ·   ${ret}${pick}`;
+      });
+      out.push({ type: 'section', text: { type: 'mrkdwn', text: `*Campaigns*\n${rows.join('\n')}` } });
+      /* Others worth a look: not the campaign the call changes, enough spend to read, over goal or under break-even. */
+      const look = camps.filter(c => !(m.camp && m.camp.id === c.id) && false)
+        .map(c => c.roas3 >= b.kpi ? `${c.name} returned ${nx(c.roas3)} over 3 days, over goal: room to raise it too.` : line && c.roas3 < line ? `${c.name} returned ${nx(c.roas3)} over 3 days, under break-even: look at its ads.` : null).filter(Boolean);
+      if (look.length) out.push({ type: 'context', elements: [{ type: 'mrkdwn', text: look.join('\n') }] });
+    } else if (m.error) out.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `Meta did not answer: ${m.error}` }] });
+    const cn = m.camp ? m.camp.name : null, done = (rec.approved || {})[b.act_id];
+    let call;
+    if (s.to && cn) call = `*${s.pct > 0 ? 'Raise' : 'Cut'} ${cn}: ${usd(m.camp.daily)} → ${usd(s.to)} a day (${s.pct > 0 ? '+' : ''}${Math.round(s.pct * 100)}%)*\n${s.why || ''}${s.note ? `\n_${s.note}_` : ''}`;
+    else call = `*Hold${cn ? ` ${cn}` : ''}.*  ${s.why || ''}${s.note ? `\n_${s.note}_` : ''}`;
+    if (done) call = `✓ Approved: ${cn} ${usd(done.from || (m.camp || {}).daily)} → ${usd(done.to || s.to)} a day.`;
+    const sec = { type: 'section', text: { type: 'mrkdwn', text: call.slice(0, 2900) } };
+    if (s.to && cn && !done) sec.accessory = { type: 'button', action_id: 'ws_approve', style: 'primary', text: { type: 'plain_text', text: 'Approve' }, value: `${rec.slot}|${b.act_id}` };
+    out.push(sec);
+    attachments.push({ color: tierOf(b.today && b.today.mer, b.kpi, line).color, blocks: out });
+  }
+  const n = (rec.brands || []).filter(b => (b.suggest || {}).to && !(rec.approved || {})[b.act_id]).length;
+  return { text: `Where we stand, ${rec.label}. ${n ? `${n} to approve.` : 'Nothing to approve.'}`, blocks, attachments };
+}
+
+/* One picture per brand (Cole 2026-11-25: the single tall picture was unreadable in Slack), each brand's Approve right
+   under its own picture. imgs = {act_id: Slack file id}; a brand whose picture failed gets its numbers as text. */
+async function opsUpload(env, deps, rec) {
+  const imgs = {}, errs = [];
+  for (const b of rec.brands || []) {
+    try { const up = await slackPng(env, deps, await toPng(opsBrandSvg(rec, b), deps.xfetch, 1400), `${b.act_id.replace('brand_', '')}-${rec.slot}.png`); if (up.id) imgs[b.act_id] = up.id; else errs.push(`${b.name}: ${up.error}`); }
+    catch (e) { errs.push(`${b.name}: ${e.message}`); }
+  }
+  return { imgs, error: errs.join('; ') || null };
+}
+function opsImgMsg(rec, imgs) {
+  const hr = +String(rec.slot).split('T')[1], when = hr === 12 ? '12pm' : hr === 0 ? '12am' : hr < 12 ? `${hr}am` : `${hr - 12}pm`;
+  const ord = [...(rec.brands || [])].sort((a, b) => ((b.suggest || {}).to ? 1 : 0) - ((a.suggest || {}).to ? 1 : 0));
+  const N = ord.filter(b => (b.suggest || {}).to && b.meta && b.meta.camp && !(rec.approved || {})[b.act_id]);
+  const blocks = [{ type: 'markdown', text: `# Where we stand · ${when}` },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `${N.length ? `*${N.length} to approve.* ` : 'Nothing to approve. '}MER = store sales ÷ all ad spend. Campaign returns = Triple Whale last click, last 3 days.` }] }];
+  for (const b of ord) {
+    blocks.push({ type: 'divider' });
+    if (imgs[b.act_id]) blocks.push({ type: 'image', slack_file: { id: imgs[b.act_id] }, alt_text: `${b.name}: last 6 hours, today, this week, the call and its campaigns` });
+    else blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${b.name}*  today ${nx(b.today && b.today.mer)} on ${usd(b.today && b.today.spend)}` } });
+    if (N.includes(b)) {
+      const s = b.suggest, c = b.meta.camp, w = callWarn(b);
+      blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${s.pct < 0 ? 'Cut' : 'Raise'} ${c.name}* ${usd(c.daily)} → ${usd(s.to)} a day${w ? `\n:warning: ${w}` : ''}` },
+        accessory: { type: 'button', action_id: 'ws_approve', style: s.pct < 0 ? 'danger' : 'primary', text: { type: 'plain_text', text: 'Approve' }, value: `${rec.slot}|${b.act_id}` } });
+    }
+  }
+  blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `Nothing changes until you tap Approve.${rec.next ? ` Next check-in ${rec.next}.` : ''}` }] });
+  return { text: `Where we stand, ${rec.label}. ${N.length ? `${N.length} to approve.` : 'Nothing to approve.'}`, blocks };
+}
 /** Build one check-in (reads only). */
 export async function buildStanding(env, deps, slot = slotOf()) {
-  const md = { xfetch: deps.xfetch, listAccounts: deps.listAccounts, getSetting: deps.getSetting, putSetting: deps.putSetting };
+  const md = { xfetch: deps.xfetch, listAccounts: deps.listAccounts, getSetting: deps.getSetting, putSetting: deps.putSetting, twAttr: deps.twAttr };
   const tw = await readProfit(env, deps, '/api/season/standing');
   const brands = [];
   for (const b of tw.brands || []) {
@@ -212,19 +315,22 @@ async function load(env, deps, slot) {
   const v = await deps.getSetting(env, `standing:${s}`);
   try { return v ? JSON.parse(v) : null; } catch { return null; }
 }
-export const DM_STYLES = ['list', 'wc', 'board', 'a', 'b', 'c', 'd'];
+export const DM_STYLES = ['ops', 'list', 'wc', 'board', 'a', 'b', 'c', 'd'];
 const linkOf = rec => act => `${LOCUS}?open=warlive&act=all&standing=${encodeURIComponent(rec.slot)}${act ? `&brand=${encodeURIComponent(act)}` : ''}`;
 /** The DM in the style Cole picked (settings `standingDmStyle`; 'list' = the rich-text list until he picks), or `style` for a test. */
 async function sendDm(env, deps, rec, { style, prev, img } = {}) {
-  const st = DM_STYLES.includes(style) ? style : DM_STYLES.includes(await deps.getSetting(env, 'standingDmStyle')) ? await deps.getSetting(env, 'standingDmStyle') : 'list';
+  /* Cole 2026-11-25: the per-brand windows + campaigns card is THE check-in. Older styles only when asked for by name. */
+  const st = DM_STYLES.includes(style) ? style : 'ops';
   /* Style d (Cole's pick, 2026-11-22): draw the scoreboard, upload it to Slack, show it by file id. If the picture
      fails the DM still goes, with a note where the picture would be. */
+  let imgs = null;
+  if (st === 'ops') { const u = await opsUpload(env, deps, rec); imgs = u.imgs; if (u.error) rec.img_error = u.error; }
   if (st === 'd' && !img) {
     try { const up = await slackPng(env, deps, await toPng(boardSvg(rec), deps.xfetch), `where-we-stand-${rec.slot}.png`); if (up.id) img = up.id; else rec.img_error = up.error; }
     catch (e) { rec.img_error = e.message; }
   }
-  const msg = st === 'list' ? standingMessage(rec) : standingCard(rec, prev, st, linkOf(rec), { img });
-  const r = await postRetry(env, deps, msg, img);
+  const msg = st === 'ops' ? (Object.keys(imgs || {}).length ? opsImgMsg(rec, imgs) : opsCard(rec)) : st === 'list' ? standingMessage(rec) : standingCard(rec, prev, st, linkOf(rec), { img });
+  const r = await postRetry(env, deps, msg, img || (imgs && Object.keys(imgs).length ? 'many' : null));
   rec.sent = r.ok ? { at: new Date().toISOString(), ts: r.ts, style: st, img: img || null } : { error: r.error };
   return r;
 }
@@ -257,10 +363,12 @@ async function sendSample(env, deps, rec, prev, { style, act, label }) {
       if (up.error) imgErr = up.error; else img = up.id;
     } catch (e) { imgErr = e.message; }
   }
-  const msg = act ? clientCard(rec, act, style, prev, { img }) : standingCard(rec, prev, style, linkOf(rec), { img });
+  let imgs = null;
+  if (!act && style === 'ops') { const u = await opsUpload(env, deps, rec); imgs = u.imgs; imgErr = u.error; }
+  const msg = !act && style === 'ops' ? (Object.keys(imgs || {}).length ? opsImgMsg(rec, imgs) : opsCard(rec)) : act ? clientCard(rec, act, style, prev, { img }) : standingCard(rec, prev, style, linkOf(rec), { img });
   if (label) { msg.blocks = [{ type: 'section', text: { type: 'mrkdwn', text: `*${label}*` } }, ...(msg.blocks || [])]; msg.text = `${label}: ${msg.text}`; }
   /* Slack can take a moment to process a fresh upload before a block may show it: retry a few times. */
-  const r = await postRetry(env, deps, msg, img);
+  const r = await postRetry(env, deps, msg, img || (imgs && Object.keys(imgs).length ? 'many' : null));
   return { ok: !!r.ok, ts: r.ts, error: r.error, img, imgErr, slot: rec.slot };
 }
 
@@ -595,11 +703,11 @@ function batchBlocks(rec, bt) {
   return blocks;
 }
 async function threadPreview(env, deps, bt, d) {
-  await deps.slackApi(env, 'chat.postMessage', { channel: bt.channel, thread_ts: bt.ts, text: d.m.text, blocks: d.m.blocks, attachments: d.m.attachments, unfurl_links: false }).catch(() => null);
+  await deps.slackApi(env, 'chat.postMessage', { channel: bt.channel, thread_ts: bt.ts, text: d.m.text, blocks: d.m.blocks, attachments: d.m.attachments, unfurl_links: false, username: 'Locus', icon_url: 'https://tools.go-mobius-digital.com/favicon.png' }).catch(() => null);
 }
 async function saveBatch(env, deps, rec, bt, update = true) {
   await deps.putSetting(env, `wsBatch:${bt.slot}`, JSON.stringify(bt));
-  if (update && bt.ts) await deps.slackApi(env, 'chat.update', { channel: bt.channel, ts: bt.ts, text: 'Client updates', blocks: batchBlocks(rec, bt) }).catch(() => null);
+  if (update && bt.ts) await deps.slackApi(env, 'chat.update', { channel: bt.channel, ts: bt.ts, text: 'Client updates', blocks: batchBlocks(rec, bt), username: 'Locus', icon_url: 'https://tools.go-mobius-digital.com/favicon.png' }).catch(() => null);
 }
 /** The one message for a check-in. */
 export async function postBatch(env, deps, rec) {
@@ -609,15 +717,15 @@ export async function postBatch(env, deps, rec) {
   const bt = { slot: rec.slot, channel: null, ts: null, items: [] }, drafts = [];
   for (const b of rec.brands) {
     if (b.no_sales) continue;
-    const waiting = b.suggest && b.suggest.to && !(rec.approved || {})[b.act_id] && !(b.client_approve || CLIENT_APPROVE.has(b.act_id));   // a client-approve brand goes out now, suggestion inside
-    if (waiting) { bt.items.push({ act: b.act_id, name: b.name, id: null, status: 'waiting' }); continue; }
+    /* Every brand's update is ready to send now (2026-11-25: the 2pm round never went out because three brands sat
+       "waiting on your Approve" with no draft). An Approve later rebuilds that brand's draft with the change in it. */
     const d = await draftFor(env, deps, rec, b.act_id, rec.slot).catch(() => null);
     if (!d) continue;
     bt.items.push({ act: b.act_id, name: d.name, id: d.id, status: d.forCole ? 'forme' : 'ready' });
     drafts.push(d);
   }
   if (!bt.items.length) return { ok: true, empty: true };
-  const r = await deps.slackApi(env, 'chat.postMessage', { channel: uid, text: 'Client updates', blocks: batchBlocks(rec, bt), unfurl_links: false });
+  const r = await deps.slackApi(env, 'chat.postMessage', { channel: uid, text: 'Client updates', blocks: batchBlocks(rec, bt), unfurl_links: false, username: 'Locus', icon_url: 'https://tools.go-mobius-digital.com/favicon.png' });
   if (!r || !r.ok) return { ok: false, error: (r && r.error) || 'slack' };
   bt.channel = r.channel; bt.ts = r.ts;
   await saveBatch(env, deps, rec, bt, false);
@@ -646,7 +754,7 @@ async function sendDraft(env, xfetch, dr) {
 export async function handleClientUpdateButton(env, ctx, payload, deps, { ACK, xfetch }) {
   const a = (payload.actions || []).find(x => /^ws_/.test(x.action_id || ''));
   const reply = t => payload.response_url && xfetch(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ replace_original: true, text: t }) }).catch(() => {});
-  const inThread = t => deps.slackApi(env, 'chat.postMessage', { channel: payload.channel && payload.channel.id, thread_ts: payload.message && payload.message.ts, text: t }).catch(() => {});
+  const inThread = t => deps.slackApi(env, 'chat.postMessage', { channel: payload.channel && payload.channel.id, thread_ts: payload.message && payload.message.ts, text: t, username: 'Locus', icon_url: 'https://tools.go-mobius-digital.com/favicon.png' }).catch(() => {});
   ctx.waitUntil((async () => {
     if (a.action_id === 'ws_capprove') {
       /* The CLIENT's Approve (Yak): only in that brand's client channel (or Cole), only on a check-in under 6 hours old
@@ -834,7 +942,8 @@ export async function handleStanding(request, env, url, path, json, deps) {
     if (path === '/api/standing/sample' && request.method === 'POST' && body.batch) {
       const rec = await load(env, deps).catch(() => null);
       if (!rec) return json({ error: 'No check-in yet.' }, 404);
-      const prev = null, d1 = await sendDm(env, deps, rec, { prev }).catch(e => ({ ok: false, error: e.message }));
+      /* no_dm: only the client updates, no scoreboard (2026-11-25: scoreboard pictures + drafts in one request ran out of CPU). */
+      const prev = null, d1 = body.no_dm ? null : await sendDm(env, deps, rec, { prev }).catch(e => ({ ok: false, error: e.message }));
       const d2 = await postBatch(env, deps, rec).catch(e => ({ ok: false, error: e.message }));
       /* Counts as that slot's check-in, so the hourly catch-up does not send it a second time. */
       if (d1 && d1.ok) await deps.putSetting(env, `standingSent:${rec.slot}`, new Date().toISOString());
@@ -861,6 +970,16 @@ export async function handleStanding(request, env, url, path, json, deps) {
       await saveBatch(env, deps, rec, bt);
       return json({ ok: true, results: out });
     }
+    /* Take a message back (Cole only, through the admin gate): {delete: {channel, ts, as_cole}}. as_cole = a message
+       Locus sent under Cole's name; otherwise the bot's own. */
+    if (path === '/api/standing/sample' && request.method === 'POST' && body.delete) {
+      const d = body.delete || {};
+      if (!d.channel || !d.ts) return json({ error: 'channel and ts' }, 400);
+      const r = d.as_cole
+        ? await deps.xfetch('https://slack.com/api/chat.delete', { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify({ channel: d.channel, ts: d.ts }) }).then(x => x.json()).catch(e => ({ ok: false, error: e.message }))
+        : await deps.slackApi(env, 'chat.delete', { channel: d.channel, ts: d.ts }).catch(e => ({ ok: false, error: e.message }));
+      return json({ ok: !!(r && r.ok), error: (r && r.error) || null });
+    }
     if (path === '/api/standing/sample' && request.method === 'POST' && body.title_test) {
       const lbl = s => ({ type: 'context', elements: [{ type: 'mrkdwn', text: s }] });
       const body1 = { type: 'section', text: { type: 'mrkdwn', text: '*Sales:* $6,118   (normal text, for comparison)' } };
@@ -873,7 +992,7 @@ export async function handleStanding(request, env, url, path, json, deps) {
       return json({ ok: !!r.ok, error: r.error || null });
     }
     if (path === '/api/standing/sample' && request.method === 'POST') {
-      const st = ['a', 'b', 'c', 'd'].includes(body.style) ? body.style : 'd', act = body.act ? String(body.act) : null;
+      const st = ['a', 'b', 'c', 'd', 'ops'].includes(body.style) ? body.style : 'd', act = body.act ? String(body.act) : null;
       const prev = await load(env, deps).catch(() => null);
       const rec = body.fresh ? await buildStanding(env, deps, slotOf()) : prev;
       if (!rec) return json({ error: 'No check-in yet.' }, 404);

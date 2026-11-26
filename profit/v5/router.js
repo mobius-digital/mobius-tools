@@ -66,6 +66,8 @@ function ctxFor(route, line, tab, signal, frame) {
     route, view: route.view, line, tab, brand, brands: st.brands, me: st.me, role: st.role,
     /** True for a client, and for the team while "See as client" is on. Team-only words and links must check this. */
     isClient: st.role === 'client',
+    /** True only while the team has "See as client" on. A real client login is isClient && !asClient. */
+    asClient: !!st.asClient,
     sample: SAMPLE, signal,
     /** The dates in the page head: { preset, label, from, to, days, dates }. Always real dates. */
     range: st.range,
