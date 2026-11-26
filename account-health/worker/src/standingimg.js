@@ -15,6 +15,8 @@ async function boot(fetcher = fetch) {
   if (!ready) ready = initWasm(resvgWasm).catch(e => { ready = null; throw e; });
   if (!fonts) fonts = Promise.all(FONTS.map(u => fetcher(u).then(r => { if (!r.ok) throw new Error(`font ${r.status}`); return r.arrayBuffer(); })))
     .then(a => a.map(b => new Uint8Array(b))).catch(e => { fonts = null; throw e; });
+  /* When the wasm fails first, the fonts promise is never awaited here: mark it handled (the caller still sees the error). */
+  fonts.catch(() => {});
   await ready; return fonts;
 }
 export async function toPng(svg, fetcher, width = 3200) {
@@ -299,7 +301,7 @@ export function clientCardSvg(rec, act, did = []) {
   let y = 330;
   o += R(pad, y, W - 2 * pad, bandH, C.bg, 14) + R(pad, y, 8, bandH, C.blue, 4) + T(pad + 28, y + 36, 'WHAT WE CHANGED', { size: 14, bold: true, fill: C.dim, ls: 1.5 });
   y += 36;
-  if (!items.length) o += T(pad + 28, y + 32, 'No changes, the ads are on track.', { size: 21, bold: true });
+  if (!items.length) o += T(pad + 28, y + 32, 'No changes since the last update', { size: 21, bold: true });
   for (const i of items) {
     const ln = String(i.line || ''), wy = String(i.why || '');
     o += T(pad + 28, y + 32, ln.length > 80 ? ln.slice(0, 79) + '…' : ln, { size: 21, bold: true });

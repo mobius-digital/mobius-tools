@@ -66,12 +66,12 @@ finally { try { fs.unlinkSync(oldFile); } catch {} }
 
 /* ---------- sample input ---------- */
 const BRANDS = [['brand_alpha', 'Brand Alpha', 3.0], ['brand_beta', 'Brand Beta', 2.5], ['brand_gamma', 'Brand Gamma', 2.5]];
-function profitAnswer(url, hour) {
+function profitAnswer(url, hour, notLive = []) {
   const want = new Set(String(new URL(url).searchParams.get('acts') || '').split(',').filter(Boolean));
   const f = hour / 14;   // numbers grow through the day
   const brands = BRANDS.filter(([a]) => !want.size || want.has(a)).map(([act, name, kpi], i) => {
     const sales = Math.round((4000 + i * 900) * f), spend = Math.round((1300 + i * 500) * f);
-    return { act_id: act, name, currency: 'USD', goal: 50000 + i * 10000, kpi, hold: kpi * 0.8, sale: { start: '2026-11-26', end: '2026-11-30' }, mode: 'live',
+    return { act_id: act, name, currency: 'USD', goal: 50000 + i * 10000, kpi, hold: kpi * 0.8, sale: { start: '2026-11-26', end: '2026-11-30' }, mode: notLive.includes(act) ? 'plan' : 'live',
       today: { sales, spend, mer: sales / spend }, last6: { hours: 6, sales: Math.round(sales * 0.4), spend: Math.round(spend * 0.45), mer: (sales * 0.4) / (spend * 0.45) },
       so_far: { from: '2026-11-26', days: 2, sales: sales + 6000, spend: spend + 2100, mer: (sales + 6000) / (spend + 2100), pct_goal: 0.2, new_rev: 3000, new_orders: 40, new_mer: 1.4, email_share_new: 0.1 },
       week: { from: '2026-11-23', sales: sales + 9000, spend: spend + 3500, mer: (sales + 9000) / (spend + 3500) }, be_new: 1.6, no_sales: 0,
@@ -79,21 +79,30 @@ function profitAnswer(url, hour) {
   });
   return { today: '2026-11-27', dry: 0, window: { from: '2026-11-26', to: '2026-11-30' }, brands };
 }
-function world({ fonts = false, schedule = [], refuseCard = false } = {}) {
-  const settings = new Map(), slack = [], posts = [], profitUrls = [];
+function world({ fonts = false, schedule = [], refuseCard = false, switchOn = schedule.length > 0, refuseThreadCard = false, notLive = [] } = {}) {
+  const settings = new Map(), slack = [], posts = [], profitUrls = [], claims = new Map(), userUploads = [];
+  if (switchOn) settings.set('checkinSchedule', 'on');
   const fontFile = ['C:/Windows/Fonts/arial.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', '/System/Library/Fonts/Supplemental/Arial.ttf'].find(f => fs.existsSync(f));
   const DB = { prepare(sql) {
-    const st = { bind() { return st; },
+    const st = { args: [], bind(...a) { st.args = a; return st; },
       async all() { return { results: /checkin_hours/.test(sql) ? schedule.map(([act_id, value]) => ({ act_id, value })) : [] }; },
       async first() { return /FROM brand_accounts/.test(sql) ? { name: 'Brand', brief_channel: 'C_CLIENT', slack_channel: 'C_INTERNAL' } : null; },
-      async run() { return {}; } };
+      /* The send claim (standing.js claimSend / releaseSend): the same rule as the real INSERT ... WHERE. */
+      async run() {
+        if (/^INSERT INTO settings/.test(sql)) { const [k, v, stale] = st.args; const cur = claims.get(k); if (cur == null || cur < stale) { claims.set(k, v); return { meta: { changes: 1 } }; } return { meta: { changes: 0 } }; }
+        if (/^DELETE FROM settings/.test(sql)) { const [k, v] = st.args; if (claims.get(k) === v) claims.delete(k); return { meta: { changes: 1 } }; }
+        return {};
+      } };
     return st;
   } };
   const env = { DB, OWNER_EMAIL: 'owner@example.test', SLACK_USER_TOKEN: 'xoxp-test',
-    PROFIT: { fetch: async req => { profitUrls.push(req.url); return Response.json(profitAnswer(req.url, new Date().getUTCHours() - 6)); } } };
+    PROFIT: { fetch: async req => { profitUrls.push(req.url); return Response.json(profitAnswer(req.url, new Date().getUTCHours() - 6, notLive)); } } };
   const xfetch = async (url, init = {}) => {
     if (/cdn\.jsdelivr\.net/.test(url)) { if (!fonts || !fontFile) throw new Error('no network in tests'); return new Response(fs.readFileSync(fontFile)); }
     if (/^https:\/\/upload\.test\//.test(url)) return new Response('ok');
+    /* The client copy of the card, uploaded with the user token at send time. */
+    if (url === 'https://slack.com/api/files.getUploadURLExternal') { const f = new URLSearchParams(init.body); userUploads.push({ auth: init.headers.Authorization, filename: f.get('filename') }); return Response.json({ ok: true, upload_url: 'https://upload.test/user-' + f.get('filename'), file_id: 'FU_' + f.get('filename') }); }
+    if (url === 'https://slack.com/api/files.completeUploadExternal') return Response.json({ ok: true });
     if (url === 'https://slack.com/api/chat.postMessage') {
       const body = JSON.parse(init.body); posts.push(body);
       if (refuseCard && (body.blocks || []).some(b => b.block_id === 'ws_card')) return Response.json({ ok: false, error: 'invalid_blocks' });
@@ -103,7 +112,7 @@ function world({ fonts = false, schedule = [], refuseCard = false } = {}) {
   };
   let ts = 0;
   const deps = {
-    xfetch, mintSession: async () => ({ token: 't' }), listAccounts: async () => [], twAttr: null,
+    slackWait: 0, xfetch, mintSession: async () => ({ token: 't' }), listAccounts: async () => [], twAttr: null,
     getSetting: async (e, k) => settings.has(k) ? settings.get(k) : null, putSetting: async (e, k, v) => { settings.set(k, v); },
     isAdmin: async () => true, sessionEmail: async () => 'owner@example.test', brandsFor: async () => null,
     slackApi: async (e, method, body) => {
@@ -111,15 +120,18 @@ function world({ fonts = false, schedule = [], refuseCard = false } = {}) {
       if (method === 'users.lookupByEmail') return { ok: true, user: { id: 'U_OWNER' } };
       if (method === 'files.getUploadURLExternal') return { ok: true, upload_url: 'https://upload.test/' + body.filename, file_id: 'F_' + body.filename };
       if (method === 'files.completeUploadExternal') return { ok: true };
-      if (method === 'chat.postMessage') return { ok: true, ts: `1${++ts}.0`, channel: 'D_OWNER' };
+      if (method === 'chat.postMessage') {
+        if (refuseThreadCard && body.thread_ts && (body.blocks || []).some(b => b.block_id === 'ws_card')) return { ok: false, error: 'invalid_blocks' };
+        return { ok: true, ts: `1${++ts}.0`, channel: 'D_OWNER' };
+      }
       return { ok: true };
     },
   };
-  return { env, deps, settings, slack, posts, profitUrls };
+  return { env, deps, settings, slack, posts, profitUrls, claims, userUploads };
 }
 const snap = w => ({ settings: Object.fromEntries([...w.settings].map(([k, v]) => [k, (() => { try { return JSON.parse(v); } catch { return v; } })()])), slack: w.slack, posts: w.posts, profit: w.profitUrls });
 /* The card is the one allowed difference: drop its block, its uploads and the "(picture card)" note. */
-const noCard = o => JSON.parse(JSON.stringify(o, (k, v) => Array.isArray(v) ? v.filter(x => !(x && x.block_id === 'ws_card')) : v));
+const noCard = o => JSON.parse(JSON.stringify(o, (k, v) => k === 'card_svg' ? undefined : Array.isArray(v) ? v.filter(x => !(x && x.block_id === 'ws_card')) : v));
 const noCardCalls = s => ({ ...noCard(s), slack: noCard(s.slack).filter(c => !(/^files\./.test(c.method) && /^update-/.test(c.body.filename || (c.body.files || [{}])[0].title || ''))) });
 
 async function tickBoth(opts, iso) {
@@ -164,6 +176,14 @@ if (OLD) {
       same(snap(r.new), snap(r.old));
     });
   }
+  await check('season answers set but the team switch off: still identical to the base commit', async () => {
+    const r = await tickBoth({ fonts: false, schedule: [['brand_alpha', '4']], switchOn: false }, '2026-11-27T18:05:00Z');
+    assert.deepEqual(r.newResult, r.oldResult);
+    assert.deepEqual(r.newResult, { skipped: 'not a check-in hour' });
+    const r2 = await tickBoth({ fonts: false, schedule: [['brand_alpha', '4']], switchOn: false }, '2026-11-27T20:05:00Z');
+    assert.deepEqual(r2.newResult, r2.oldResult);
+    same(snap(r2.new), snap(r2.old));
+  });
   await check('no schedule, card renders: only the card (block + its upload) differs', async () => {
     const r = await tickBoth({ fonts: true }, '2026-11-27T20:05:00Z');
     const drafts = [...r.new.settings].filter(([k]) => k.startsWith('wsDraft:')).map(([, v]) => JSON.parse(v));
@@ -248,7 +268,7 @@ await check('card: 2.7 layout, Since window when prev is today, changes with rea
   assert.ok(svg.includes('2.86x'), 'since window = today minus the 8am check-in ($4,000 on $1,400)');
   assert.doesNotMatch(svg, /break-even|budgets room|\u2014|\u2013/);
   const svg2 = IMG.clientCardSvg({ ...rec, brands: [{ ...rec.brands[0], prev: null }] }, 'brand_alpha', []);
-  assert.ok(svg2.includes('LAST 6 HOURS') && svg2.includes('No changes, the ads are on track.'));
+  assert.ok(svg2.includes('LAST 6 HOURS') && svg2.includes('No changes since the last update'));
 });
 await check('send one brand: owner only, the send_batch steps, marks the batch and wsLastSent', async () => {
   const w = world({});
@@ -263,6 +283,87 @@ await check('send one brand: owner only, the send_batch steps, marks the batch a
   assert.equal(JSON.parse(w.settings.get('wsBatch:2026-11-27T14')).items.find(i => i.act === 'brand_beta').status, 'sent');
   const again = await (await route(NEW, w, 'POST', '/api/standing/send', { act: 'brand_beta', slot: '2026-11-27T14' })).json();
   assert.equal(again.skipped, 'sent');
+});
+/* ---------- 4. review fixes ---------- */
+const threadPosts = w => w.slack.filter(c => c.method === 'chat.postMessage' && c.body.thread_ts);
+await check('no schedule: a thread preview Slack refuses with the card is retried, then posted as text', async () => {
+  const w = world({ fonts: true, refuseThreadCard: true });
+  seed = 1; at('2026-11-27T20:05:00Z'); await NEW.standingTick(w.env, w.deps, new Date());
+  const drafts = [...w.settings].filter(([k]) => k.startsWith('wsDraft:')).map(([, v]) => JSON.parse(v));
+  if (!drafts.some(d => d.msg.blocks.some(b => b.block_id === 'ws_card'))) { console.log('     (resvg could not render here: nothing to refuse)'); return; }
+  const tp = threadPosts(w), withCard = tp.filter(c => c.body.blocks.some(b => b.block_id === 'ws_card')), plain = tp.filter(c => !c.body.blocks.some(b => b.block_id === 'ws_card'));
+  assert.equal(plain.length, 3, 'every preview reached the thread as text');
+  assert.equal(withCard.length, 3 * 4, 'each card preview tried 4 times before the text');
+  console.log(`     ${withCard.length} refused card previews, ${plain.length} text previews in the thread`);
+});
+await check('the client copy of the card is uploaded with the user token, never the bot file', async () => {
+  const w = world({ fonts: true });
+  seed = 1; at('2026-11-27T20:05:00Z'); await NEW.standingTick(w.env, w.deps, new Date());
+  at('2026-11-27T20:30:00Z');
+  const r = await (await route(NEW, w, 'POST', '/api/standing/send', { act: 'brand_beta', slot: '2026-11-27T14' })).json();
+  assert.equal(r.sent, true);
+  const post = w.posts.filter(p => p.channel === 'C_CLIENT')[0];
+  const card = post.blocks.find(b => b.block_id === 'ws_card');
+  if (!card) { console.log('     (resvg could not render here: the update went as text)'); return; }
+  assert.ok(card.slack_file.id.startsWith('FU_'), 'the user upload, not the bot preview file');
+  assert.ok(w.userUploads.length === 1 && w.userUploads[0].auth === 'Bearer xoxp-test');
+});
+await check('double tap: two sends at once for one brand post to the client once', async () => {
+  const w = world({});
+  seed = 1; at('2026-11-27T20:05:00Z'); await NEW.standingTick(w.env, w.deps, new Date());
+  at('2026-11-27T20:30:00Z');
+  const [a, b] = await Promise.all([1, 2].map(() => route(NEW, w, 'POST', '/api/standing/send', { act: 'brand_beta', slot: '2026-11-27T14' }).then(x => x.json())));
+  assert.equal(w.posts.filter(p => p.channel === 'C_CLIENT').length, 1);
+  assert.equal([a, b].filter(x => x.sent).length, 1);
+  assert.ok([a, b].some(x => x.skipped === 'sending' || x.skipped === 'sent in the last 2 hours'));
+  assert.equal(w.claims.size, 0, 'the claim is cleared');
+  assert.equal(JSON.parse(w.settings.get('wsBatch:2026-11-27T14')).items.find(i => i.act === 'brand_beta').status, 'sent');
+  const later = await (await route(NEW, w, 'POST', '/api/standing/send', { act: 'brand_beta', slot: '2026-11-27T14' })).json();
+  assert.equal(later.skipped, 'sent');
+});
+await check('send after a page Check now (no batch for that slot): drafts it now and sends', async () => {
+  const w = world({});
+  seed = 1; at('2026-11-27T20:05:00Z'); await NEW.standingTick(w.env, w.deps, new Date());
+  at('2026-11-27T21:10:00Z');
+  const run = await (await route(NEW, w, 'POST', '/api/standing/run', {})).json();
+  assert.equal(run.standing.slot, '2026-11-27T15');
+  assert.equal(w.settings.get('wsBatch:2026-11-27T15'), undefined);
+  const r = await (await route(NEW, w, 'POST', '/api/standing/send', { act: 'brand_gamma', slot: '2026-11-27T15' })).json();
+  assert.equal(r.sent, true, JSON.stringify(r)); assert.equal(r.slot, '2026-11-27T15');
+  assert.equal(w.posts.filter(p => p.channel === 'C_CLIENT').length, 1);
+  assert.equal(JSON.parse(w.settings.get('wsBatch:2026-11-27T15')).items[0].status, 'sent');
+  const again = await (await route(NEW, w, 'POST', '/api/standing/send', { act: 'brand_gamma', slot: '2026-11-27T15' })).json();
+  assert.equal(again.skipped, 'sent');
+  assert.equal(w.posts.filter(p => p.channel === 'C_CLIENT').length, 1);
+});
+await check('schedule: "Since" follows the last ticked check-in, not a Check now in between', async () => {
+  const w = world({ schedule: [['brand_alpha', '4']] });
+  seed = 1; at('2026-11-27T14:05:00Z'); await NEW.standingTick(w.env, w.deps, new Date());   // 8am, all
+  at('2026-11-27T17:05:00Z'); await route(NEW, w, 'POST', '/api/standing/run', {});          // Check now, 11am
+  at('2026-11-27T18:05:00Z'); const r12 = await NEW.standingTick(w.env, w.deps, new Date());
+  assert.equal(r12.slot, '2026-11-27T12');
+  const a = JSON.parse(w.settings.get('standing:2026-11-27T12')).brands.find(b => b.act_id === 'brand_alpha');
+  assert.equal(a.prev.slot, '2026-11-27T08');
+  const bt = JSON.parse(w.settings.get('wsBatch:2026-11-27T12'));
+  const text = JSON.stringify(JSON.parse(w.settings.get(`wsDraft:${bt.items[0].id}`)).msg);
+  assert.match(text, /SINCE 8AM/); assert.doesNotMatch(text, /SINCE 11AM/);
+});
+await check('schedule: a due brand whose sale is not live still checks in while another brand is live', async () => {
+  const w = world({ schedule: [['brand_alpha', '4']], notLive: ['brand_alpha'] });
+  seed = 1; at('2026-11-27T14:05:00Z'); await NEW.standingTick(w.env, w.deps, new Date());
+  at('2026-11-27T18:05:00Z'); const r12 = await NEW.standingTick(w.env, w.deps, new Date());
+  assert.equal(r12.slot, '2026-11-27T12'); assert.equal(r12.brands, 1);
+  assert.ok(w.settings.get('standingSent:2026-11-27T12'));
+  at('2026-11-27T19:05:00Z'); assert.deepEqual(await NEW.standingTick(w.env, w.deps, new Date()), { skipped: 'no brand is due' });
+});
+await check('schedule switch: owner only; on/off stored', async () => {
+  const w = world({});
+  const bad = await route(NEW, { ...w, deps: { ...w.deps, sessionEmail: async () => 'teammate@example.test' } }, 'POST', '/api/standing/schedule', { on: true });
+  assert.equal(bad.status, 403);
+  const on = await (await route(NEW, w, 'POST', '/api/standing/schedule', { on: true })).json();
+  assert.equal(on.on, true); assert.equal(w.settings.get('checkinSchedule'), 'on');
+  const off = await (await route(NEW, w, 'POST', '/api/standing/schedule', { on: false })).json();
+  assert.equal(off.on, false);
 });
 await check('no em or en dashes added in the changed files', async () => {
   for (const f of ['src/standing.js', 'src/standingimg.js']) {
