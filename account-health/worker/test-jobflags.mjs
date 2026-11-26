@@ -141,7 +141,7 @@ await ok('real state: an older switch turns a job off with a plain reason; the q
   ds = await one('dashboardsSlack');
   assert.equal(ds.switch_on, false); assert.equal(ds.on, true); assert.equal(ds.off_reason, null);
   assert.equal(ds.still_posts, 'A dashboard with a schedule and a channel keeps posting');
-  assert.ok(!/[—–]/.test(ds.still_posts));
+  assert.ok(!/[\u2014\u2013]/.test(ds.still_posts));
   assert.equal((await one('movedPost')).off_reason, 'A bad day is in the Daily Brief now');
   /* a failed read gives no reason (the same as the job reading a failed setting) */
   assert.equal(await olderOffReason(env, 'fyiRoundup', async () => { throw new Error('db down'); }), null);
