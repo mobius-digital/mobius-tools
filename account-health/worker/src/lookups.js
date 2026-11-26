@@ -204,7 +204,7 @@ const SHORT = { revenue: 'revenue', ad_spend: 'ad spend', mer: 'MER', orders: 'o
 /* ------------------------------------------------------------------------------------------ */
 /*  the code matcher                                                                           */
 /* ------------------------------------------------------------------------------------------ */
-/* Words that mean judgement, a change, something to write, or what somebody said. Any of them and the question is
+/* Words that mean judgment, a change, something to write, or what somebody said. Any of them and the question is
    the assistant's, with no model call spent on deciding. */
 const NOT_A_LOOKUP = new RegExp('\\b(' + [
   'why', 'how come', 'should', 'recommend\\w*', 'suggest\\w*', 'advice', 'advise', 'what (?:to|would you|do we|should we) do', 'analy[sz]e\\w*', 'analysis', 'audit', 'review the',
@@ -580,7 +580,7 @@ export async function runLookups(env, ids, brand, win, params = {}, question = '
 /* ------------------------------------------------------------------------------------------ */
 const ROUTER_SYSTEM = `You sort one question from a marketing team into a fixed list of data lookups. You never answer the question and you never see any data. You only pick.
 
-Pick a lookup ONLY when the question asks for exactly that number, date or status and nothing more. Pick "none" when the question asks why something happened, asks for a judgement, a plan, a comparison of two periods, advice, a summary, something to write or make, any change to anything (pause, raise, send, create), what somebody said in a message, anything about keys, logins, billing or access, or when you are not sure. "none" is always safe: a bigger assistant takes those. A wrong pick is worse than "none".
+Pick a lookup ONLY when the question asks for exactly that number, date or status and nothing more. Pick "none" when the question asks why something happened, asks for a judgment, a plan, a comparison of two periods, advice, a summary, something to write or make, any change to anything (pause, raise, send, create), what somebody said in a message, anything about keys, logins, billing or access, or when you are not sure. "none" is always safe: a bigger assistant takes those. A wrong pick is worse than "none".
 
 The lookups:
 ${LOOKUPS.map(l => `- ${l.id}: ${l.title}. For example "${l.example}"`).join('\n')}
@@ -680,7 +680,7 @@ export async function lookupAnswer(env, d, o) {
     if (o.followUp && (LEANS_ON_THREAD.test(question) || (needsDates(m.ids) && !w))) return null;
   }
   if (!m) {
-    /* Unsure. The small model may pick, but never for a follow-up (it has no thread), a question with judgement or
+    /* Unsure. The small model may pick, but never for a follow-up (it has no thread), a question with judgment or
        change words, two brands, or a channel there is no lookup for. */
     if (o.mode !== 'on' || o.followUp || !d || named.length > 1) return null;
     if (NOT_A_LOOKUP.test(question.toLowerCase()) || OTHER_CHANNEL.test(question)) return null;

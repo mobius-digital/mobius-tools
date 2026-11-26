@@ -3,7 +3,7 @@
  *   1. THE BRIEF is ONE WRITTEN PAGE (Cole, after reading the team's real Asana briefs: headings, bold labels, numbered
  *      ads, pictures and links in the flow, not a form). brief_json = {v:2, html, format, sizes}. The html passes the
  *      sanitizer here (a tag allowlist; pictures and videos are <img data-file> / <video data-file> of files uploaded
- *      on the card, the signed src is filled at read time; <span data-ph> is a grey hint that vanishes when typed over;
+ *      on the card, the signed src is filled at read time; <span data-ph> is a gray hint that vanishes when typed over;
  *      <span data-ai> marks words the AI wrote). brief_text is the same page as plain text, so Studio, the tagger and
  *      the Strategist keep reading. A new brief starts from a template (new / iteration / resize / blank) seeded with
  *      the card's own ad numbers. "Write it with AI" returns the whole page with the hints filled from the brand brain
@@ -356,9 +356,9 @@ export function sanitizeHtml(html) {
   return out.trim().slice(0, HTML_MAX);
 }
 /** True when the page has no words of its own (only hints, blank lines). */
-/** A page with nobody's words on it counts as blank, so the sheet starts from the Locus template with its grey hints
- *  (2026-10-14, Cole: "I thought you were going to put actual placeholder text, greyed out, but it's actual text"): no
- *  text at all, or only the Asana template untouched (headings, bold labels, the grey example line, the "Added in
+/** A page with nobody's words on it counts as blank, so the sheet starts from the Locus template with its gray hints
+ *  (2026-10-14, Cole: "I thought you were going to put actual placeholder text, grayed out, but it's actual text"): no
+ *  text at all, or only the Asana template untouched (headings, bold labels, the gray example line, the "Added in
  *  Locus" / "From the call" line, numbered label stubs). */
 export function templateOnly(html) {
   const left = String(html || '')
@@ -461,7 +461,7 @@ export function textToHtml(text) {
 export const v1ToHtml = b => textToHtml(briefTextV1(b));
 
 const ASANA_HINTS = [/^what changes, and on which ad/i, /^one thing: if we/i, /^the argument this ad makes/i];
-/** Asana's html_notes as a page: newlines at the top level become paragraphs, Asana's tags pass, the template's grey
+/** Asana's html_notes as a page: newlines at the top level become paragraphs, Asana's tags pass, the template's gray
  *  example line becomes a hint, the "Written in Locus" line is dropped. */
 export function asanaToHtml(notes) {
   let s = String(notes || '').replace(/^\s*<body>/i, '').replace(/<\/body>\s*$/i, '').replace(/\r/g, '');
@@ -507,7 +507,7 @@ export function asanaToHtml(notes) {
 /** The starting pages. kind = new | iter | resize | blank; the ads are numbered from the card's number. */
 const PH = t => `<span data-ph>${esc(t)}</span>`;
 /* A bold label on its OWN line and the words under it (2026-10-14, Cole: the media buyer triple-clicks a line to copy
-   it, so "Headline: Milled. Not cast." on one line copied the label too). Every page is normalised this way when it is
+   it, so "Headline: Milled. Not cast." on one line copied the label too). Every page is normalized this way when it is
    read or saved: <p><strong>Headline:</strong> words</p> becomes <p><strong>Headline</strong></p><p>words</p>. */
 export function splitLabels(html) {
   /* only a label that ends in a colon ("Headline:" or "Headline</strong>:"), with words after it in the same paragraph */
@@ -573,7 +573,7 @@ export async function aiFill(env, d, card, brief) {
   const page = htmlBlank(b.html) ? templateHtml('new', b.format, card.num) : b.html;
   const system = `You write ad briefs for Mobius Digital, a performance ad agency, in the team's framework: Angle (the argument), Why (the data or insight behind it, one sentence), What we're testing (ONE variable, phrased "If we ..., then ..."), the numbered ads (each one line: what it shows and says), then the copy (Headline, Primary text in the brand's voice, Offer, Landing page).
 You are given the brief as HTML. Return the WHOLE page as HTML, same structure, same tags, and:
-- Replace every <span data-ph>...</span> (a grey hint) with your own words for that spot, wrapped in <span data-ai>...</span>.
+- Replace every <span data-ph>...</span> (a gray hint) with your own words for that spot, wrapped in <span data-ai>...</span>.
 - A label with nothing after it (like "<strong>Offer:</strong>") gets your words after it, also wrapped in <span data-ai>.
 - Never change, cut or reword a sentence a person wrote. Never remove a picture, a video or a link.
 - Format ${b.format}. ${b.format === 'Video' || b.format === 'UGC' ? 'Script = 3 to 6 beats, each "what is said | what we see | seconds".' : 'Say what the picture is and where the words sit.'}
@@ -890,7 +890,7 @@ export async function addComment(env, d, body, who, scope, opts = {}) {
   }
   const role = scope ? 'client' : opts.guest ? 'client' : 'team';
   const name = opts.name || (role === 'team' ? nameOfEmail(who) : (scope && scope.name) || clean(String(who || '').split('@')[0], 40) || 'Client');
-  const kind = parent ? 'reply' : role === 'team' && ['comment', 'note', 'change_request', 'approval', 'system', 'reopen'].includes(body.kind) ? body.kind : fileId ? 'note' : 'comment'; /* a client or a review-link guest decides through decide(), never by labelling a comment */
+  const kind = parent ? 'reply' : role === 'team' && ['comment', 'note', 'change_request', 'approval', 'system', 'reopen'].includes(body.kind) ? body.kind : fileId ? 'note' : 'comment'; /* a client or a review-link guest decides through decide(), never by labeling a comment */
   const at = body.at != null && isFinite(+body.at) && +body.at >= 0 ? Math.round(+body.at * 10) / 10 : null;
   const id = rid();
   await env.DB.prepare(`INSERT INTO p_work_comment (id, batch_id, act_id, author_email, author_name, author_role, body, kind, file_id, shape_json, at_sec, parent_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)`)

@@ -111,7 +111,7 @@ function view(d, ctx) {
     findings(d, s, ctx),
     h('div', { class: 'lx-sec' }, h('h3', null, 'The hook bank'), h('span', { class: 'note' }, 'One card per video, judged on hook rate first.')),
     gallery,
-    foot('Hook rate = people who watched 3 seconds out of everyone who saw it. Feed and Reels are mixed.', 'Cost per sale is grey under 30 orders.', SRC_NOTE),
+    foot('Hook rate = people who watched 3 seconds out of everyone who saw it. Feed and Reels are mixed.', 'Cost per sale is gray under 30 orders.', SRC_NOTE),
   ].filter(Boolean);
 }
 

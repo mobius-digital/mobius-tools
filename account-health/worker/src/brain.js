@@ -18,11 +18,11 @@
  *   5. Voice of customer                    11. GAPS: what is missing, said plainly
  * 2026-09-29: Viktor's source-verified research (profit/worker/migrations/viktor_import.mjs)
  * lands in the same tables with source 'viktor' (personas, quotes, competitors, per-line market +
- * mechanism) plus a brand-level 'viktor_notes' doc; it is labelled "Viktor research" wherever it
+ * mechanism) plus a brand-level 'viktor_notes' doc; it is labeled "Viktor research" wherever it
  * is still a draft. Its ad history is Meta-reported and says so; the Triple Whale tests win.
  * The order is fixed and there is no timestamp in it, so the prompt cache hits: the
  * brain goes in a cached system block (cache_control) wherever it is used. AI drafts
- * are included but labelled draft. Size: about 60k characters, per-section caps,
+ * are included but labeled draft. Size: about 60k characters, per-section caps,
  * clip() never splits an emoji.
  *
  * SPECIFICITY is the rule block every creative prompt carries with the brain.
@@ -314,7 +314,7 @@ export async function brandBrain(env, act, opts = {}) {
     for (const b of B.slice(0, 40)) (byAngle[b.angle_id || ''] ||= []).push(b);
     const resultOf = b => b.verdict && b.verdict !== 'cancelled' ? `${b.verdict.toUpperCase()} (called)`
       : b.asana_result === 'keep' ? `KEEP RUNNING${b.keep_reason ? ` (${b.keep_reason})` : ''}`
-      : b.asana_result ? `${b.asana_result.toUpperCase()} (Asana call, test not closed)` : b.verdict === 'cancelled' ? 'CANCELLED' : 'no call yet';
+      : b.asana_result ? `${b.asana_result.toUpperCase()} (Asana call, test not closed)` : b.verdict === 'cancelled' ? 'CANCELED' : 'no call yet';
     const testLine = b => {
       const s = stats[b.id];
       const nums = s && s.spend > 0 ? ` | ${money(s.spend)} spend, ${s.orders ? `${Math.round(s.orders)} order${Math.round(s.orders) === 1 ? '' : 's'}, CPA ${money(s.spend / s.orders)}` : 'no orders'}, ROAS ${(s.rev / s.spend).toFixed(2)}` : '';

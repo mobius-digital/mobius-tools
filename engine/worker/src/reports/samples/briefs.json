@@ -1,0 +1,17 @@
+{
+  "rows": [
+    {
+      "act_id": "brand_north_kites",
+      "date": "2026-01-11",
+      "posted_at": "2026-01-12T13:00:00.000Z",
+      "channel": "C0NORTH0002",
+      "status": "sent",
+      "text": "Yesterday went to plan.",
+      "data_json": "{}",
+      "slack_ts": "1768220000.000200",
+      "slack_channel": "C0NORTH0001",
+      "steer": null,
+      "account_name": "North Kites"
+    }
+  ]
+}

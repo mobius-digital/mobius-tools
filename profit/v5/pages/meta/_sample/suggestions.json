@@ -59,7 +59,10 @@
    "state": "decide",
    "note": "",
    "by": null,
-   "thumb": null
+   "thumb": null,
+   "do": "pause",
+   "adset_id": "100000000001",
+   "object_id": "100000000001"
   },
   {
    "key": "k2",
@@ -105,7 +108,12 @@
    "state": "decide",
    "note": "",
    "by": null,
-   "thumb": null
+   "thumb": null,
+   "do": "budget",
+   "adset_id": "100000000002",
+   "object_id": "100000000002",
+   "budget": 20,
+   "suggested_budget": 25
   },
   {
    "key": "k3",
@@ -151,14 +159,17 @@
    "state": "decide",
    "note": "",
    "by": null,
-   "thumb": null
+   "thumb": null,
+   "do": "brief",
+   "ad_id": "100000000003",
+   "object_id": "100000000003"
   },
   {
    "key": "k4",
    "kind": "cut",
    "level": "ad",
    "call": "Turn off",
-   "object": "Fall colours, flat lay in Broad | New people",
+   "object": "Fall colors, flat lay in Broad | New people",
    "because": "It spent three times the goal cost with no sale.",
    "facts": [
     {
@@ -191,7 +202,10 @@
    "state": "decide",
    "note": "",
    "by": null,
-   "thumb": null
+   "thumb": null,
+   "do": "pause",
+   "ad_id": "1000000000k4",
+   "object_id": "1000000000k4"
   },
   {
    "key": "k5",

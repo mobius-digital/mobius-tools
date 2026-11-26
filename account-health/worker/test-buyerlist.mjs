@@ -138,7 +138,10 @@ await check('the Slack DM: "N changes ready across B brands, $X at stake", the t
   const m = buyerMessage(L, '<@U_COLE>');
   const lines = m.text.split('\n');
   assert.equal(lines[0], 'MEDIA BUYING · Agency: Go through the Buyer list: 8 changes ready across 2 brands, $4.9K at stake');
-  assert.deepEqual(m.blocks[0].text.text.split('\n').slice(0, 3), ['*MEDIA BUYING · Agency*', '<@U_COLE>  Go through the Buyer list: 8 changes ready across 2 brands, $4.9K at stake', '• *Alpha*: Pause this ad set, "Set 0"'], 'lane first, the owner tagged, then the top lines');
+  /* 2026-11-26, the house style (lane.js through house.js): header, the owner tagged, the top lines. */
+  assert.equal(m.blocks[0].text.text, 'MEDIA BUYING · Agency: Go through the Buyer list: 8 changes ready across 2 brands, $4.9K at stake', 'lane first');
+  assert.equal(m.blocks[1].text.text, '<@U_COLE>', 'the owner tagged');
+  assert.match(m.blocks[2].text.text, /^• \*?Alpha\*?: Pause this ad set, "Set 0"/, 'then the top lines');
   assert.equal(lines[1], '• *Alpha*: Pause this ad set, "Set 0"');
   assert.equal(lines.length, 6, 'the head and 5 one-liners, nothing else');
   assert.ok(!/Owner|Launched yesterday|Morning read|more in Locus/.test(m.text));

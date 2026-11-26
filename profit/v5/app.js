@@ -33,7 +33,9 @@ async function fetchBoot() {
     return { me: { ...me, name: me.client && me.client.name }, brands: ((me.client && me.client.brands) || []).map(x => ({ id: x.id, name: x.name, status: 'active' })) };
   }
   const list = b ? b.brands : (await api('/api/brands', { worker: 'ah' })).brands;
-  return { me, brands: (list || []).filter(x => !x.status || x.status === 'active').map(x => ({ id: x.id, name: x.name, status: x.status || 'active', color: x.color || null })) };
+  return { me, brands: (list || []).filter(x => !x.status || x.status === 'active').map(x => ({ id: x.id, name: x.name, status: x.status || 'active', color: x.color || null,
+    /* where client updates go: To send names the channel and spots a brand with none */
+    ...('client_channel' in x ? { client_channel: x.client_channel || null } : {}) })) };
 }
 
 /* Sign in happens on this app's own page (pages/_signin.js). Once the session is stored the app loads

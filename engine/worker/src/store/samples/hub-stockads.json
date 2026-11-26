@@ -1,0 +1,55 @@
+{
+  "brands": [
+    {
+      "act_id": "brand_north_kites",
+      "name": "North Kites",
+      "from": "2026-10-26",
+      "to": "2026-11-25",
+      "model": "lastPlatformClick",
+      "spend": 176,
+      "mapped": 151,
+      "products": {
+        "p2": {
+          "spend": 75.28,
+          "orders": 1,
+          "ads": 1
+        },
+        "p1": {
+          "spend": 75.28,
+          "orders": 1,
+          "ads": 1
+        }
+      },
+      "ads": {
+        "ad_n1": [
+          [
+            "p2",
+            1
+          ],
+          [
+            "p1",
+            1
+          ]
+        ]
+      },
+      "adsets": [
+        {
+          "adset_id": "set_n1",
+          "name": "North set",
+          "s7": 125,
+          "s30": 175.56,
+          "products": [
+            [
+              "p2",
+              1
+            ],
+            [
+              "p1",
+              1
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

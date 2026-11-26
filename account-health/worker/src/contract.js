@@ -22,8 +22,10 @@
  *   POST /api/sign/:token           { name, agree: true }  the client's signature
  */
 import { googleToken } from './asana-brand.js';
-import { sendMail, mailGuard } from './mail.js';
+import { sendMail as sendMailAs, mailGuard } from './mail.js';
 import { fyi } from './lane.js';
+/* The agreement emails come from the onboarding_email sender (Agency settings > Sending and notifications). */
+const sendMail = (env, to, subject, text) => sendMailAs(env, to, subject, text, { kind: 'onboarding_email' });
 
 let F = (...a) => fetch(...a);
 export function useFetch(f) { F = f; }

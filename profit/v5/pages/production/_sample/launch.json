@@ -1,0 +1,15 @@
+{
+  "adsets": [
+    { "id": "120200000000000101", "name": "{num} | Black Friday | Broad", "status": "ACTIVE", "campaign": "Sales | Testing" },
+    { "id": "120200000000000102", "name": "Evergreen | Best sellers", "status": "ACTIVE", "campaign": "Sales | Evergreen" },
+    { "id": "120200000000000103", "name": "Past buyers", "status": "PAUSED", "campaign": "Sales | Evergreen" }
+  ],
+  "why": "Its own ad set: the name starts with the card number.",
+  "cta": "SHOP_NOW",
+  "set_count": 6,
+  "set_names": ["Ridge belt | Still", "Gift guide | Video", "Buckle close up | Still", "Two belts | Still", "Course walk | Video", "Review card | Still"],
+  "headline": "Buy one belt, get one 50% off",
+  "primary_text": "Our best belt, now with a second one at half price. Ends Sunday.",
+  "link": "https://example.com/collections/black-friday",
+  "max_ads": 6
+}

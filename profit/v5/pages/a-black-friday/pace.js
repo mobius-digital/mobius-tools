@@ -5,7 +5,7 @@
      account-health  GET /api/standing                    the latest check-in (Triple Whale + Meta)
      profit          GET /api/season/war?act=all          today's orders and the scheduled switches
      profit          GET /api/season/war?act=<id>&live=1  today by the hour and the plan for today
-   It never writes. Approving a budget move happens in old Locus (ctx.legacy). */
+   It never writes. Approving a budget move happens on the War Room tab (war-room.js). */
 
 import { APP_NAME } from '../../config.js';
 import { put } from '../../kit.js';
@@ -306,7 +306,7 @@ function brandRow(b, i, ctx, data, firstYes) {
   const head = h('div', { class: 'wr-h' },
     h('span', { class: 'nm' }, b.name), statusDot(b.status.tone, b.status.text), h('span', { class: 'sp' }),
     h('span', { class: 'wr-call' }, h('b', { class: tone }, c.text), c.sub ? h('span', null, c.sub) : null, shortWhy ? h('em', { title: c.why }, c.why) : null),
-    yes ? button('Approve in old ' + APP_NAME, { primary: b.id === firstYes, large: true, href: ctx.legacy || '../', icon: 'arrow', aria: `Approve ${b.name} in old ${APP_NAME}` }) : null);
+    yes ? button('Approve in War Room', { primary: b.id === firstYes, large: true, href: ctx.href('a-black-friday', 'war-room'), icon: 'arrow', aria: `Approve ${b.name} in the War Room` }) : null);
 
   /* sales today */
   const sales = b.no_sales
@@ -378,7 +378,7 @@ function render(el, data, ctx) {
     sub: h('span', { class: 'wr-sub' }, platformChip('meta'), ` sales ads, ${data.brands.length} brands${data.dry ? ', dry run on today' : ''}`),
     action: h('div', { class: 'wr-meta' },
       data.checked ? h('span', null, `Checked ${data.checked}${data.next ? ', next ' + data.next : ''}`) : h('span', null, 'No check-in yet'),
-      button('Check now in old ' + APP_NAME, { href: ctx.legacy || '../' })),
+      button('Open the War Room', { href: ctx.href('a-black-friday', 'war-room') })),
   },
   h('div', { class: 'wr-hero-grid' },
     h('div', { class: 'wr-hero-l' },

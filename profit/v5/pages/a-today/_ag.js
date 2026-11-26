@@ -21,7 +21,7 @@ export const platName = id => PLATFORM_NAME[id] || id;
 export const quiet = text => h('span', { class: 'ag-q' }, text);
 /** A failed side read must not sink the page; a sign-in problem or a cancel still must. */
 export const soft = p => p.catch(e => { if (e && (e.name === 'AbortError' || e.status === 401)) throw e; return null; });
-/** The small grey chip on anything drawn from sample numbers while its feed does not exist yet. */
+/** The small gray chip on anything drawn from sample numbers while its feed does not exist yet. */
 export const exampleChip = kitExampleChip; /* one version, in the kit */
 /** The whole sample world (pages/a-today/_sample/world.json), read once. */
 let WORLD = null;
@@ -141,7 +141,7 @@ const CSS = `
 }`;
 export const style = () => addStyles('ag-css', CSS);
 
-/** The brand's colour square and name. As a link when href is given. */
+/** The brand's color square and name. As a link when href is given. */
 export function brandName(b, ctx, href) {
   const known = ((ctx && ctx.brands) || []).find(k => k.id === b.id) || {};
   const kids = [h('i', { class: 'lx-swatch', style: { '--dot': b.color || known.color || 'var(--ink)' } }), h('b', null, b.name)];

@@ -18,6 +18,8 @@
  *   slack_channel        make a new internal channel, optionally private, and invite people (undo = archived)
  */
 import { recordWrite, registerUndo, doneNote, brandOf, isOwner } from './extwrite.js';
+import { clientLeaks } from './stratanswer.js';
+import { senderFor, postAs } from './sender.js';
 
 const clip = (s, n) => String(s ?? '').slice(0, n);
 const P = 'slack';
@@ -145,6 +147,9 @@ function postAction(d, client) {
       if (client && dst.kind === 'internal') return { error: `${dst.label} is internal: use slack_post.` };
       const text = clip(String(i.text || '').replace(/\u2014/g, ','), 3900).trim();
       if (!text) return { error: 'Write the message.' };
+      /* Text a client reads never carries internal set, campaign or test names or ids (2026-11-26, AI eval K01). */
+      const leaks = client ? clientLeaks(text) : [];
+      if (leaks.length) return { error: `Not put up: the client would read ${leaks.join('; ')}. Rewrite it in the client's words (for example "the ads for new customers"), with no ad set, campaign or test names or ids.` };
       let thread = null;
       if (i.thread) { const m = messageOf({ message: i.thread }, ctx); thread = m?.ts || (/^\d{10}\.\d{6}$/.test(String(i.thread)) ? String(i.thread) : null); if (!thread) return { error: 'thread must be a Slack link or a message ts.' }; }
       const b = await brandOf(env, d, i.brand, ctx).catch(() => null);
@@ -163,7 +168,11 @@ function postAction(d, client) {
         if (c.error || c.kind !== 'internal') return { error: c.error || `${p.label} is client-facing now. Nothing was posted.` };
       }
       if (p.join) await d.slack(env, 'conversations.join', { channel: p.channel }).catch(() => {});
-      const j = await d.slack(env, 'chat.postMessage', { channel: p.channel, text: p.text, unfurl_links: false, username: 'Locus', ...(p.thread ? { thread_ts: p.thread, ...(p.broadcast ? { reply_broadcast: true } : {}) } : {}) });
+      /* A client post comes from the client_post sender (sender.js): the app by default, as before; Cole when set. */
+      const body = { channel: p.channel, text: p.text, unfurl_links: false, ...(p.thread ? { thread_ts: p.thread, ...(p.broadcast ? { reply_broadcast: true } : {}) } : {}) };
+      const who = p.client ? await senderFor(env, 'client_post').catch(e => ({ who: 'error', error: e.message })) : null;
+      if (who && who.who === 'error') return { error: `${who.error} Nothing was posted.` };
+      const j = who && who.who === 'cole' ? await postAs(who, body, d.xfetch || ((...a) => fetch(...a))) : await d.slack(env, 'chat.postMessage', { ...body, username: 'Locus' });
       if (!j.ok) return { error: say(j, 'the post') };
       const link = await permalink(env, d, j.channel, j.ts);
       const id = await recordWrite(env, { platform: P, brand: p.brand, object: `${j.channel}:${j.ts}`, name: p.label, action: p.client ? 'slack_post_client' : 'slack_post', before: null,

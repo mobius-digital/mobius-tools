@@ -22,7 +22,9 @@
  * Shopify: no Shopify API (the Partner API included) can send a collaborator request. A person on the team sends it from
  * the Partner dashboard; Locus puts it on My day with the store address and the code, and the page says so plainly.
  */
-import { sendMail, testRecipient } from './mail.js';
+import { sendMail as sendMailAs, testRecipient } from './mail.js';
+/* Onboarding mail comes from the onboarding_email sender (Agency settings > Sending): Cole by default. */
+const sendMail = (env, to, subject, text) => sendMailAs(env, to, subject, text, { kind: 'onboarding_email' });
 import { integrationsReport } from './integrations.js';
 import { connectToken, connectPost } from './connect.js';
 import { storeKey as klaviyoStore } from './klaviyo.js';

@@ -8,7 +8,7 @@
  * - Index: one row per image in p_asset (about 1KB a row). New or changed files are found by walking the
  *   folder tree and comparing modifiedTime: no AI involved, Drive API calls only.
  * - Tags: each NEW image is shown once to Claude Haiku as a 640px thumbnail (about a tenth of a cent) and
- *   gets people / setting / shot / products / colours / a one-line description. The thumbnail is kept in R2
+ *   gets people / setting / shot / products / colors / a one-line description. The thumbnail is kept in R2
  *   (assets/<act>/<file id>.jpg) so the library loads fast and never re-asks Drive.
  * - Runs: hourly, one brand at a time (stalest first), within the subrequest budget; or Sync now.
  * Folders whose name says agreement / contract / invoice / legal / archive / not for use are skipped.
@@ -167,7 +167,7 @@ export async function syncAssets(env, act, { maxFolders = 500, maxFiles = 10000 
 const TAG_SYSTEM = `You tag product and lifestyle photos for an ad agency's photo library. Answer ONLY with JSON:
 {"people": <number of people visible, 0 if none>, "setting": "white background" | "studio" | "lifestyle indoor" | "lifestyle outdoor" | "golf course" | "flat lay" | "graphic" | "other",
  "shot": "close-up" | "product detail" | "half body" | "full body" | "group" | "scene", "products": [short names of the brand's products you can see, from the list if one matches],
- "wearing": [clothing or accessories a person wears, e.g. "polo", "hat", "glove"], "colors": [up to 3 main colours], "description": "one plain sentence a designer would search for"}`;
+ "wearing": [clothing or accessories a person wears, e.g. "polo", "hat", "glove"], "colors": [up to 3 main colors], "description": "one plain sentence a designer would search for"}`;
 
 /** Tag up to `limit` new images for a brand: thumbnail to R2, then one small vision call each. */
 export async function tagAssets(env, act, limit = 25) {
@@ -212,7 +212,7 @@ export async function tagAssets(env, act, limit = 25) {
   return { act, tagged: done, failed, cost: Math.round(cost * 10000) / 10000 };
 }
 
-/** Search the library. Words match the description, name, products, clothing, setting and colours. */
+/** Search the library. Words match the description, name, products, clothing, setting and colors. */
 export async function listAssets(env, act, p = {}) {
   await ensure(env);
   const where = [`act_id = ?1`, `status IN ('tagged', 'new')`], args = [act];

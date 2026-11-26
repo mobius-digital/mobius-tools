@@ -1,7 +1,7 @@
 /**
  * Calendly (2026-10-03, Cole: track when a new client books the strategy call).
  *
- * One webhook on Cole's Calendly organisation (invitee.created + invitee.canceled) points at
+ * One webhook on Cole's Calendly organization (invitee.created + invitee.canceled) points at
  * /calendly/webhook here. It is made through the API the first time CALENDLY_TOKEN is set (a personal
  * access token: Calendly > Integrations > API and webhooks), with a signing key Locus picks, kept in
  * settings.calendlyHook. Only the strategy-session event type counts.

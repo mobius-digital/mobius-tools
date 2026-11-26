@@ -1,0 +1,62 @@
+{
+  "id": "m_1",
+  "title": "Monday call",
+  "date": "2026-01-12",
+  "at": "2026-01-12T15:00:00.000Z",
+  "duration": 42,
+  "organizer": "owner@agency.test",
+  "chars": 12000,
+  "kind": "monday_call",
+  "status": "confirmed",
+  "error": null,
+  "cost": 0.05,
+  "confirmed_by": "owner@agency.test",
+  "confirmed_at": "2026-01-12T16:00:00.000Z",
+  "created_at": "2026-01-12T15:50:00.000Z",
+  "updated_at": "2026-01-12T16:00:00.000Z",
+  "attendees": [
+    {
+      "displayName": "Pat",
+      "email": "pat@northkites.test"
+    }
+  ],
+  "notes": {
+    "kind": "monday_call",
+    "summary": "Went through the week.",
+    "brands": [
+      {
+        "brand_id": "brand_north_kites",
+        "decisions": [
+          "Keep the budget"
+        ],
+        "items": [
+          {
+            "kind": "team",
+            "text": "Check the kite ads",
+            "owner": "Sam",
+            "due": "2026-01-09"
+          }
+        ],
+        "this_week": [
+          "New kite ads go live"
+        ]
+      }
+    ]
+  },
+  "result": {
+    "brands": [
+      {
+        "brand_id": "brand_north_kites",
+        "tasks": [
+          {
+            "id": "pa_1"
+          }
+        ],
+        "briefs": [],
+        "asks": [],
+        "report": true
+      }
+    ],
+    "agency": null
+  }
+}

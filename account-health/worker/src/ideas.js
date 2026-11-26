@@ -51,7 +51,7 @@
  *     TikTok / Instagram file is streamed into R2 `mobius-amb-media` (binding MEDIA, the same
  *     bucket Locus's Ambassadors tab uploads to, 95MB cap) when it is watched, remembered on
  *     idea_media.file_key, and the Creator link button attaches it as a `upload` proof (the kind
- *     the page plays natively) labelled "Another brand (inspiration)". YouTube stays a link. Undo
+ *     the page plays natively) labeled "Another brand (inspiration)". YouTube stays a link. Undo
  *     deletes the proof, the R2 object (unless another proof still uses it) and forgets the key so
  *     the next tag stores it again.
  *
@@ -553,7 +553,7 @@ export async function ensureClip(env, act, v, meter = null) {
   }
 }
 
-/* Facts only. The judgement is Claude's, with the brand brain; this just has to be right. */
+/* Facts only. The judgment is Claude's, with the brand brain; this just has to be right. */
 const FACTS_PROMPT = `Watch this short-form video and report FACTS only, no opinions and no advice. Reply with JSON with exactly these keys:
 {"format": [one or more of: yapper, pov, green screen, skit, demo, testimonial, unboxing, street interview, voiceover b-roll, slideshow, before and after, tutorial, reaction, stitch or duet, founder story, other],
  "length_seconds": number,
@@ -668,7 +668,7 @@ export async function videoFacts(env, v, meter, act = null) {
   }
 }
 
-/* Atria's words about the ad, labelled for the thinking step. */
+/* Atria's words about the ad, labeled for the thinking step. */
 function atriaSummary(a) {
   const ad = a.ad || {};
   const days = +ad.days_running || 0;
@@ -1598,7 +1598,7 @@ export async function undoCreator(env, row, pushed) {
 
 /* ---------------- Lucky creator app: the push (2026-09-30) ---------------- */
 /* The app's angle has three beats (Start / Then / End) and no field for the on-screen lines or the do / don't
-   list, so the shots fill the beats and the rest rides on the last beats, labelled. Never more than three. */
+   list, so the shots fill the beats and the rest rides on the last beats, labeled. Never more than three. */
 export function luckyBeats(c) {
   const parts = (c.shots || []).slice(0, 3).map(s => s.text).filter(Boolean);
   const oneLine = s => String(s || '').split('\n').filter(Boolean).join(' / ');
@@ -1950,7 +1950,7 @@ async function makeRoot(env, acct, ask, why, link) {
   const team = ((await teamOf(env, [acct.act_id]).catch(() => ({})))[acct.act_id]) || {};
   const who = await laneWho(env, { slackApi: (e, m, b) => slack(e, m, b, /^users\./.test(m)), centralDate: () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }) }, laneOwner('CREATIVE', team));
   const m = laneBlocks({ lane: 'CREATIVE', brand: acct.name, who, ask, why });
-  return `${m.blocks[0].text.text}${link ? `\n${link}` : ''}`;
+  return `${m.mrkdwn}${link ? `\n${link}` : ''}`;
 }
 
 const plainErr = (m, status = 400) => Object.assign(new Error(m), { plain: true, status });

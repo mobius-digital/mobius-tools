@@ -108,7 +108,7 @@ function view(d, ctx) {
     body,
     card({ class: 'ww-cd', title: 'Copy themes and the words inside the image', action: tagsNote('Copy theme and in-image word tags') },
       h('p', { class: 'lx-foot', style: { marginTop: '10px' } }, 'Themes, the headline written on the picture and the call to action on it are read by ' + APP_NAME + ' AI. They come back once a person has checked them.')),
-    foot(d.source === 'live' && d.covered ? `Words are read for the top ${num(d.covered)} ads by spend.` : null, 'Grey = under 30 orders.', SRC_NOTE),
+    foot(d.source === 'live' && d.covered ? `Words are read for the top ${num(d.covered)} ads by spend.` : null, 'Gray = under 30 orders.', SRC_NOTE),
   ];
 }
 

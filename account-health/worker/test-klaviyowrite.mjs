@@ -202,7 +202,7 @@ await check('unschedule and cancel: revert and cancel on the send job, refused o
   const r = await acts.klaviyo_campaign_cancel.apply(env, p.patch, null, COLE);
   assert.ok(r.ok, r.error); assert.equal(calls.at(-1).body.data.attributes.action, 'revert'); assert.equal(CAMPS['01SCHED000000000000000000B'].status, 'Draft');
   const p2 = await acts.klaviyo_campaign_cancel.propose(env, { brand: 'Lucky Golf', campaign: 'October Drop', mode: 'cancel', reason: 'dup' }, null, COLE);
-  assert.ok(!p2.error, p2.error); assert.match(p2.detail, /Cancelled for good/);
+  assert.ok(!p2.error, p2.error); assert.match(p2.detail, /Canceled for good/);
   await acts.klaviyo_campaign_cancel.apply(env, p2.patch, null, COLE);
   assert.equal(CAMPS['01DRAFT000000000000000000A'].status, 'Cancelled');
   const p3 = await acts.klaviyo_campaign_cancel.propose(env, { brand: 'Lucky Golf', campaign: 'Fall Sale Early Access', mode: 'cancel', reason: 'x' }, null, COLE);

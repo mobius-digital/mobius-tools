@@ -22,7 +22,7 @@ const getSetting = k => db.prepare(`SELECT value FROM settings WHERE key = ?`).g
 let n = 0, bad = 0;
 const check = async (name, fn) => { try { await fn(); n++; console.log('PASS ', name); } catch (e) { bad++; console.log('FAIL ', name, '\n   ', e.stack); } };
 
-/* ---------- 1. the judgement: asana-brand.js testMinimumsDue on a real (in-memory) brand, Meta mocked ---------- */
+/* ---------- 1. the judgment: asana-brand.js testMinimumsDue on a real (in-memory) brand, Meta mocked ---------- */
 const TODAY = new Date().toISOString().slice(0, 10);
 const ago = k => { const d = new Date(TODAY + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - k); return d.toISOString().slice(0, 10); };
 db.exec(`CREATE TABLE brand_accounts (act_id TEXT, name TEXT, target_cpa REAL, target_roas REAL, slack_channel TEXT, meta_act TEXT, brief_channel TEXT);

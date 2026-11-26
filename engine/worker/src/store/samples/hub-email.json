@@ -1,0 +1,64 @@
+{
+  "model": "lastPlatformClick",
+  "model_label": "Triple Whale, last platform click",
+  "cmp": "prev",
+  "window": {
+    "from": "2026-11-21",
+    "to": "2026-11-24",
+    "pf": "2026-11-17",
+    "pt": "2026-11-20",
+    "span": 4,
+    "today": "2026-11-25"
+  },
+  "brands": [
+    {
+      "act_id": "brand_north_kites",
+      "name": "North Kites",
+      "currency": "USD",
+      "cur": {
+        "email": 600,
+        "campaigns": 360,
+        "flows": 240,
+        "email_clicks": 160,
+        "sms_clicks": 20,
+        "revenue": 4000,
+        "share": 0.15
+      },
+      "prev": {
+        "email": 600,
+        "campaigns": 360,
+        "flows": 240,
+        "email_clicks": 160,
+        "sms_clicks": 20,
+        "revenue": 4000,
+        "share": 0.15
+      },
+      "series": [
+        {
+          "date": "2026-11-21",
+          "campaigns": 90,
+          "flows": 60,
+          "email": 150
+        },
+        {
+          "date": "2026-11-22",
+          "campaigns": 90,
+          "flows": 60,
+          "email": 150
+        },
+        {
+          "date": "2026-11-23",
+          "campaigns": 90,
+          "flows": 60,
+          "email": 150
+        },
+        {
+          "date": "2026-11-24",
+          "campaigns": 90,
+          "flows": 60,
+          "email": 150
+        }
+      ]
+    }
+  ]
+}

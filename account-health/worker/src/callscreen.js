@@ -556,7 +556,7 @@ export async function finishCall(env, d, body, who) {
   if (c.kind === 'client' && body.recap && clean(body.recap, 4000) && !(prev && prev.recap && prev.recap.posted)) {
     const ch = (await env.DB.prepare(`SELECT brief_channel FROM brand_accounts WHERE act_id = ?1`).bind(c.act_id).first().catch(() => null))?.brief_channel;
     if (!ch) recap = { posted: false, why: 'This brand has no client channel.' };
-    else { try { await d.slackPost(env, ch, noDash(keep(body.recap, 4000)), null, { asUser: true }); recap = { posted: true }; } catch (e) { recap = { posted: false, why: e.message }; } }
+    else { try { await d.slackPost(env, ch, noDash(keep(body.recap, 4000)), null, { kind: 'client_recap' }); recap = { posted: true }; } catch (e) { recap = { posted: false, why: e.message }; } }
   }
   const all = prev ? mergeResults(prev, result) : result;
   await env.DB.prepare(`UPDATE p_call SET status = 'finished', finished_by = ?2, finished_at = ?3, meeting_id = ?4, result_json = ?5 WHERE id = ?1`)

@@ -1,0 +1,259 @@
+{
+ "model": "lastPlatformClick",
+ "model_label": "Triple Whale, last platform click",
+ "cmp": "prev",
+ "platform": "all",
+ "window": {
+  "from": "2026-01-05",
+  "to": "2026-01-11",
+  "pf": "2025-12-29",
+  "pt": "2026-01-04",
+  "span": 7,
+  "today": "2026-01-12"
+ },
+ "brands": [
+  {
+   "act_id": "brand_north_kites",
+   "name": "North Kites",
+   "currency": "USD",
+   "revenue": 2520,
+   "blended_spend": 630,
+   "prev_revenue": 1680,
+   "prev_blended": 420,
+   "new_orders": 21,
+   "rows": [
+    {
+     "id": "meta",
+     "label": "Meta",
+     "spend": 225,
+     "revenue": 450,
+     "purchases": 12,
+     "platform_revenue": 390,
+     "prev_revenue": 90,
+     "prev_spend": 60,
+     "nc": 1
+    },
+    {
+     "id": "google",
+     "label": "Google",
+     "spend": 150,
+     "revenue": 270,
+     "purchases": 6,
+     "platform_revenue": 450,
+     "prev_revenue": 0,
+     "prev_spend": 100,
+     "nc": 0
+    },
+    {
+     "id": "tiktok",
+     "label": "TikTok",
+     "spend": 120,
+     "revenue": 60,
+     "purchases": 3,
+     "platform_revenue": 144,
+     "prev_revenue": 0,
+     "prev_spend": 80,
+     "nc": 0
+    },
+    {
+     "id": "amazon",
+     "label": "Amazon ads",
+     "spend": 45,
+     "revenue": 210,
+     "purchases": null,
+     "platform_revenue": null,
+     "prev_revenue": 140,
+     "prev_spend": 30,
+     "nc": 0
+    },
+    {
+     "id": "email",
+     "label": "Email and SMS",
+     "spend": null,
+     "revenue": 390,
+     "purchases": null,
+     "platform_revenue": null,
+     "prev_revenue": 260,
+     "prev_spend": null,
+     "campaigns": 240,
+     "flows": 150,
+     "nc": 0
+    },
+    {
+     "id": "rest",
+     "label": "Everything else",
+     "spend": null,
+     "revenue": 1140,
+     "purchases": null,
+     "platform_revenue": null,
+     "prev_revenue": null,
+     "prev_spend": null,
+     "nc": 0
+    }
+   ],
+   "series": [
+    {
+     "date": "2026-01-05",
+     "meta": 120,
+     "google": 50,
+     "tiktok": 40,
+     "revenue": 840,
+     "spend": 210,
+     "purchases": 7,
+     "paid_spend": 165,
+     "impressions": 17500,
+     "clicks": 330
+    },
+    {
+     "date": "2026-01-06",
+     "meta": 0,
+     "google": 0,
+     "tiktok": 0,
+     "revenue": null,
+     "spend": null,
+     "purchases": 0,
+     "paid_spend": 0,
+     "impressions": 0,
+     "clicks": 0
+    },
+    {
+     "date": "2026-01-07",
+     "meta": 120,
+     "google": 50,
+     "tiktok": 40,
+     "revenue": 840,
+     "spend": 210,
+     "purchases": 7,
+     "paid_spend": 165,
+     "impressions": 17500,
+     "clicks": 330
+    },
+    {
+     "date": "2026-01-08",
+     "meta": 0,
+     "google": 0,
+     "tiktok": 0,
+     "revenue": null,
+     "spend": null,
+     "purchases": 0,
+     "paid_spend": 0,
+     "impressions": 0,
+     "clicks": 0
+    },
+    {
+     "date": "2026-01-09",
+     "meta": 0,
+     "google": 0,
+     "tiktok": 0,
+     "revenue": null,
+     "spend": null,
+     "purchases": 0,
+     "paid_spend": 0,
+     "impressions": 0,
+     "clicks": 0
+    },
+    {
+     "date": "2026-01-10",
+     "meta": 120,
+     "google": 50,
+     "tiktok": 40,
+     "revenue": 840,
+     "spend": 210,
+     "purchases": 7,
+     "paid_spend": 165,
+     "impressions": 17500,
+     "clicks": 330
+    },
+    {
+     "date": "2026-01-11",
+     "meta": 0,
+     "google": 0,
+     "tiktok": 0,
+     "revenue": null,
+     "spend": null,
+     "purchases": 0,
+     "paid_spend": 0,
+     "impressions": 0,
+     "clicks": 0
+    }
+   ],
+   "prev_series": [
+    {
+     "date": "2025-12-29",
+     "revenue": null,
+     "spend": null,
+     "purchases": 0,
+     "paid_spend": 0,
+     "impressions": 0,
+     "clicks": 0
+    },
+    {
+     "date": "2025-12-30",
+     "revenue": 840,
+     "spend": 210,
+     "purchases": 1,
+     "paid_spend": 120,
+     "impressions": 13000,
+     "clicks": 240
+    },
+    {
+     "date": "2025-12-31",
+     "revenue": null,
+     "spend": null,
+     "purchases": 0,
+     "paid_spend": 0,
+     "impressions": 0,
+     "clicks": 0
+    },
+    {
+     "date": "2026-01-01",
+     "revenue": null,
+     "spend": null,
+     "purchases": 0,
+     "paid_spend": 0,
+     "impressions": 0,
+     "clicks": 0
+    },
+    {
+     "date": "2026-01-02",
+     "revenue": 840,
+     "spend": 210,
+     "purchases": 1,
+     "paid_spend": 120,
+     "impressions": 13000,
+     "clicks": 240
+    },
+    {
+     "date": "2026-01-03",
+     "revenue": null,
+     "spend": null,
+     "purchases": 0,
+     "paid_spend": 0,
+     "impressions": 0,
+     "clicks": 0
+    },
+    {
+     "date": "2026-01-04",
+     "revenue": null,
+     "spend": null,
+     "purchases": 0,
+     "paid_spend": 0,
+     "impressions": 0,
+     "clicks": 0
+    }
+   ],
+   "paid": {
+    "spend": 495,
+    "purchases": 21,
+    "impressions": 52500,
+    "clicks": 990
+   },
+   "prev_paid": {
+    "spend": 240,
+    "purchases": 2,
+    "impressions": 26000,
+    "clicks": 480
+   }
+  }
+ ]
+}

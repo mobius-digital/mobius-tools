@@ -13,7 +13,7 @@ function shape(ctx, b, ex) {
   return { connected: rows.length > 0 || ((b.cur || {}).revenue || 0) > 0, range: { from: ctx.range.from, to: ctx.range.to }, orders: b.product_orders, approx: true,
     products: rows, pairs: ex && ex.pairs ? ex.pairs : null, example: ex && ex.pairs ? ['pairs'] : [] };
 }
-/* A short x label that still tells two colours of one product apart: "Ridgeline Magnetic Belt, Black" -> "Ridgeline, Black". */
+/* A short x label that still tells two colors of one product apart: "Ridgeline Magnetic Belt, Black" -> "Ridgeline, Black". */
 const short = t => {
   const [name, rest] = String(t || '').split(':')[0].split(/,\s*/), words = name.split(/\s+/);
   const s = rest ? words[0] + ', ' + rest : words.length > 2 ? words.slice(0, 2).join(' ') : name;

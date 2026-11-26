@@ -128,7 +128,7 @@ export function stratTools(d) {
   const t = (def, run) => ({ def, run });
   return [
     t({ name: 'search_slack',
-      description: 'Search everything the team and the clients have said in Slack: every brand\'s internal AND client channel, a year back, plus Slack\'s own search (as Cole) for any other channel. Use it whenever the question leans on something said before ("what did Fela ask for", "the folder Ahsan linked", "what did we agree on the BF offer"), BEFORE saying you do not know. Give the distinctive words; filter by brand, person, side (internal | client) or dates. Then open the thread with read_thread before quoting it.',
+      description: 'Search everything the team and the clients have said in Slack: every brand\'s internal AND client channel, a year back, plus Slack\'s own search (as Cole) for any other channel. Use it whenever the question leans on something said before ("what did the client ask for", "the folder the strategist linked", "what did we agree on the BF offer"), BEFORE saying you do not know. Give the distinctive words; filter by brand, person, side (internal | client) or dates. Then open the thread with read_thread before quoting it.',
       input_schema: { type: 'object', properties: {
         q: { type: 'string', description: 'The distinctive words (a product, a name, a number, a phrase).' },
         brand: { type: 'string', description: 'Brand name, or omit for the brand of this channel/screen, or "all".' },
@@ -140,7 +140,7 @@ export function stratTools(d) {
         return { text: JSON.stringify(r).slice(0, 14000) };
       }),
     t({ name: 'read_thread',
-      description: 'Open one Slack thread or message, live from Slack (every reply, who said it, what was posted), WITH the images posted in it: you SEE the screenshots and photos yourself (the newest 4). Give the Slack link from search_slack or one someone pasted, or a channel id + ts (the digest gives both for every post with a file). Use it whenever someone points at a screenshot or image ("the ad Nick screenshotted"). Never say you cannot open images.',
+      description: 'Open one Slack thread or message, live from Slack (every reply, who said it, what was posted), WITH the images posted in it: you SEE the screenshots and photos yourself (the newest 4). Give the Slack link from search_slack or one someone pasted, or a channel id + ts (the digest gives both for every post with a file). Use it whenever someone points at a screenshot or image ("the ad the client screenshotted"). Never say you cannot open images.',
       input_schema: { type: 'object', properties: { link: { type: 'string' }, channel: { type: 'string' }, ts: { type: 'string' } } } },
       async (env, input) => {
         const { images = [], ...r } = await readThread(env, d.idx, input, { withImages: true });
@@ -253,7 +253,7 @@ export function stratActions(d) {
   }, seasonPlanAction(d)];
 }
 
-/* 2026-10-15 (Cole asked for Grunk's BFCM plan to be updated from a call and got ~10 Apply cards, one per phase and
+/* 2026-10-15 (Cole asked for a brand's BFCM plan to be updated from a call and got ~10 Apply cards, one per phase and
    task): the whole plan change is ONE proposal. Phases are read first and merged, because PUT /api/season/phase
    rewrites every column of the row; tasks and answers merge on the server. Applied in order, stopping at the first
    error, and the note says what went in and what did not. */
@@ -265,7 +265,7 @@ function seasonPlanAction(d) {
     description: 'Change a brand\'s season plan (Black Friday / BFCM: phases and their offers and dates, season tasks, call-sheet answers, the War Room plan) in ONE approval. Use it for any plan update with more than one change, e.g. after a call, instead of several locus_write cards. Read the plan first (locus_get /api/season?act=<brand>), then send every change in order, each with a plain one-line "what".',
     input_schema: { type: 'object', properties: {
       act: { type: 'string', description: 'The brand id.' },
-      summary: { type: 'string', description: 'The whole change in one short line, e.g. "Update Grunk\'s BFCM plan from Tuesday\'s call".' },
+      summary: { type: 'string', description: 'The whole change in one short line, e.g. "Update Harbor Golf\'s BFCM plan from Tuesday\'s call".' },
       changes: { type: 'array', maxItems: 30, items: { type: 'object', properties: {
         kind: { type: 'string', enum: ['phase', 'task', 'answer', 'plan'], description: 'phase = a phase row (key + only the fields that change: name, start, end, grp, who, offer, detail, status missing|draft|locked|skip, sort); task = a season task (id + fields: name, due, owner, done, note, phase_key; a new one uses id "c:<word>"); answer = a call-sheet answer (key + value); plan = the War Room plan (patch with goals, budget, sale, thresholds...).' },
         what: { type: 'string', description: 'This change in plain words, as a person reads it on the card.' },
@@ -401,6 +401,7 @@ export function stratHooks(d) {
       frame_folder: `Preparing a Frame folder: ${clip(input.name, 40)}`,
       frame_move: `Preparing a Frame move: ${clip(input.item, 40)}`,
       make_report: `Building "${clip(input.title, 50)}" (with a share link and a PDF)`,
+      calc: 'Working out the numbers',
     })[name] || (DATA_STEP_LABELS[name] ? DATA_STEP_LABELS[name](input) : null),
     /* 2026-10-15: 5 a turn ran out twice in one research answer (Melin); web_lookup is the fallback past these. */
     serverTools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 15 }, { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 15 }],

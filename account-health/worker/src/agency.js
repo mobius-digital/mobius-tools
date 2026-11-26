@@ -14,7 +14,7 @@
  *    Payer names are matched to brands by name (exact, then one contains the other); Cole can pin a name to a
  *    brand, or mark it "not a client", in settings `agencyLedgerMap` {ledger name: brand id | ''}.
  *    Cached an hour in `agencyLedger:<month>`.
- *  - TEAM TIME (an ESTIMATE, labelled as one on the page): each person's monthly cost and monthly hours
+ *  - TEAM TIME (an ESTIMATE, labeled as one on the page): each person's monthly cost and monthly hours
  *    (settings `agencyPeople` {asana user gid: {name, cost, hours}}, hours default 160) are split across the
  *    brands by their share of the Asana tasks they COMPLETED that month in each brand's linked project
  *    (connections kind 'asana', the same links as command.js). Work outside client projects is not seen, so

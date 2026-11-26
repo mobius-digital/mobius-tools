@@ -42,6 +42,9 @@ orders_table (one row per order): event_date, order_id, order_name, customer_id,
   products_info Array(Tuple(product_id, product_name, vendor, product_type, product_tags Array(String), product_sku, variant_id, product_name_price, discount_amount_for_product, net_discount_amount_for_product, product_name_quantity_sold, is_gift_card, single_product_cost, properties Array(String), duties Array(String))).
 Line items: ARRAY JOIN products_info AS p, then p.product_name, p.product_type, p.product_name_quantity_sold, p.product_name_price, p.single_product_cost.
 AOV = sum(order_revenue - shipping_price - taxes) / uniq(order_id). Exclude $0 orders (order_revenue > 0) unless asked.
+SALES are always net of tax, the way every Locus screen shows them: sum(order_revenue - taxes) (shipping stays in). Never quote order_revenue as sales.
+AMAZON: orders with source_name = 'amazon' are inside every whole-store total unless you filter them out; every store number you quote says which ("Amazon included" or "website only").
+OFFERS: for any question about an offer, a giveaway or a sale, also read discount_code use for its window: name every code that came with it (a free gift code, a bundle code), not only the headline one.
 Examples:
  units per order: SELECT avg(product_quantity_sold_in_order) AS units, uniq(order_id) AS orders FROM orders_table WHERE event_date BETWEEN @startDate AND @endDate AND order_revenue > 0
  hats per order: SELECT order_id, sumIf(p.product_name_quantity_sold, positionCaseInsensitive(p.product_type, 'hat') > 0 OR positionCaseInsensitive(p.product_name, 'hat') > 0) AS hats FROM orders_table ARRAY JOIN products_info AS p WHERE event_date BETWEEN @startDate AND @endDate GROUP BY order_id  (wrap it to count orders by hats)
@@ -237,7 +240,7 @@ async function matchAds(env, d, input, ctx) {
   if (pics.length > 50) return { error: `${pics.length} board files; name fewer tests.` };
 
   /* One look at everything: board files first, then the live ads. */
-  const content = [{ type: 'text', text: `You match live Meta ads to the design files on our Production board. Each board file is one VERSION of one ad (V1, V2...); versions of the same ad look alike and differ in details (a headline, a line of copy, a colour, a crop, a product shot, a sticker): compare the words on the image letter by letter and the layout before deciding. A Meta ad may be cropped or resized compared with the file. Every Meta ad matches at most one board file.` }];
+  const content = [{ type: 'text', text: `You match live Meta ads to the design files on our Production board. Each board file is one VERSION of one ad (V1, V2...); versions of the same ad look alike and differ in details (a headline, a line of copy, a color, a crop, a product shot, a sticker): compare the words on the image letter by letter and the layout before deciding. A Meta ad may be cropped or resized compared with the file. Every Meta ad matches at most one board file.` }];
   for (const [i, f] of pics.entries()) {
     const p = await smallPic(env, f.id).catch(() => null);
     content.push({ type: 'text', text: `Board file P${i + 1}: test ${f.num} "${clip(f.title, 60)}", ad ${f.ad}, V${f.version}, file "${clip(f.name, 60)}"` });

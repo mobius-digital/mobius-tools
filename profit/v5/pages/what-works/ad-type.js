@@ -87,7 +87,7 @@ function view(d, ctx) {
     body,
     card({ class: 'ww-cd', title: 'People in it, product shown, type of picture', action: tagsNote() },
       h('p', { class: 'lx-foot', style: { marginTop: '10px' } }, 'These groups come from tags ' + APP_NAME + ' AI reads off each ad. They come back here once a person has checked them.')),
-    foot('Grey = under 30 orders: read it as a hint, not a result.', SRC_NOTE),
+    foot('Gray = under 30 orders: read it as a hint, not a result.', SRC_NOTE),
   ];
 }
 

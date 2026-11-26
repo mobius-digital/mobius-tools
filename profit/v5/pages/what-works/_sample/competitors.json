@@ -19,7 +19,7 @@
   { "id": "c_201", "brand": "Tallgrass Apparel", "name": "Belt pulled tight, range", "kind": "video", "tone": "#8A6A3B", "over": "ONE BELT. EVERY SIZE.", "first_line": "Watch this.", "days": 5, "versions": 2, "live": true, "started": "2026-11-20", "batch": "tg_1120" },
   { "id": "c_202", "brand": "Tallgrass Apparel", "name": "Belt pulled tight, car park", "kind": "video", "tone": "#14304A", "over": "", "first_line": "My old belt never fit right.", "days": 5, "versions": 1, "live": true, "started": "2026-11-20", "batch": "tg_1120" },
   { "id": "c_203", "brand": "Tallgrass Apparel", "name": "Belt and polo set", "kind": "image", "tone": "#1E4A38", "over": "THE SET", "headline": "Take the quiz", "days": 5, "versions": 3, "live": true, "started": "2026-11-20", "batch": "tg_1120" },
-  { "id": "c_204", "brand": "Tallgrass Apparel", "name": "Polo flat lay, three colours", "kind": "image", "tone": "#5F6368", "over": "", "headline": "New colours", "days": 5, "versions": 1, "live": false, "started": "2026-11-20", "batch": "tg_1120" },
+  { "id": "c_204", "brand": "Tallgrass Apparel", "name": "Polo flat lay, three colors", "kind": "image", "tone": "#5F6368", "over": "", "headline": "New colors", "days": 5, "versions": 1, "live": false, "started": "2026-11-20", "batch": "tg_1120" },
   { "id": "c_205", "brand": "Tallgrass Apparel", "name": "Founder in the warehouse", "kind": "video", "tone": "#3B2F1E", "over": "WHY WE MADE IT", "first_line": "We started this in a garage.", "days": 48, "versions": 1, "live": true, "started": "2026-10-08" }
  ],
  "batches": [

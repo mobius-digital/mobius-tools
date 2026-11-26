@@ -1,16 +1,53 @@
 /* Agency settings > Sending and notifications. What Locus sends, to whom, and when.
    Real mode: account-health GET /api/settings for the settings the workers keep today, saved back one key at a time
    through PUT /api/settings (each after the Save bar's confirm sheet):
-     morningHour (the morning message hour), morningCard (morning message on), todayPost, actionRemind.
+     morningHour (the morning message hour), morningCard (morning message on), todayPost, actionRemind, and
+     senders (2026-11-26, "Who it comes from": per kind of message, Locus the app or the owner; one object
+     { all, kinds } saved whole; the worker's sender.js resolves it, the pure part of this group is _senders.js).
    todayPost shows only while the morning message is off: the worker ignores it while the card is on.
    Only those are drawn in real mode. Every other time, switch, preview and table here has no server home yet: it
    shows in sample mode only, so no switch on a real brand saves nothing. */
 
 import { put } from '../../kit.js';
-import { h, em, empty, card, table, kpis, kpi, avatar, statusDot, addStyles } from '../../kit.js';
+import { h, em, empty, card, table, kpis, kpi, avatar, statusDot, addStyles, segmented } from '../../kit.js';
 import { APP_NAME } from '../../config.js';
 import { css, stage, saveBar, group, row, fold, facts, pick, timePick, dayChips, onOff, numBox, exampleChip, clock, DAY_OPTS } from '../brand-settings/_set.js';
 import { ZONES } from '../brand-settings/brand.js';
+import { SAMPLE_SENDERS, storedOf, senderRows, topState, applyTop, applyKind } from './_senders.js';
+
+const SENDERS = 'agency.senders';
+/** "Who it comes from": one switch for everything, then one row per kind with the same two pills (Locus or the
+ *  owner). Locked rows show Locus, dimmed, with why. Email rows say so while there is no Locus mailbox. Every change
+ *  is staged on the page and saved whole through the Save bar and its confirm sheet. */
+export function whoGroup(S, d) {
+  const answer = d.senders && d.senders.resolved ? d.senders : SAMPLE_SENDERS;
+  const person = d.senderPerson || 'You';
+  /* Only the owner may change this (the worker answers 403 for anyone else): for others every pill is dimmed. */
+  const ro = d.sendersEditable === false;
+  const items = [{ id: 'locus', label: APP_NAME }, { id: 'cole', label: person }];
+  const cur = () => storedOf(S.get(SENDERS, storedOf(answer)));
+  const pills = (who, onPick, { locked = false, noApp = false, label } = {}) => {
+    const el = segmented(items, who, onPick);
+    el.setAttribute('aria-label', label);
+    if (locked || noApp) [...el.children].forEach((b, i) => { if (locked || (noApp && items[i].id === 'locus')) { b.disabled = true; b.setAttribute('aria-disabled', 'true'); } });
+    if (locked) el.classList.add('lx-sn-locked');
+    return el;
+  };
+  const wrap = h('div', { class: 'lx-sn-who' });
+  const paint = () => {
+    const rows = senderRows(answer, cur());
+    const top = topState(rows);
+    wrap.replaceChildren(
+      row('Everything from', top === 'mixed' ? 'Mixed: the rows below are not all the same.' : 'One tap sets every row below.',
+        h('div', { class: 'lx-sn-top' }, pills(top === 'mixed' ? null : top, id => S.set(SENDERS, applyTop(cur(), id)), { locked: ro, label: 'Everything from' }),
+          top === 'mixed' ? h('span', { class: 'lx-sn-mixed' }, 'Mixed') : null)),
+      ...rows.map(r => row(r.label, r.why || null,
+        pills(r.who, id => S.set(SENDERS, applyKind(cur(), r.kind, id)), { locked: r.locked || ro, noApp: r.noApp, label: r.label }))));
+  };
+  S.onChange(k => { if (k === SENDERS || k === null) paint(); });
+  paint();
+  return group('Who it comes from', `${APP_NAME} is the app. ${person === 'You' ? 'The other choice' : person} posts as you, with your name and photo.${ro ? ' Only the owner can change this.' : ''}`, wrap);
+}
 
 function preview(p) {
   if (!p) return null;
@@ -28,8 +65,9 @@ function draw(el, data, ctx) {
   const live = { 'agency.morningHour': d.morningHour, 'agency.morningCard': d.morningCard, 'agency.todayPost': d.todayPost, 'agency.actionRemind': d.actionRemind };
   /* through data.js saveSetting, so the session's cached agency settings are cleared too, and the page's own copy follows */
   const one = name => async v => { await ctx.saveSetting('agency.' + name, v); d[name] = v; };
-  const S = stage(ctx, { live, savers: { 'agency.morningHour': one('morningHour'), 'agency.morningCard': one('morningCard'), 'agency.todayPost': one('todayPost'), 'agency.actionRemind': one('actionRemind') },
-    names: { 'agency.morningHour': 'Morning message hour', 'agency.morningCard': 'Morning message on', 'agency.todayPost': 'Today’s calls in the brand channel', 'agency.actionRemind': 'Action reminders' } });
+  if (!ctx.sample) live[SENDERS] = storedOf(d.senders);
+  const S = stage(ctx, { live, savers: { 'agency.morningHour': one('morningHour'), 'agency.morningCard': one('morningCard'), 'agency.todayPost': one('todayPost'), 'agency.actionRemind': one('actionRemind'), [SENDERS]: one('senders') },
+    names: { 'agency.morningHour': 'Morning message hour', 'agency.morningCard': 'Morning message on', 'agency.todayPost': 'Today’s calls in the brand channel', 'agency.actionRemind': 'Action reminders', [SENDERS]: 'Who it comes from' } });
   if (!ctx.sample) return drawReal(el, S, d, ctx);
   const people = data.people || [];
   const team = [{ id: 'owner', label: 'The owner' }, { id: 'lead', label: 'The brand’s account lead' }, { id: 'each', label: 'Each person, as a DM' }, { id: 'client', label: 'The client channel' }, { id: 'channel', label: 'A team channel' }];
@@ -80,6 +118,7 @@ function draw(el, data, ctx) {
   put(el, h('div', { class: 'lx-st' },
     saveBar(S, ctx),
     stats.length ? h('section', { class: 'lx-hero line' }, ex.has('stats') ? h('div', null, exampleChip()) : null, kpis(stats.map((s, i) => kpi({ label: s.label, value: s.value, sub: s.sub, size: i === 0 ? 'lg' : null })))) : null,
+    whoGroup(S, d),
     card({ title: 'Messages that send on a clock', note: ex.has('messages') ? exampleChip() : 'Everything else waits in the bell, not in a channel', flush: true, class: 'lx-st-card' }, h('div', { class: 'lx-st-rows' }, messages)),
     card({ title: 'Only when something happens', note: 'One message to one person. Nothing here posts to a team channel.', flush: true, class: 'lx-st-card' }, events),
     group('Time and quiet', 'Times on this page are in this zone unless they say brand time',
@@ -124,6 +163,7 @@ function drawReal(el, S, d, ctx) {
   });
   put(el, h('div', { class: 'lx-st' },
     saveBar(S, ctx, { note: 'Each change saves for everyone, after a check.' }),
+    whoGroup(S, d),
     group('The morning message', 'One message a day, at one hour (Central time)',
       row('Send at', 'The hour every morning post goes out.', h('div', { class: 'lx-st-times' }, timePick(S, 'agency.morningHour', d.morningHour ?? 5, { hours: true, label: 'Morning message hour' }))),
       row('Morning message on', d.morningCard === false ? 'While it is off, today’s calls post on their own in each brand channel.' : 'It carries today’s calls for each brand.', onOff(S, 'agency.morningCard', d.morningCard ?? true, 'Morning message on'))),
@@ -144,6 +184,10 @@ const CSS = `
 .lx-sn-msg .c .on{margin-top:8px}
 .lx-sn-note{font-size:12px;color:var(--muted);align-self:center}
 .lx-sn-dim{color:var(--muted)}
+.lx-sn-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.lx-sn-mixed{font-size:12px;font-weight:600;color:var(--muted)}
+.lx-sn-locked{opacity:.55}
+.lx-sn-locked button,.lx-seg button[disabled]{cursor:not-allowed}
 .lx-sn-pv{border-radius:12px;background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line);padding:12px 14px;font-size:12.5px;line-height:1.45;color:var(--ink-2);min-width:0;overflow-wrap:anywhere}
 .lx-sn-pv .top{display:flex;align-items:center;gap:6px;margin-bottom:4px}
 .lx-sn-pv .mk{width:16px;height:16px;border-radius:4px;background:var(--ink);flex:none}
@@ -163,7 +207,7 @@ export default {
   ranges: false,
   async load(ctx) {
     const s = await ctx.api('/api/settings', { worker: 'ah', signal: ctx.signal });
-    return { values: { morningHour: s.morningHour, morningCard: s.morningCard, todayPost: s.todayPost, actionRemind: s.actionRemind } };
+    return { values: { morningHour: s.morningHour, morningCard: s.morningCard, todayPost: s.todayPost, actionRemind: s.actionRemind, senders: s.senders || null, senderPerson: s.senderPerson || null } };
   },
   render: draw,
 };

@@ -8,6 +8,8 @@ is typed; storage keys and worker addresses are worked out from it).
 **This repo is public.** No real client name, number, person, email, token or id goes in any
 file here. Fixtures use the sample world below. Real data only arrives at run time from the API.
 
+**Copy is American English** (color, behavior, gray, canceled, summarize). Change only the words people read, never a key, route or stored value.
+
 ## Run it
 
 ```
@@ -95,7 +97,7 @@ A page never draws its own h1, its own stamp or its own date chip.
   per person (`saveSetting('range', ...)`). The page gets it as `ctx.range`
   (`{ preset, label, from, to, days, dates }`, always real dates, whole days, ending yesterday)
   and it is part of the saved copy's key, so two ranges never share a copy. Send
-  `from=${ctx.range.from}&to=${ctx.range.to}`. A page that cannot honour the dates (today only, one
+  `from=${ctx.range.from}&to=${ctx.range.to}`. A page that cannot honor the dates (today only, one
   fixed week) says `ranges: false` and the control hides. A plan is agreed per month: compare
   against it only when `ctx.range.preset === 'month'`.
 
@@ -107,7 +109,7 @@ A page is one file with a default export:
 export default {
   title: ['Are Meta ads ', em('paying for themselves?')],   // or text, or (ctx, data) => content
   eyebrow: 'Meta',                  // optional small line above the title; text or (ctx, data) => text
-  ranges: true,                     // false hides the date range (the page cannot honour it)
+  ranges: true,                     // false hides the date range (the page cannot honor it)
   asOf: data => data.read_at,       // optional: when the numbers were read, if the data knows better
   async load(ctx) { },              // real mode: fetch and return plain JSON (it is saved as is)
   render(el, data, ctx) { },        // draw the whole page into el
@@ -232,7 +234,7 @@ await ctx.saveSetting('brand:' + ctx.brand.id + '.judge_days', 4);     // saves 
 
 ## Sample mode (`?sample=1`)
 
-Fixtures only. `api()` throws in sample mode, nothing is saved, and the top bar shows a grey
+Fixtures only. `api()` throws in sample mode, nothing is saved, and the top bar shows a gray
 "Sample numbers" chip. The router picks the page's sample data in this order:
 
 1. `sample` is a function: `await sample(ctx)`.
@@ -307,7 +309,7 @@ legend([{ name, lead }, { name }, { name, dashed }, { name, square, color }])   
 ```
 
 One series has `lead: true` and is the only ember line. A second line is slate, a comparison is
-`dashed`, columns are ink, grey or slate. Put the question and the legend in a
+`dashed`, columns are ink, gray or slate. Put the question and the legend in a
 `h('div', { class: 'lx-chart-h' }, ...)` above the chart.
 
 Tones are `good`, `warn`, `bad` or empty. The ember gradient is for the mark, the Ask button,

@@ -2,7 +2,7 @@
  *
  * A local copy of the helpers in account-health/worker/src/brands.js that this worker needs. The
  * two workers are bundled separately and this one has never imported across folders, so these are
- * duplicated on purpose. KEEP THEIR BEHAVIOUR IDENTICAL to brands.js; change both or neither.
+ * duplicated on purpose. KEEP THEIR BEHAVIOR IDENTICAL to brands.js; change both or neither.
  *
  *   brand id     `brand_<slug>`. Every brand-owned table (p_*, tw_*, briefs, settings keys) files
  *                rows under it, in a column still called act_id.

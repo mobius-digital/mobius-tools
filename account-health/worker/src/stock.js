@@ -12,7 +12,7 @@
  *                                and Asana wiring left out, everything of the brand's kept)
  *
  * The ad side copies profit/worker/src/hub.js stockAds (shared D1): which products each Meta ad sells,
- * from Triple Whale orders, never from ad names. Keep the two in step. The judgement (ease off, safe to
+ * from Triple Whale orders, never from ad names. Keep the two in step. The judgment (ease off, safe to
  * scale, push to clear) copies profit/supply.js judge(): keep those in step too. */
 
 import { metaOf, resolveBrandId } from './brands.js';

@@ -5,7 +5,7 @@
  *   1.1.1          an embedded app must work on session tokens, not third-party cookies or local storage.
  * So the app now opens INSIDE the Shopify admin:
  *   GET  /shopify/app            the page (App Bridge from Shopify's CDN, CSP frame-ancestors for this shop + admin)
- *   GET  /shopify/app/api/report the numbers, authorised ONLY by the App Bridge session token (Authorization: Bearer)
+ *   GET  /shopify/app/api/report the numbers, authorized ONLY by the App Bridge session token (Authorization: Bearer)
  *   POST /shopify/app/api/scopes the store just granted (or removed) optional access: read what it has now, store it
  * The session token (a JWT signed with the app secret) is verified here and names the shop. Shopify runs the install
  * and the permission screen itself (managed installation, 2026-11-15); a shop with no live token gets one here by

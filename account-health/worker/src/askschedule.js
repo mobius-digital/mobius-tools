@@ -109,7 +109,7 @@ export async function runSchedule(env, row, d, { dry = false } = {}) {
   /* scheduled: true (2026-11-26): the run was approved by whoever scheduled it, so a report's share link is made at
      once and the answer gets no "Tap Apply" line; every card it raised is posted below (a task) or dropped here,
      so no proposal is left waiting with no card anyone can see. */
-  const r = await engine.answerWeb(env, q, [], h(), { scheduled: true, screen: { screen: 'Scheduled question (Slack)', brand_selected: brand ? brand.name : 'All clients' } }).catch(e => ({ error: String(e.message || e) }));
+  const r = await engine.answerWeb(env, q, [], h(), { scheduled: true, noCheck: true, screen: { screen: 'Scheduled question (Slack)', brand_selected: brand ? brand.name : 'All clients' } }).catch(e => ({ error: String(e.message || e) }));
   if (r.error) { await note('error: ' + r.error); return { error: r.error }; }
   const dropCards = async list => { for (const p of list) await engine.applyProposal(env, String(p.id), h(), { cancel: true }).catch(() => {}); };
   const reps = (r.reports || []).map(rep => toSlackText(reportText(rep)));

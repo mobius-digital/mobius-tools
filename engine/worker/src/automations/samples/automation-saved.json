@@ -1,0 +1,80 @@
+{
+ "ok": true,
+ "power": false,
+ "automation": {
+  "id": "au_2",
+  "name": "When a daily plan is missing by 10am, for any brand, tell me, each in their own way.",
+  "brand": "all",
+  "owner": "owner@agency.test",
+  "template": null,
+  "state": "draft",
+  "may_act_alone": false,
+  "when": {
+   "type": "plan_missing",
+   "hour": 10
+  },
+  "if": [],
+  "do": [],
+  "tell": {
+   "who": [
+    {
+     "kind": "me"
+    }
+   ],
+   "text": ""
+  },
+  "last_run_at": null,
+  "last_status": null,
+  "fail_count": 0,
+  "created_by": "owner@agency.test",
+  "created_at": "2026-11-25T23:02:45.620Z",
+  "updated_at": "2026-11-25T23:02:45.620Z",
+  "brand_name": "Any brand",
+  "sentence": {
+   "text": "When a daily plan is missing by 10am, for any brand, tell me, each in their own way.",
+   "parts": [
+    {
+     "t": "text",
+     "text": "When "
+    },
+    {
+     "t": "text",
+     "text": "a daily plan is missing by "
+    },
+    {
+     "t": "slot",
+     "key": "when.hour",
+     "text": "10am"
+    },
+    {
+     "t": "text",
+     "text": ", for "
+    },
+    {
+     "t": "slot",
+     "key": "brand",
+     "text": "any brand"
+    },
+    {
+     "t": "text",
+     "text": ", tell "
+    },
+    {
+     "t": "slot",
+     "key": "tell.who.0",
+     "text": "me"
+    },
+    {
+     "t": "text",
+     "text": ", each in their own way"
+    },
+    {
+     "t": "text",
+     "text": "."
+    }
+   ]
+  },
+  "notes": [],
+  "costs_ai": false
+ }
+}

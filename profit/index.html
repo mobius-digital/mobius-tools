@@ -20,8 +20,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Locus">
 <!-- ONE theme-color, set from Locus's own theme (data-theme), never from the phone's. Safari paints the
-     status-bar band at the top of the page with this colour; two metas keyed on prefers-color-scheme
-     followed the OS, so a dark Locus on a light-mode iPhone got a light grey band above a graphite page
+     status-bar band at the top of the page with this color; two metas keyed on prefers-color-scheme
+     followed the OS, so a dark Locus on a light-mode iPhone got a light gray band above a graphite page
      (Cole, 2026-10-15). syncThemeColor() below and the theme switch keep it in step. -->
 <meta name="theme-color" id="themeColor" content="#F7F7F8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -53,7 +53,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
                 as well as number - a 3px top stripe - so triage
                 happens before anything is read.
 
-     Semantic colour (good / warn / bad) is deliberately separate
+     Semantic color (good / warn / bad) is deliberately separate
      from the brand hue and is never used for decoration.
      ============================================================ */
   :root{
@@ -213,7 +213,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
   nav.tabs button[data-t].on .ic{opacity:1;stroke-width:2}
   /* A parent whose section is open is RAISED, not filled. That distinguishes
      "the section you are in" from "the page you are looking at" without
-     inventing a second colour. */
+     inventing a second color. */
   nav.tabs button[data-t].sec{background:#16242F;color:#EAF2F7}
   nav.tabs button .soon{font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#5A7183;margin-left:auto}
   nav.tabs .grp:has(button.on) .band,nav.tabs .grp:has(button.sec) .band{color:#7189A0}
@@ -258,7 +258,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
   body.nochrome .app{grid-template-columns:minmax(0,1fr)}
   body.nochrome .nav-toggle{display:none !important}
 
-  /* CONTENT STARTS AT THE RAIL. `margin:0 auto` centred the column in whatever
+  /* CONTENT STARTS AT THE RAIL. `margin:0 auto` centered the column in whatever
      was left of the window, which on a wide display opened a gap between the
      rail and the first pixel of content and made the rail read as detached
      furniture. With a side nav the reading start IS the rail's edge. The
@@ -356,7 +356,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
   /* `width:100%` is load-bearing now. `.content` is a flex column, and an auto
      horizontal margin on a flex item turns off the stretch and falls back to
      shrink-to-fit, so main collapsed to the width of its widest line and sat
-     centred in the column. It looked like a broken max-width; it was the
+     centered in the column. It looked like a broken max-width; it was the
      centring itself. Same for footer. */
   main{max-width:1240px;width:100%;margin:0;padding:8px 26px 64px}
   h2{font-family:var(--serif);font-weight:400;font-size:21px;margin-bottom:3px}
@@ -398,7 +398,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
      un-nested, where the frame is right. The same markup has to read both
      ways, so the container decides, not the helper. */
   .card .card{border:0;border-radius:0;background:transparent;padding:0;margin:0}
-  /* Notices keep their severity - that colour IS the signal - but carry it on a
+  /* Notices keep their severity - that color IS the signal - but carry it on a
      left rule rather than a full outline. Same device the Reports summary card
      already uses, so this is the existing vocabulary, not a new one. */
   .card .notice{border:0;border-left:3px solid var(--line-strong);border-radius:0;
@@ -408,7 +408,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
   .card .notice.good{border-left-color:var(--good)}
   /* The Slack preview stays a distinct panel - it is a mock of the message the
      client actually receives, which is its whole job. It just must not be a
-     second white box with the same border: recessed onto the page colour. */
+     second white box with the same border: recessed onto the page color. */
   .card .slackmsg{border:0;background:var(--bg)}
   .soon-card{border-style:dashed;background:transparent}
   .soon-card .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:var(--brand-soft);color:var(--brand-ink);border-radius:99px;padding:3px 9px;margin-bottom:8px}
@@ -953,7 +953,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
   /* Controls. `.modal` is in the list because modals are appended to <body>,
      OUTSIDE <main> - so a main-scoped rule never reaches them and every select
      and input inside a modal fell back to the raw OS widget. Cole spotted it on
-     the Add a brand form: native grey dropdowns beside branded text boxes. */
+     the Add a brand form: native gray dropdowns beside branded text boxes. */
   main input[type=date],main .search,main select,
   .modal input[type=text],.modal input[type=date],.modal select{border:1px solid var(--line-strong);border-radius:8px;padding:7px 10px;font-size:13px;background:var(--surface)}
   main select,.modal select{appearance:none;-webkit-appearance:none;padding-right:30px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23647684' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center}
@@ -1263,7 +1263,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
   .set-add #brMsg:empty{display:none}
   .set-count{margin:0 0 8px}
   #setRollup .rollup{margin-bottom:16px}
-  /* Brand row groups: a white panel per group on the grey row body. */
+  /* Brand row groups: a white panel per group on the gray row body. */
   .brow .brow-body{padding:14px 16px 6px}
   .brow-grp{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:2px 18px;margin-bottom:12px}
   .brow-gh{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:12px 0 10px;border-bottom:1px solid var(--line)}
@@ -1306,7 +1306,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
     .set-card select,.set-card input[type=text]{max-width:100%}
   }
   /* BRAND ROWS. One expandable row per brand holding everything about it,
-     replacing four tables organised by SYSTEM (every ad account, Shopify,
+     replacing four tables organized by SYSTEM (every ad account, Shopify,
      channels, costs) that made setting up one brand a tour of four places. */
   .brow{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:8px;overflow:hidden}
   .brow[open]{border-color:var(--line-strong);box-shadow:0 2px 10px rgba(12,22,29,.05)}
@@ -1372,7 +1372,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
     .brow-sum{margin-left:0;width:100%;text-align:left}
     .brow-c input[type=text],.brow-c select{max-width:100%}
   }
-  /* Add-a-brand form. Labelled controls with an explanation under each, per the
+  /* Add-a-brand form. Labeled controls with an explanation under each, per the
      standing rule that a control never appears without saying what it does. */
   .ab-form{display:flex;flex-direction:column;gap:16px}
   .ab-f label{display:block;font-weight:700;font-size:14px;margin-bottom:2px}
@@ -1457,7 +1457,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
   /* Creative browser. Reuses .ad-card/.ad-media/.ad-grid from the reports on
      purpose: what you sort through here is what the client eventually opens,
      so it must not be a lookalike that drifts. */
-  /* Labelled dropdowns, matching every other control in Locus. Nine sorts as
+  /* Labeled dropdowns, matching every other control in Locus. Nine sorts as
      pills was two wrapping rows of buttons that looked like nothing else here. */
   .cb-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
   .cb-l{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--muted)}
@@ -1698,7 +1698,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
      touches the internal browser's cards. */
   /* The share page owns its canvas: a full-bleed ground with one soft glow so
      nothing from the app shell (topbar strip, 1240px left-pinned column) shows
-     through, and the content centres in a wider column that fills a laptop
+     through, and the content centers in a wider column that fills a laptop
      and sits balanced on a big monitor. */
   body.shp-body{background:#EAF0F4;background-image:radial-gradient(1200px 640px at 100% -10%,rgba(98,189,234,.20),transparent 65%),radial-gradient(900px 500px at -10% 100%,rgba(98,189,234,.10),transparent 60%);background-attachment:fixed}
   body.shp-body .topbar,body.shp-body .pbar{display:none}
@@ -1890,7 +1890,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
   .rp-sum-ul{margin:0;padding-left:17px;list-style:disc}
   .rp-sum-ul li{margin:0 0 4px}
   .rp-sum-ul li::marker{color:var(--muted)}
-  /* The attribution control. Labelled, with the chosen model explained beside
+  /* The attribution control. Labeled, with the chosen model explained beside
      it rather than behind a tooltip - the whole point is that the reader can
      tell at a glance which basis the page is on. */
   .rp-attr-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -2273,7 +2273,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
   .cn-kind{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:14px 0 6px}
   .cn-kind:first-of-type{margin-top:6px}
 </style>
-<!-- Phone sheet behaviour, shared with Ledger. After this page's <style> so
+<!-- Phone sheet behavior, shared with Ledger. After this page's <style> so
      its class-gated rules win the ties they are meant to win. The script is
      NOT deferred: the app's own script is inline at the end of <body> and so
      runs before any deferred file would. -->
@@ -2547,7 +2547,7 @@ if (window.MobiusSheet) {
    forgot it would render a client's report beside an empty dark column. */
 function chrome(on) {
   document.body.classList.toggle('nochrome', !on);
-  if (on) document.body.classList.remove('lx-gate-on');   // the gate's colour field (renderGate) ends when the app chrome returns
+  if (on) document.body.classList.remove('lx-gate-on');   // the gate's color field (renderGate) ends when the app chrome returns
   const set = (sel, v) => { const el = document.querySelector(sel); if (el) el.style.display = v; };
   set('#tabs', on ? '' : 'none');
   set('#tabbar', on ? '' : 'none');   // the phone tab bar is chrome too
@@ -2806,7 +2806,7 @@ async function renderPlanShare(token) {
          A plan is a forecast, and a forecast is assumptions - so they are named
          here rather than left in a backend where "how are we getting this number"
          has no answer a month later. Anything the team set by hand is called out
-         as a judgement, not presented as measurement. */
+         as a judgment, not presented as measurement. */
       const A = d.assumptions || {};
       const rows = [];
       if (A.returning_per_day != null) rows.push(['Returning revenue', `${fmtMoney(A.returning_per_day * 30, cur)} a month`, 'set by your team, rather than the recent measured rate']);
@@ -2833,7 +2833,7 @@ async function renderPlanShare(token) {
         ${floor != null ? `<p style="font-size:14px;line-height:1.7;margin:${rows.length ? '12px' : '0'} 0 0"><b>Spend floor: ${fmtMoney(floor, cur)} a day.</b> The minimum we keep spending even in a slow month. Today's new customers are next month's returning revenue, so cutting acquisition the moment a week runs soft costs the month after as well.</p>` : ''}</div>`;
     })()}
     ${d.note ? `<div class="card"><h3 style="margin-bottom:6px">Notes</h3><p style="font-size:14px">${esc(d.note)}</p></div>` : ''}
-    <p class="tiny">Contribution margin is revenue minus product costs, fulfilment, payment fees and ad spend. It excludes fixed costs such as rent, salaries and software.</p>`;
+    <p class="tiny">Contribution margin is revenue minus product costs, fulfillment, payment fees and ad spend. It excludes fixed costs such as rent, salaries and software.</p>`;
   setChip(d.agreed_at ? 'Agreed' : 'Proposed', d.agreed_at ? 'live' : 'off');
   $('#connChip').style.display = '';
   document.querySelector('.hd-right').style.display = '';
@@ -2947,7 +2947,7 @@ async function renderPerfShare(token) {
       ${card('AD SPEND', fmtMoney(m.spend, cur), pl && pl.spend ? `${fmtMoney(pl.spend, cur)} planned by now ${vs(m.spend, pl.spend, true)}` : 'across every platform')}
       ${card('MER', fmtX(m.mer), pl && pl.mer ? `${fmtX(pl.mer)} planned ${vs(m.mer, pl.mer)}` : 'revenue divided by ad spend')}
       ${card('NEW CUSTOMER MER', fmtX(m.amer), `${fmtPct(m.new_share)} of revenue came from new customers`)}
-      ${m.cm != null ? card('CONTRIBUTION MARGIN', fmtMoney(m.cm, cur), pl && pl.cm ? `${fmtMoney(pl.cm, cur)} planned ${vs(m.cm, pl.cm)}` : 'after product, fulfilment, fees and ads') : ''}
+      ${m.cm != null ? card('CONTRIBUTION MARGIN', fmtMoney(m.cm, cur), pl && pl.cm ? `${fmtMoney(pl.cm, cur)} planned ${vs(m.cm, pl.cm)}` : 'after product, fulfillment, fees and ads') : ''}
     </div>
     <div class="two even pf-two">
     <div>
@@ -2957,7 +2957,7 @@ async function renderPerfShare(token) {
         ${w.ship_rev ? wRow('Shipping charged to customers', w.ship_rev, 'what customers paid for delivery') : ''}
         <tr style="border-top:1px solid var(--line)"><td><b>Revenue</b></td><td class="num"><b>${fmtMoney(w.sales, cur)}</b></td><td class="tiny">total money in${w.tax ? ` · excludes ${fmtMoney(w.tax, cur)} of sales tax` : ''}</td></tr>
         ${wRow('Product costs', w.cogs, 'what the goods cost', true)}
-        ${w.ship_cost ? wRow('Fulfilment', w.ship_cost, 'what delivery cost', true) : ''}
+        ${w.ship_cost ? wRow('Fulfillment', w.ship_cost, 'what delivery cost', true) : ''}
         ${w.handling ? wRow('Handling', w.handling, 'pick and pack', true) : ''}
         ${wRow('Payment fees', w.fees, 'card and gateway', true)}
         <tr style="border-top:2px solid var(--line-strong)"><td><b>Gross profit</b></td><td class="num"><b>${fmtMoney(w.gross_profit, cur)}</b></td><td class="tiny">${fmtPct(w.sales ? w.gross_profit / w.sales : null)} of revenue, before any advertising</td></tr>
@@ -2973,7 +2973,7 @@ async function renderPerfShare(token) {
     </div>
     <div>
     ${(d.rows || []).length ? `<div class="card"><h3 style="margin-bottom:2px">Revenue and ad spend, day by day</h3>
-      <p class="hint" style="margin-bottom:8px"><span style="color:#14608C;font-weight:700">Blue</span> is revenue - everything the store sold that day, from every channel. <span style="color:#C08A2E;font-weight:700">Amber</span> is ad spend across every platform. The gap between the lines is what was left after advertising, before product costs, fulfilment and payment fees come out of it.</p>
+      <p class="hint" style="margin-bottom:8px"><span style="color:#14608C;font-weight:700">Blue</span> is revenue - everything the store sold that day, from every channel. <span style="color:#C08A2E;font-weight:700">Amber</span> is ad spend across every platform. The gap between the lines is what was left after advertising, before product costs, fulfillment and payment fees come out of it.</p>
       <div id="csReadout" class="tiny" style="min-height:18px;margin-bottom:4px">Hover or tap any day for its exact figures…</div>
       ${salesSpendSVG(d.rows, cur, 'csSvg').svg}</div>` : ''}
 
@@ -2988,7 +2988,7 @@ async function renderPerfShare(token) {
     </div>
     ${rhythmCard(d.rhythm, cur, !!d.cm_ok)}
 
-    <p class="tiny"><b>Revenue</b> is Shopify total sales less sales tax - every channel, after discounts and returns, including shipping charged to customers. <b>MER</b> is all of that revenue divided by all ad spend across every platform; it is not any single platform's reported return, which is why it will not match what Meta or Google show. ${m.cm != null ? '<b>Contribution margin</b> is revenue minus product costs, fulfilment, payment fees and ad spend; it excludes fixed costs such as rent, salaries and software.' : ''}</p>`;
+    <p class="tiny"><b>Revenue</b> is Shopify total sales less sales tax - every channel, after discounts and returns, including shipping charged to customers. <b>MER</b> is all of that revenue divided by all ad spend across every platform; it is not any single platform's reported return, which is why it will not match what Meta or Google show. ${m.cm != null ? '<b>Contribution margin</b> is revenue minus product costs, fulfillment, payment fees and ad spend; it excludes fixed costs such as rent, salaries and software.' : ''}</p>`;
   setChip('Live', 'live');
   $('#connChip').style.display = '';
   document.querySelector('.hd-right').style.display = '';
@@ -3019,8 +3019,8 @@ function clientFooter(note) {
 function renderGate(err, offerRetry) {
   setChip('Signed out','off');
   chrome(false);
-  /* The gate is the Locus colour field (two-products.md section 5; logo/kit.css section 7, the same gate as Cashew in
-     its own colour): the character, the name with the bead, the tagline with its accent word, the one line, then the
+  /* The gate is the Locus color field (two-products.md section 5; logo/kit.css section 7, the same gate as Cashew in
+     its own color): the character, the name with the bead, the tagline with its accent word, the one line, then the
      sign-in card. The tabs drifting behind are the "14 tabs" of the pitch. body.lx-gate-on paints the field; chrome(true) ends it. */
   document.body.classList.add('lx-gate-on');
   const tab = '<path d="M3 50c9 0 7-36 18-36h22c11 0 9 36 18 36"/><circle cx="24" cy="31" r="3" fill="currentColor" stroke="none"/><path d="M32 31h10"/>';
@@ -3419,7 +3419,7 @@ function helpModal(title, html, opts = {}) {
 const noteModal = (title, html) => helpModal(title, html);
 
 /* REWRITE, WITH OR WITHOUT DIRECTION.
-   Resolves to null if cancelled, or to a string (possibly empty) to go ahead.
+   Resolves to null if canceled, or to a string (possibly empty) to go ahead.
    Empty means a straight rewrite. Whatever is typed is passed to Claude as
    direction that outranks the standing prompt - it can change emphasis, order,
    length and tone, but the worker forbids it inventing a number.
@@ -3547,7 +3547,7 @@ function picker(host, items, { placeholder = 'Search…', empty = 'No matches', 
    it, so a client with no Meta ads is a brand too (New client); this modal is
    only the shortcut for a Meta account Locus can already see.
 
-   Resolves to the chosen act_id on success, null if cancelled. */
+   Resolves to the chosen act_id on success, null if canceled. */
 function addBrandModal(untracked, chList, onDiscover, total) {
   return new Promise(resolve => {
     const w = document.createElement('div');
@@ -3880,7 +3880,7 @@ const TOURS = {
 
   profit: { name: 'The Profit page', steps: [
     { sel: '#main h2', title: 'Where one client’s money went', body: 'Store-level and blended: every sale from every source, minus every cost including all ad platforms.' },
-    { sel: '#main .card', title: 'Read the waterfall top to bottom', body: 'Revenue → product costs → fulfilment → fees → gross profit → ad spend → contribution margin. Each line is money leaving.' },
+    { sel: '#main .card', title: 'Read the waterfall top to bottom', body: 'Revenue → product costs → fulfillment → fees → gross profit → ad spend → contribution margin. Each line is money leaving.' },
     { sel: '#pfShare', title: 'The client can see this too', body: '<b>Client link</b> gives a read-only page with just their business on it - no other client, none of your internal workings.' },
   ] },
 
@@ -3992,7 +3992,7 @@ function drawTour() {
   const b = box.querySelector('[data-t="back"]'); if (b) b.onclick = () => stepTour(-1);
   box.querySelector('[data-t="skip"]').onclick = () => { markTourSeen(TOUR.key); endTour(); };
 
-  // Position: under the element if it fits, above if not, centred with no element.
+  // Position: under the element if it fits, above if not, centered with no element.
   box.style.cssText = 'visibility:hidden;display:block';
   const bw = box.offsetWidth, bh = box.offsetHeight;
   if (el) {
@@ -4085,7 +4085,7 @@ document.addEventListener('click', e => {
   if (b) { e.preventDefault(); startTour(b.dataset.tour); }
 });
 
-/* Set while a shared ad page is open, so the video endpoint can authorise
+/* Set while a shared ad page is open, so the video endpoint can authorize
    playback against that snapshot the way a report token does. */
 let AD_SHARE_TOKEN = null;
 
@@ -4292,7 +4292,7 @@ async function renderAdShare(token) {
   });
 
   clientFooter('');
-  // Playback on the client's link: the share token authorises the ads the
+  // Playback on the client's link: the share token authorizes the ads the
   // snapshot contains, the same way a report archive token does.
   RS.token = null;
   AD_SHARE_TOKEN = token;
@@ -4493,7 +4493,7 @@ async function renderCreativeBrowser(host, act, range, opts) {
 
   /* DROPDOWNS, not chips. Nine sorts and four types as pills was two wrapping
      rows of buttons that looked nothing like the rest of Locus - every other
-     control on this page is a labelled select. Same custom chevron, same
+     control on this page is a labeled select. Same custom chevron, same
      border, same focus ring.
      TYPES ARE THE THREE REAL ONES. The pipe-suffix tags in ad names (UGC,
      Still) were being offered here beside Video and Static and duplicated the
@@ -4866,12 +4866,12 @@ const GLOSSARY = [
     moves: 'Falling aMER means acquisition is getting more expensive. Check <b>Customers</b> for payback, then <b>Meta → Creative</b> for whether you are coasting on old ads.' },
   { k: 'Contribution margin', tag: 'CM',
     one: 'What was left after every cost that moves with sales - including the ads.',
-    f: 'Revenue − product costs − fulfilment − handling − payment fees − <b>all ad spend</b>.',
+    f: 'Revenue − product costs − fulfillment − handling − payment fees − <b>all ad spend</b>.',
     good: 'Positive and growing. It deliberately ignores rent, salaries and software, so it is <b>not</b> net profit - it answers "did the marketing make money on the margin?"',
     moves: 'Down while revenue is up means you bought revenue that did not pay for itself. The <b>Plan</b> page warns when a growth target does this.' },
   { k: 'Gross profit', tag: '',
     one: 'What was left after making and shipping the product, before any advertising.',
-    f: 'Revenue − product costs − fulfilment − handling − payment fees.',
+    f: 'Revenue − product costs − fulfillment − handling − payment fees.',
     good: 'Steady. It should barely move day to day; if it swings, the cost data is the problem, not the business.',
     moves: 'A wobbly gross margin is exactly what the <b>Costs</b> tab exists to catch.' },
   { k: 'Orders', tag: 'store',
@@ -5016,9 +5016,9 @@ if (V4) Object.assign(TOURS, {
   ] },
   month: { name: 'Money > Month', steps: [
     { sel: '.v4-land', title: 'Where the month lands', body: 'The ring is the forecast at the planned spend over the goal. Under it, three paths: spending the budget, today\'s pace, and what a day has to do to hit it.' },
-    { sel: '.v4-top.v4-mo > section:nth-child(2)', title: 'Weeks against target', body: 'Each week against its share of the goal. Grey is the target, colour is the actual. The strip under it is the month in five numbers.' },
+    { sel: '.v4-top.v4-mo > section:nth-child(2)', title: 'Weeks against target', body: 'Each week against its share of the goal. Gray is the target, color is the actual. The strip under it is the month in five numbers.' },
     { sel: '.v4-top.v4-mo > section:nth-child(3)', title: 'Is a customer worth what we pay?', body: 'The dial is what comes back per dollar of ads in 90 days. Under 1.5x the first order does not pay for the customer; over 3x there is room to bid harder.' },
-    { sel: '.v4-fall', title: 'Where the money went', body: 'Revenue down to what was kept, one bar per cost, the same colours as the river on Today.' },
+    { sel: '.v4-fall', title: 'Where the money went', body: 'Revenue down to what was kept, one bar per cost, the same colors as the river on Today.' },
   ] },
 });
 const PAGE_HELP = {
@@ -5090,7 +5090,7 @@ const PAGE_HELP = {
   store: `
     <p><b>What this page is:</b> the store's own numbers for the window: sales, orders, AOV, products, discounts, new against returning, from Shopify through Triple Whale. The place to check the product behind a number on Month.</p>`,
   website: `
-    <p><b>What this page is:</b> the site's behaviour: visitors, add to cart, checkout, conversion by device and by page, from GA4. Leaks on the site (a slow page, phones that do not add to cart) are priced on Leaks.</p>`,
+    <p><b>What this page is:</b> the site's behavior: visitors, add to cart, checkout, conversion by device and by page, from GA4. Leaks on the site (a slow page, phones that do not add to cart) are priced on Leaks.</p>`,
   search: `
     <p><b>What this page is:</b> Google Search Console: what people searched to find the site, where it ranks, and which pages win. The search-term leaks on the ad queue come from here and Google Ads together.</p>`,
   email: `
@@ -5106,7 +5106,7 @@ const PAGE_HELP = {
   month: `
     <p><b>What this page is:</b> every money question on one page. Will the month hit the goal, is a customer worth what we pay, where did the money go, who paid.</p>
     <p><b>Where the month lands:</b> the forecast is returning revenue on its own trend plus new revenue at the planned spend times the trailing aMER (the CTC method). "At today's pace" is what happens if nothing changes. "To hit it" is what a day has to do.</p>
-    <p><b>Weeks against target:</b> each week's share of the goal (grey) against what came in (colour). A week more than 8% under is red.</p>
+    <p><b>Weeks against target:</b> each week's share of the goal (gray) against what came in (color). A week more than 8% under is red.</p>
     <p><b>Is a customer worth what we pay:</b> cost to get a customer, the first order, what is left after costs, and how many order again, over the last 90 days. Under 1.5x back per dollar the first order does not pay for the customer.</p>
     <p><b>Where the money went:</b> revenue to kept, one bar per cost. <b>Who paid:</b> new against returning, then first orders by channel under the attribution model in the top bar.</p>
     <p><b>Edit the plan</b> opens Goals, which is this page's edit mode.</p>`,
@@ -5123,11 +5123,11 @@ const PAGE_HELP = {
   profit: `
     <p><b>What this page is:</b> where one client's money actually goes, from revenue down to what's left.</p>
     <p><b>What "Revenue" means, on every tab:</b> Shopify <b>Total Sales minus sales tax</b> - gross sales, less discounts, less returns, plus shipping charged to customers, less tax. That is the line CTC report as "Net Sales + Shipping", and it reconciles to Shopify's own sales report. It is <i>not</i> Shopify's "Net Sales" figure, which leaves shipping out. Triple Whale supplies it as <code>netSales</code>, a field their own catalog titles "Total Sales" - shipping and tax are already inside it, so it is never added a second time.</p>
-    <p><b>The waterfall:</b> Net Sales + shipping charged to customers → minus product costs (COGS) → minus fulfilment and handling → minus payment fees → that's your <b>gross profit</b> → minus all ad spend → <b>contribution margin</b>. Every step in the client's own currency.</p>
+    <p><b>The waterfall:</b> Net Sales + shipping charged to customers → minus product costs (COGS) → minus fulfillment and handling → minus payment fees → that's your <b>gross profit</b> → minus all ad spend → <b>contribution margin</b>. Every step in the client's own currency.</p>
     <p><b>This is CTC's exact definition:</b> revenue minus <i>all variable costs</i>. <b>Contribution margin is not net profit</b> - it deliberately ignores fixed costs: rent, salaries and software. Those don't change when you spend another dollar on ads, so they'd only blur the question it exists to answer: did the marketing make money on the margin?</p>
     <p><b>Efficiency is not the same as value.</b> MER tells you how hard each ad dollar worked on that weekday; <b>CM per day</b> tells you how much money the day actually made. They often disagree - for one client the most efficient day is Thursday while Tuesday contributes more margin - and when they do, the money is what matters. A day with a lower MER is not a bad day, and nothing here should be read as a reason to cut it.</p>
     <p><b>How a week actually runs</b> is history, not a plan. It shows each weekday's share of revenue over the last complete months, and the range that weekday scored against an average day. A weekday is only called consistent when every month agreed - four Mondays a month is a small sample, and most brands will show some pattern by chance. When a client has no reliable rhythm the card says so outright, because presenting noise as insight on a client call is worse than saying nothing. The monthly plan is still split evenly across the days: a day-of-week curve was measured against six clients and predicted <i>worse</i> than an even split.</p>
-    <p><b>Delivery has two ways of going missing, and one of them is silent.</b> If a client bills shipping and records no fulfilment cost, that shipping income is already inside revenue and cannot be netted back out - so contribution margin really is overstated by roughly what delivery costs. The quieter failure is worse: where no delivery rate is configured, Triple Whale writes the shipping <i>charge</i> into the cost field, the two cancel exactly, and fulfilment disappears from the margin with nothing on screen to say so. The <b>Costs</b> tab tells the two apart and sizes what it is worth. Neither is adjusted for automatically - a silent correction would be indistinguishable from a measurement.</p>
+    <p><b>Delivery has two ways of going missing, and one of them is silent.</b> If a client bills shipping and records no fulfillment cost, that shipping income is already inside revenue and cannot be netted back out - so contribution margin really is overstated by roughly what delivery costs. The quieter failure is worse: where no delivery rate is configured, Triple Whale writes the shipping <i>charge</i> into the cost field, the two cancel exactly, and fulfillment disappears from the margin with nothing on screen to say so. The <b>Costs</b> tab tells the two apart and sizes what it is worth. Neither is adjusted for automatically - a silent correction would be indistinguishable from a measurement.</p>
     <p><b>The chart:</b> daily net sales against daily ad spend, so you can see whether spending more actually moved revenue, or just moved cost. Hover or tap anywhere for exact values.</p>
     <p><b>New vs returning:</b> a healthy acquisition business runs high on new. A high returning share with weak new revenue means the ads have stopped working and the list is carrying the store - MER looks fine while aMER quietly collapses. That's the failure mode this page exists to catch.</p>`,
   health: `
@@ -5139,7 +5139,7 @@ const PAGE_HELP = {
     · <b>Continuity.</b> Meta is the only platform with a second source. For Google, TikTok and the rest, a platform that has spent every day for a fortnight and reports nothing today is flagged as a dropout. Weaker - a genuine pause looks the same - so it clears itself after two weeks of the new normal.</p>
     <p><b>What a red day does:</b> it cannot reach a client. The send is refused whoever asks for it - the morning cron, the Send button, a retry - and an auto-send brand is downgraded to an internal draft with the reason attached, so you get told rather than getting silence.</p>
     <p><b>How you fix it:</b> the red line names the connection and where to reconnect it, which is nearly always inside Triple Whale - nobody can re-authorise someone else's integration from here. Then <b>Re-sync Triple Whale</b> pulls the corrected data, and <b>Rebuild flagged drafts</b> regenerates each affected day's brief from it. One brand and one day per press, because a brief is the most expensive thing this system does and a loop over six brands would die halfway.</p>
-    <p><b>What it can and cannot repair.</b> Meta spend has a second source, so it self-heals - the number you see is already correct, labelled <i>rebuilt</i>. Everything else Triple Whale alone knows - net sales, COGS, new vs returning, channel ROAS - can only be flagged as missing or implausible, never reconstructed. That is the argument for connecting Shopify and Google directly, which is the next piece of work.</p>
+    <p><b>What it can and cannot repair.</b> Meta spend has a second source, so it self-heals - the number you see is already correct, labeled <i>rebuilt</i>. Everything else Triple Whale alone knows - net sales, COGS, new vs returning, channel ROAS - can only be flagged as missing or implausible, never reconstructed. That is the argument for connecting Shopify and Google directly, which is the next piece of work.</p>
     <p><b>Sent briefs are never rebuilt.</b> A sent brief is the record of what the client received; if it went out wrong, say so in the channel rather than quietly rewriting history.</p>`,
   costs: `
     <p><b>What this page is:</b> the foundation everything else stands on. Contribution margin is only as good as the product costs behind it, and cost data is the thing most stores get wrong.</p>
@@ -5150,10 +5150,10 @@ const PAGE_HELP = {
     • <b>Broken</b> - costs exceed revenue on some days, or margin is wildly unstable. <b>All profit figures for this client are suppressed everywhere</b>, including the Daily Brief, until it's fixed.</p>
     <p><b>Two ways to fix it:</b> enter the missing product costs in Triple Whale (Settings → Costs) - the right long-term answer - or set a <b>flat margin override</b> here, which uses one blended percentage instead of per-product costs. The override is honest and stable; it just can't tell you which products are the profitable ones.</p>
     <p><b>The override is shared:</b> setting it here also fixes the Daily Brief and both reports, because they all read the same field.</p>
-    <p><b>Fulfilment is the second variable cost, and it fails more quietly than COGS.</b> Product costs announce a problem - margin swings, days go negative. Delivery does not: where no shipping rate is configured, Triple Whale copies the charge the customer paid into the cost field, the two cancel to the cent, and contribution margin is left carrying no delivery cost at all while looking perfectly healthy. The Fulfilment card tells you which of three states a client is in:<br>
+    <p><b>Fulfillment is the second variable cost, and it fails more quietly than COGS.</b> Product costs announce a problem - margin swings, days go negative. Delivery does not: where no shipping rate is configured, Triple Whale copies the charge the customer paid into the cost field, the two cancel to the cent, and contribution margin is left carrying no delivery cost at all while looking perfectly healthy. The Fulfillment card tells you which of three states a client is in:<br>
     • <b>Measured</b> - a real rate is configured; what shipping costs is already inside contribution margin. Nothing to do.<br>
     • <b>Not measured</b> - the recorded cost is the charge copied back, on nearly every day, to the cent. The cost is unknown, not zero.<br>
-    • <b>No fulfilment cost</b> - customers were charged for delivery and nothing at all was booked against it.</p>
+    • <b>No fulfillment cost</b> - customers were charged for delivery and nothing at all was booked against it.</p>
     <p><b>Sizing the unknown:</b> for the two states that need it, the card prices the client's orders at what your <i>measured</i> clients actually pay per order and shows the gap as a range. That is a bracket, not an answer - delivery cost follows weight and box size, and the peers are simply whoever has a rate configured. <b>Nothing on this dashboard adjusts for it.</b> The fix is at source: Triple Whale → Settings → Costs → shipping.</p>`,
   brief: `
     <p><b>What this page is:</b> the client-facing daily update, the way top agencies run it - every day compared against a <i>plan</i>, so "£3,215" stops being trivia and becomes "we missed by 9%". Set monthly goals once; the tool forecasts each day, measures the actual, writes the story, and posts it to the brand's Slack channel every morning.</p>
@@ -5227,7 +5227,7 @@ const PAGE_HELP = {
  *  Anything that changes goals or the underlying data must call this, or other tabs
  *  keep serving the copy of S.accounts they were handed at page load. */
 async function refreshAccounts(fresh = true) {
-  /* `fresh` (2026-10-26): the worker memoises this answer for 90 seconds; every caller here follows a save, so it asks
+  /* `fresh` (2026-10-26): the worker memoizes this answer for 90 seconds; every caller here follows a save, so it asks
      for a fresh build. Only a period change (periodChanged) may take the memo. */
   try { const r = await api('/api/overview?' + rangeQ() + (fresh ? '&fresh=1' : '')); if (r && r.accounts) S.accounts = r.accounts; }
   catch { /* a stale snapshot is better than a broken page */ }
@@ -5560,7 +5560,7 @@ window.prettyDate = prettyDate;
 window.daySpan = daySpan;
 
 /** Query string for the data endpoints. A plain "N days ending yesterday" still
- *  goes out as `days` so nothing that predates the bar changes behaviour; only
+ *  goes out as `days` so nothing that predates the bar changes behavior; only
  *  Last month and a custom range need explicit dates. */
 function rangeQ() {
   const r = resolveRange(), n = daySpan(r.from, r.to);
@@ -6014,9 +6014,9 @@ function V2R(tab, first) {
    goal ROAS) moved here from Settings > Goals and rules, so every number the client agreed sits on one page. Same saves
    as the old card: /api/client-settings target_cpa, the Meta accounts route target_roas. */
 /* GOAL, BREAK-EVEN, REAL (2026-10-19, Ahsan: "how can I check the breakeven ROAS or target CPA for this brand?"). The
-   answers existed only as grey hints under the input boxes. ONE table, drawn the same way at the top of Brand settings >
+   answers existed only as gray hints under the input boxes. ONE table, drawn the same way at the top of Brand settings >
    Goals and ad rules and on Home > Goals: each measure with the goal we agreed, where the brand breaks even, and what it
-   really ran at over the last 90 days, coloured, with the inputs behind break-even spelled out under it.
+   really ran at over the last 90 days, colored, with the inputs behind break-even spelled out under it.
    Break-even = what one order leaves after product, shipping and fees (Triple Whale costs, or the margin override):
    cost per sale = average order x margin, cost per new customer = first order x margin, ROAS = 1 / margin.
    `g` = /api/brand/rules, `pre` = /api/customers?days=90&journey=0 (null when it failed). */
@@ -6231,7 +6231,7 @@ const ASK_SUGGEST = {
   today: ['What should I change first on {b} today?', 'Which ad set is wasting the most money?', 'Which ad set can take more budget?', 'Which ads are tiring?'],
   war: ['How is {b} doing against today\u2019s goal?', 'Should we scale or pull back right now?', 'What offer is live for each brand?', 'What changes next?'],
   pulse: ['Is Meta having problems right now?', 'Was there an outage yesterday?', 'Did Google Ads have issues this week?', 'Is Shopify checkout working?'],
-  answers: ['What should I ask {b} on the next call?', 'What did {b} tell us about their customers?', 'What is still missing from {b}\u2019s onboarding?', 'Summarise {b} for a new strategist'],
+  answers: ['What should I ask {b} on the next call?', 'What did {b} tell us about their customers?', 'What is still missing from {b}\u2019s onboarding?', 'Summarize {b} for a new strategist'],
   research: ['Who buys from {b} and why?', 'Which angles have we not tried for {b}?', 'Who are {b}\u2019s main competitors?', 'What do customers say about {b}?'],
   voice: ['Write three hooks for {b} in its voice', 'How does {b} talk?', 'What words does {b} never use?', 'Rewrite this line in {b}\u2019s voice'],
   overview: ['What changed most for {b} against the period before, and why?', 'Which brand needs attention first today?', 'Where is ad spend not paying back right now?', 'Are we on pace for this month’s plan?'],
@@ -6244,7 +6244,7 @@ const ASK_SUGGEST = {
   adcreative: ['Which ads are tiring on {b}?', 'Which angle is winning right now?', 'What should we make more of?', 'Which ads hook but do not convert?'],
   mbrowser: ['Which ads are tiring on {b}?', 'Which angle is winning right now?', 'What should we make more of?', 'Which ads hook but do not convert?'],
   tests: ['Which tests need a call this week?', 'What did we learn from the last 10 tests?', 'Which angles are proven on {b}?', 'What should we test next?'],
-  changes: ['What changed on {b} this week and who did it?', 'Did the last budget change help?', 'What changed before CPA moved?', 'Summarise this week’s changes for the client'],
+  changes: ['What changed on {b} this week and who did it?', 'Did the last budget change help?', 'What changed before CPA moved?', 'Summarize this week’s changes for the client'],
   gads: ['Which Google ad should we rewrite on {b}?', 'Are the pinned headlines helping?', 'Which ad has the best Google ROAS?'],
   gterms: ['Which search terms should be negatives on {b}?', 'How much of Google is brand search?', 'Which terms should become keywords?'],
   gchanges: ['What changed on Google for {b} this month?', 'Did the last bid change move Google ROAS?', 'Who changed the Google budgets?'],
@@ -6268,7 +6268,7 @@ const ASK_SUGGEST = {
   copy: ['Write five hooks for {b}', 'Rewrite this headline in the brand’s voice', 'Give me subject lines for the next email', 'Which lines did the client reject, and why?'],
   amb: ['Which creator ideas should be hot right now?', 'What should creators stop filming?', 'Which ideas have no example video?', 'Draft a new idea for the creator link'],
   brief: ['What should today’s brief for {b} lead with?', 'Which briefs are waiting to send?', 'What did we change yesterday?', 'Is anything in the numbers off today?'],
-  reports: ['Summarise last week for {b} in three lines', 'Which reports are waiting to send?', 'What was the biggest change last month?', 'What should we tell the client next?'],
+  reports: ['Summarize last week for {b} in three lines', 'Which reports are waiting to send?', 'What was the biggest change last month?', 'What should we tell the client next?'],
   dash: ['Build me a dashboard of spend, revenue and MER per brand', 'Make a morning dashboard for Ahsan', 'Add Google and Meta side by side', 'Post a dashboard to Slack every Monday'],
 };
 const askScope = () => S.act === 'all' ? 'the book' : ((S.accounts.find(a => a.act_id === S.act) || {}).name || 'this brand');
@@ -6625,15 +6625,15 @@ const costChip = (h, marginPct) => {
 };
 const cmTrusted = h => !h || (h.verdict !== 'broken' && h.verdict !== 'none');
 
-/* ---------- fulfilment health ----------
+/* ---------- fulfillment health ----------
    Only ONE state is a problem: delivery charged with nothing booked against it.
    A cost that merely looks surprising - including one that exactly equals the
    charge - is the brand's own Triple Whale configuration and is reported as given.
    Cole's call, 2026-08-24: flag what is MISSING, never what is merely surprising. */
-const shipPill = (s, long) => { const t = long ? 'fulfilment ' : '';
+const shipPill = (s, long) => { const t = long ? 'fulfillment ' : '';
   return !s ? `<span class="pill unk">${t}not checked</span>`
     : s.mode === 'measured' ? `<span class="pill good">${t}measured</span>`
-    : s.mode === 'uncosted' ? `<span class="pill bad">${long ? 'no fulfilment cost' : 'nothing recorded'}</span>`
+    : s.mode === 'uncosted' ? `<span class="pill bad">${long ? 'no fulfillment cost' : 'nothing recorded'}</span>`
     : `<span class="pill unk">no shipping${long ? ' billed' : ''}</span>`;
 };
 
@@ -6650,7 +6650,7 @@ function fulfilBenchmark(exclude) {
   return { peers, lo: peers[0].per, hi: peers[peers.length - 1].per };
 }
 
-/** The exposure a missing fulfilment cost creates, as a RANGE. Positive means
+/** The exposure a missing fulfillment cost creates, as a RANGE. Positive means
  *  contribution margin is overstated by that much; negative means understated. */
 function fulfilExposure(s, bench) {
   if (!s || !bench || !(s.orders > 0)) return null;
@@ -6658,7 +6658,7 @@ function fulfilExposure(s, bench) {
   return { lo: Math.min(lo, hi), hi: Math.max(lo, hi), implied_lo: s.orders * bench.lo, implied_hi: s.orders * bench.hi };
 }
 
-/** The fulfilment section of the Costs page. Diagnoses, sizes the unknown, and
+/** The fulfillment section of the Costs page. Diagnoses, sizes the unknown, and
  *  names the fix - it never adjusts a number, for the same reason the COGS side
  *  never does: a silent correction is indistinguishable from a measurement. */
 function fulfilSection(s, cur, actId, windowSales, days, marginPct) {
@@ -6670,7 +6670,7 @@ function fulfilSection(s, cur, actId, windowSales, days, marginPct) {
     ? ` <b>This client is on a flat ${Math.round(marginPct * 100)}% margin override</b>, so none of these figures feed contribution margin directly - the override replaces the whole cost chain with one percentage, delivery included. What follows describes the real Triple Whale data behind it.`
     : '';
   if (!s || s.mode === 'none') {
-    return `<div class="card"><h3 style="margin-bottom:6px">Fulfilment</h3>
+    return `<div class="card"><h3 style="margin-bottom:6px">Fulfillment</h3>
       <p class="hint">Nothing was charged or costed for delivery in the last ${days} days, so shipping does not touch this client's contribution margin either way.${ovr}</p></div>`;
   }
   const perO = n => n == null ? ' - ' : fmtMoney(n, cur);
@@ -6699,21 +6699,21 @@ function fulfilSection(s, cur, actId, windowSales, days, marginPct) {
 
   const stats = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin:0 0 14px">
     ${statCard('Charged to customers', fmtMoney(s.rev, cur), `${perO(s.rev_per_order)} an order · ${days} days`, 'What customers paid for delivery over the window. This sits INSIDE revenue on every tab, because revenue is Shopify Total Sales less tax - so it can never be netted back out, only costed against.')}
-    ${statCard(s.mode === 'measured' ? 'What delivery cost' : 'Recorded as cost', fmtMoney(s.cost, cur), s.mode === 'uncosted' ? 'nothing booked at all' : `${perO(s.cost_per_order)} an order`, 'What Triple Whale holds as the fulfilment cost, exactly as the brand configured it there.')}
+    ${statCard(s.mode === 'measured' ? 'What delivery cost' : 'Recorded as cost', fmtMoney(s.cost, cur), s.mode === 'uncosted' ? 'nothing booked at all' : `${perO(s.cost_per_order)} an order`, 'What Triple Whale holds as the fulfillment cost, exactly as the brand configured it there.')}
     ${statCard('Orders', orderCount, `over ${days} days`, 'Total orders in the window. Delivery is priced per parcel, so orders - not revenue - is what a shipping cost scales with.')}
-    ${statCard(s.mode === 'measured' ? 'Shipping nets' : 'What it would cost', s.mode === 'measured' ? fmtMoney(s.rev - s.cost, cur) : exp ? `${fmtMoney(exp.implied_lo, cur)} – ${fmtMoney(exp.implied_hi, cur)}` : ' - ', s.mode === 'measured' ? (s.rev >= s.cost ? 'delivery pays for itself' : 'delivery runs at a loss') : worthLabel, s.mode === 'measured' ? 'Shipping revenue minus fulfilment cost over the window. Negative means customers are not covering delivery, which is a pricing decision, not a data problem.' : 'This client’s orders priced at what the clients WITH a real delivery rate actually pay per order. A bracket for an unknown, never applied to any figure on this dashboard.')}
+    ${statCard(s.mode === 'measured' ? 'Shipping nets' : 'What it would cost', s.mode === 'measured' ? fmtMoney(s.rev - s.cost, cur) : exp ? `${fmtMoney(exp.implied_lo, cur)} – ${fmtMoney(exp.implied_hi, cur)}` : ' - ', s.mode === 'measured' ? (s.rev >= s.cost ? 'delivery pays for itself' : 'delivery runs at a loss') : worthLabel, s.mode === 'measured' ? 'Shipping revenue minus fulfillment cost over the window. Negative means customers are not covering delivery, which is a pricing decision, not a data problem.' : 'This client’s orders priced at what the clients WITH a real delivery rate actually pay per order. A bracket for an unknown, never applied to any figure on this dashboard.')}
   </div>`;
 
   if (s.mode === 'measured') {
-    return `<div class="card"><h3 style="margin-bottom:2px">Fulfilment ${shipPill(s)}</h3>
+    return `<div class="card"><h3 style="margin-bottom:2px">Fulfillment ${shipPill(s)}</h3>
       <p class="hint" style="margin-bottom:12px">Triple Whale holds a real delivery rate for this client, so what shipping costs is measured rather than guessed${marginPct != null ? '' : ' and is already inside contribution margin'}.${ovr}</p>
       ${stats}
       <p class="tiny">Customers paid <b>${perO(s.rev_per_order)}</b> an order for delivery and it cost <b>${perO(s.cost_per_order)}</b> to ship, so shipping ${s.rev >= s.cost ? 'contributes' : 'costs'} <b>${fmtMoney(Math.abs(s.rev - s.cost), cur)}</b> over ${days} days${s.rev < s.cost ? ` - ${perO((s.cost - s.rev) / s.orders)} an order out of margin. That is a real number and a pricing question, not a data one.` : '.'}</p></div>`;
   }
 
-  return `<div class="card"><h3 style="margin-bottom:2px">Fulfilment ${shipPill(s)}</h3>
+  return `<div class="card"><h3 style="margin-bottom:2px">Fulfillment ${shipPill(s)}</h3>
     <p class="hint" style="margin-bottom:12px">Product costs are not the only variable cost that can go missing, and delivery fails more quietly.${ovr}</p>
-    <div class="notice bad" style="margin:0 0 14px"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg><div><b>Customers were charged ${fmtMoney(s.rev, cur)} for delivery and no cost is recorded against any of it.</b> That income is already inside revenue and cannot be netted back out, so contribution margin is overstated by whatever delivery actually costs. Add this brand's fulfilment rates in Triple Whale and the figure corrects itself.</div></div>
+    <div class="notice bad" style="margin:0 0 14px"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"/></svg><div><b>Customers were charged ${fmtMoney(s.rev, cur)} for delivery and no cost is recorded against any of it.</b> That income is already inside revenue and cannot be netted back out, so contribution margin is overstated by whatever delivery actually costs. Add this brand's fulfillment rates in Triple Whale and the figure corrects itself.</div></div>
     ${stats}
     ${bench ? `<p class="tiny">${benchNote} ${expLine}</p>` : `<p class="tiny">No other client has a real delivery rate configured either, so there is nothing to size this against yet.</p>`}
     <p class="tiny" style="margin-top:8px"><b>The fix is at source:</b> Triple Whale → Settings → Costs → shipping, either a flat rate per order or the real carrier rates. Nothing on this dashboard adjusts for it in the meantime - a silent correction would be indistinguishable from a measurement.</p></div>`;
@@ -6736,7 +6736,7 @@ function vsPlan(actual, planned) {
  *
  * Twenty calls across eight tabs come through here, which is the point: the
  * headline row converts everywhere at once and cannot drift apart later.
- * `tone` ('good' | 'bad' | 'warn') colours the figure where a verdict is
+ * `tone` ('good' | 'bad' | 'warn') colors the figure where a verdict is
  * genuinely attached to it; most callers pass nothing.
  */
 /* Round first, then sign: a value a hair under parity must not print "-0%". */
@@ -6792,7 +6792,7 @@ const OV_SORT = [
  *   one page telling you different things.
  *
  *   A card never shows a verdict the data cannot support. No plan means no
- *   pace judgement (it says so and sits under Unplanned rather than being
+ *   pace judgment (it says so and sits under Unplanned rather than being
  *   quietly called fine), and untrusted cost data suppresses contribution
  *   margin here exactly as it does everywhere else.
  */
@@ -6964,7 +6964,7 @@ const CH_ORDER = ['meta', 'google', 'tiktok', 'pinterest', 'email', 'rest'];
 const CH_COLOR = { meta: '#14608C', google: '#C08A2E', tiktok: '#2B3A47', pinterest: '#B5484D', email: '#1C7A46', rest: '#C4D2DB' };
 const OVR = { key: null, data: null, at: 0 };
 
-/** +9% / -4% against the compare period, coloured by whether that is good. `lower` = a
+/** +9% / -4% against the compare period, colored by whether that is good. `lower` = a
  *  lower number is the good direction (spend, CPA). Null when either side is missing. */
 function deltaPill(cur, prev, lower) {
   if (cur == null || prev == null || !prev || S.cmp === 'none') return '';
@@ -7122,7 +7122,7 @@ async function renderOverview() {
   const cmpWin = all.find(a => a.prev_window)?.prev_window;
   const cmpText = hasPrev && cmpWin ? `${CMP_LABEL[S.cmp]} (${prettyDate(cmpWin.from)} &ndash; ${prettyDate(cmpWin.to)})` : '';
 
-  /* Month to date against the plan, labelled MTD. Only brands with a plan are summed. */
+  /* Month to date against the plan, labeled MTD. Only brands with a plan are summed. */
   const withPlan = all.filter(a => a.plan?.sales != null && a.mtd?.sales != null);
   const psum = get => withPlan.reduce((t, a) => t + (get(a) ?? 0), 0);
   const mtd = withPlan.length ? { sales: psum(a => a.mtd.sales), pSales: psum(a => a.plan.sales), spend: psum(a => a.mtd.spend), pSpend: psum(a => a.plan.spend) } : null;
@@ -7209,7 +7209,7 @@ async function renderOverview() {
     ${table}
     <details class="footnote"><summary>How these numbers are defined</summary>
       <div class="fn-body"><b>Revenue</b> is Shopify Total Sales minus sales tax: gross sales, less discounts and returns, plus shipping charged to customers, less tax. Every channel counts: paid, organic, email and direct. <b>Orders</b> and <b>AOV</b> come from Triple Whale's order count over the same revenue. <b>Ad spend</b> is every platform, blended.<br><br>
-      <b>MER</b> is revenue divided by all ad spend; <b>aMER</b> is new-customer revenue over that same spend. <b>Contribution margin</b> is revenue less every variable cost: product, fulfilment, handling, payment fees and ad spend. <b>Revenue per channel</b> is Triple Whale's last platform click, so Meta and Google can both claim the same order; that is why the channels do not add up to revenue and why MER exists. <b>Pace</b> compares month to date with this month's agreed plan, pro-rated to the days elapsed; more than 30% behind needs a decision, 8 to 30% behind is watched.</div></details>`;
+      <b>MER</b> is revenue divided by all ad spend; <b>aMER</b> is new-customer revenue over that same spend. <b>Contribution margin</b> is revenue less every variable cost: product, fulfillment, handling, payment fees and ad spend. <b>Revenue per channel</b> is Triple Whale's last platform click, so Meta and Google can both claim the same order; that is why the channels do not add up to revenue and why MER exists. <b>Pace</b> compares month to date with this month's agreed plan, pro-rated to the days elapsed; more than 30% behind needs a decision, 8 to 30% behind is watched.</div></details>`;
 
   const open = id => { S.act = id; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; show('overview'); };
   $('#main').querySelectorAll('tr[data-id]').forEach(c => {
@@ -7939,7 +7939,7 @@ const LX = {
   wireDual: (id, rows, tip) => window.V2UI.wireLine(id, rows, { tip: (r, i) => tip(rows[i], i) }),
   /** A general x/y line chart for the shapes the date chart cannot draw: hours of a day, days
    *  after a first order, a margin that can go below zero. xs are numbers (uneven spacing is
-   *  kept), series are token colours, lines are dashed reference levels, tips one per x. */
+   *  kept), series are token colors, lines are dashed reference levels, tips one per x. */
   chart(id, o) {
     const w = 760, h = o.h || 220, pl = 52, pr = 16, pt = 14, pb = 26;
     const xs = o.xs || [], n = xs.length;
@@ -8216,7 +8216,7 @@ function rhythmCard(rh, cur, showCm) {
         <th class="num">Compared with a normal day <span class="info-i" title="How far above or below a normal day this weekday landed - shown as its WORST month and its BEST month, so you can see the spread rather than one flattering average. Monday reading -28% to -15% means that in the weakest month Mondays came in 28% under a normal day and in the strongest month still 15% under: always below, never above. A range that crosses zero (say -10% to +12%) means the day landed above average in one month and below in another, which is noise, not a pattern.">i</span></th>
         <th></th>
         <th class="num">MER <span class="info-i" title="How hard each ad dollar worked on that weekday - revenue divided by ad spend, pooled across the window. This is a RATIO, not a verdict on the day: a less efficient day that does more volume can still contribute more money, which is why the contribution margin column sits next to it. A day is tagged consistently above or below only when it beat, or trailed, this client's own average in every month looked at - more than one day can qualify, so these are not superlatives.">i</span></th>
-        ${cmOk ? `<th class="num">CM per day <span class="info-i" title="Contribution margin the average day of this weekday actually produced - revenue minus product costs, fulfilment, fees and ad spend. THIS is what the day is worth. A day can be less efficient than another and still make more money, because it does more volume; when the two disagree, follow the money.">i</span></th>` : ''}
+        ${cmOk ? `<th class="num">CM per day <span class="info-i" title="Contribution margin the average day of this weekday actually produced - revenue minus product costs, fulfillment, fees and ad spend. THIS is what the day is worth. A day can be less efficient than another and still make more money, because it does more volume; when the two disagree, follow the money.">i</span></th>` : ''}
         ${wk != null ? `<th class="num">Your plan, split this way <span class="info-i" title="NOT a historical average. This takes THIS MONTH'S plan, divides it to a week, then splits that week across the days using the shares on the left. It answers: if the month goes to plan and the week keeps its usual shape, what would each day look like? Illustrative only - the Daily Brief still measures every day against an even split.">i</span></th>` : ''}
       </tr></thead>
       <tbody>${rows}</tbody></table></div>
@@ -8246,7 +8246,7 @@ async function renderProfit(first) {
   const single = d.from === d.to, asOf = d.live_as_of ? fmtCentralTime(d.live_as_of) : null;
   const M = v => fmtMoney(v, cur), K = v => fmtK(v, cur);
 
-  /* MONTH TO DATE AGAINST THE PLAN, from the same snapshot Overview reads, and labelled MTD
+  /* MONTH TO DATE AGAINST THE PLAN, from the same snapshot Overview reads, and labeled MTD
      because the headline figures follow the period control. `plan.sales` is the plan
      pro-rated to the days elapsed, so it is the right yardstick for an unfinished month. */
   const pm = acct?.plan, pmtd = acct?.mtd;
@@ -8278,7 +8278,7 @@ async function renderProfit(first) {
     LX.tile({ label: 'Revenue', value: M(t.sales), spark: sp('sales', M), info: 'Net Sales + Shipping: Shopify Total Sales minus sales tax. Gross sales, less discounts and returns, plus shipping customers paid, less tax. Every channel, never a platform’s attributed revenue.',
       bullet: pmtd?.sales != null && pm?.sales ? U.bullet(pmtd.sales, pm.sales, false, 'plan by now') : '',
       sub: `${asOf ? `so far today · as of ${asOf}` : `${t.days} days`}${planLine(pmtd?.sales, pm?.sales, K) ? `<br>${planLine(pmtd?.sales, pm?.sales, K)} ${mtdPill(pmtd?.sales, pm?.sales, 'sales')}` : ''}` }),
-    LX.tile({ label: 'Ad spend', value: M(t.spend), spark: sp('spend', M), info: 'Every ad platform combined, from Triple Whale, plus any fixed cost marked “counts as ad spend” on Costs. Falls back to Meta + Google spend if the blended figure is unavailable. Spend is a decision, so it carries no good or bad colour.',
+    LX.tile({ label: 'Ad spend', value: M(t.spend), spark: sp('spend', M), info: 'Every ad platform combined, from Triple Whale, plus any fixed cost marked “counts as ad spend” on Costs. Falls back to Meta + Google spend if the blended figure is unavailable. Spend is a decision, so it carries no good or bad color.',
       sub: `${[t.meta_spend != null ? `Meta ${K(t.meta_spend)}` : '', t.google_spend != null ? `Google ${K(t.google_spend)}` : '', adx ? `${K(adx)} other marketing` : ''].filter(Boolean).join(' · ')}${planLine(pmtd?.spend, pm?.spend, K) ? `<br>${planLine(pmtd?.spend, pm?.spend, K)} ${mtdPill(pmtd?.spend, pm?.spend, 'spend')}` : ''}` }),
     LX.tile({ label: 'MER', value: fmtX(t.mer), spark: sp('mer', fmtX), info: 'Marketing Efficiency Ratio: all store revenue divided by all ad spend. Blended on both sides, so no platform can double-count.',
       bullet: mtdMer != null && planMer != null ? U.bullet(mtdMer, planMer, false, 'planned MER') : '',
@@ -8289,7 +8289,7 @@ async function renderProfit(first) {
     LX.tile({ label: 'Orders', value: t.orders == null ? '–' : fmtInt(t.orders), spark: sp('orders', fmtInt), info: 'Paid store orders from every channel (Triple Whale totalOrders), and the average order: revenue divided by orders.',
       sub: `AOV ${M(t.aov)}${t.new_orders != null ? ` · ${fmtInt(t.new_orders)} from new customers` : ''}` }),
     trusted
-      ? LX.tile({ label: 'Contribution margin', value: `<span class="${t.cm == null ? '' : t.cm >= 0 ? 'good' : 'bad'}">${M(t.cm)}</span>`, spark: sp('cm', M), info: 'What is left after product costs, fulfilment, fees and all ad spend. Not net profit: it ignores fixed costs like rent, salaries and software.',
+      ? LX.tile({ label: 'Contribution margin', value: `<span class="${t.cm == null ? '' : t.cm >= 0 ? 'good' : 'bad'}">${M(t.cm)}</span>`, spark: sp('cm', M), info: 'What is left after product costs, fulfillment, fees and all ad spend. Not net profit: it ignores fixed costs like rent, salaries and software.',
           sub: `margin ${fmtPct(t.margin)} before ad spend` })
       : LX.tile({ label: 'Contribution margin', value: '<span style="color:var(--muted)">Hidden</span>', go: 'costs', info: 'Switched off because the cost data cannot be trusted. Open Costs to see why.', sub: 'cost data unreliable, open Costs' }),
     /* NET PROFIT (2026-10-09): contribution margin minus the brand's fixed expenses (Brand settings > Data and costs).
@@ -8315,7 +8315,7 @@ async function renderProfit(first) {
     let at = t.sales || 0; const out = [];
     const leave = (label, note, x) => { if (!x) return; out.push(line(label, note, at - x, at, 'out', x, true, ofRev(x))); at -= x; };
     leave('Product costs', d.margin_pct != null ? `Implied by the ${Math.round(d.margin_pct * 100)}% flat margin override.` : 'Cost of goods sold, from Triple Whale.', t.cogs);
-    leave('Fulfilment', 'What delivery actually cost.', t.ship_cost);
+    leave('Fulfillment', 'What delivery actually cost.', t.ship_cost);
     leave('Handling', 'Pick, pack and handling fees.', t.handling);
     leave('Payment fees', 'Gateway and processing.', t.fees);
     return `<section class="card v2card"><div class="v2h"><h3>Where the money went</h3><span class="find">${t.cm != null ? `${M(t.sales)} came in; <b class="${t.cm >= 0 ? 'good' : 'bad'}">${M(t.cm)}</b> was ${t.cm >= 0 ? 'left' : 'lost'} after every variable cost.` : ''}</span></div>
@@ -8335,7 +8335,7 @@ async function renderProfit(first) {
           : `<div class="r note"><span class="l">No fixed costs set, so no net profit</span><span></span><span class="n"><button type="button" class="v2link" id="pfFixed">Add them ›</button></span></div>`}
       </div>
       <details class="footnote" style="margin-top:12px"><summary>What contribution margin counts, and what it leaves out</summary>
-        <div class="fn-body">This is CTC's definition: revenue minus <b>every variable cost</b> (product, fulfilment, handling, payment fees and ad spend). Fixed costs are deliberately excluded: rent, salaries and software. So it answers "did the marketing make money on the margin?", not "is the business profitable?" <b>Net profit</b> under it takes off the fixed costs on Costs. A fixed cost marked “counts as ad spend” is inside ad spend instead, so it is in contribution margin, MER and cost per new customer. Briefs, reports and the client profit link show fixed costs and net profit only when that is switched on for client posts.${d.shipping && d.shipping.note ? ` <br><b>Shipping:</b> ${esc(d.shipping.note)}.` : ''}</div></details></section>`;
+        <div class="fn-body">This is CTC's definition: revenue minus <b>every variable cost</b> (product, fulfillment, handling, payment fees and ad spend). Fixed costs are deliberately excluded: rent, salaries and software. So it answers "did the marketing make money on the margin?", not "is the business profitable?" <b>Net profit</b> under it takes off the fixed costs on Costs. A fixed cost marked “counts as ad spend” is inside ad spend instead, so it is in contribution margin, MER and cost per new customer. Briefs, reports and the client profit link show fixed costs and net profit only when that is switched on for client posts.${d.shipping && d.shipping.note ? ` <br><b>Shipping:</b> ${esc(d.shipping.note)}.` : ''}</div></details></section>`;
   })();
 
   /* By day (or by hour on a single day), with the reading under the pointer. */
@@ -8425,7 +8425,7 @@ async function renderHealth(first) {
   const topHtml = () => {
     const broken = brands.filter(b => b.verdict === 'broken');
     const warn = brands.filter(b => b.verdict === 'warn');
-    /* The verdict as one sentence (2026-10-08), coloured by what it means. */
+    /* The verdict as one sentence (2026-10-08), colored by what it means. */
     return broken.length
       ? LX.say(`<b class="bad">${broken.length} brand${broken.length === 1 ? '' : 's'} cannot be reported on right now.</b>
           ${broken.length === brands.length ? 'Every brand is affected, which almost always means one integration, not six.' : ''}
@@ -8648,7 +8648,7 @@ async function renderCosts(first) {
         : '<b class="good">Every brand’s cost data holds up</b>, so every profit figure in Locus is measured, not guessed.')}
       
       <div class="card"><div class="tbl-wrap"><table>
-        <thead><tr><th>Client</th><th>Product costs</th><th class="num">Trailing margin</th><th class="num">Daily range</th><th class="num">Bad days</th><th>Fulfilment <span class="info-i" title="Whether Triple Whale holds a real delivery rate for this client. 'Measured' means it does. 'Not measured' means the recorded cost is just the shipping charge copied back, so fulfilment cancels itself out of contribution margin. 'Nothing recorded' means customers were charged for delivery and no cost was booked against any of it.">i</span></th><th></th></tr></thead>
+        <thead><tr><th>Client</th><th>Product costs</th><th class="num">Trailing margin</th><th class="num">Daily range</th><th class="num">Bad days</th><th>Fulfillment <span class="info-i" title="Whether Triple Whale holds a real delivery rate for this client. 'Measured' means it does. 'Not measured' means the recorded cost is just the shipping charge copied back, so fulfillment cancels itself out of contribution margin. 'Nothing recorded' means customers were charged for delivery and no cost was booked against any of it.">i</span></th><th></th></tr></thead>
         <tbody>${S.accounts.map(a => { const h = a.cost_health, s = a.shipping; return `<tr data-id="${a.act_id}" style="cursor:pointer">
           <td><b>${esc(a.name)}</b></td>
           <td>${healthPill(h)}<br><span class="tiny">${esc(h?.reason || (h?.verdict==='good'?'stable day to day':''))}</span></td>
@@ -8658,7 +8658,7 @@ async function renderCosts(first) {
           <td>${shipPill(s)}${s && s.rev_per_order != null && s.mode !== 'none' ? `<br><span class="tiny">${fmtMoney(s.rev_per_order, a.currency)}/order charged${s.mode === 'measured' ? ` → ${fmtMoney(s.cost_per_order, a.currency)} to ship` : ', nothing booked'}</span>` : ''}</td>
           <td><button class="btn" data-act="open">Open</button></td></tr>`; }).join('')}
         </tbody></table></div>
-        <p class="tiny" style="margin-top:10px">"Bad days" are days where recorded product costs exceeded revenue - a sure sign only some products have COGS set. Any client marked <b>cost data ⚠</b> has all profit figures suppressed, here and in the Daily Brief.<br><b>Fulfilment</b> is the second variable cost, and it fails more quietly than COGS: where no delivery rate is set, Triple Whale copies the shipping <i>charge</i> into the cost field, the two cancel, and contribution margin is left carrying no delivery cost at all - with nothing on screen to say so. Open a client to see what that is worth.</p></div></div>`;
+        <p class="tiny" style="margin-top:10px">"Bad days" are days where recorded product costs exceeded revenue - a sure sign only some products have COGS set. Any client marked <b>cost data ⚠</b> has all profit figures suppressed, here and in the Daily Brief.<br><b>Fulfillment</b> is the second variable cost, and it fails more quietly than COGS: where no delivery rate is set, Triple Whale copies the shipping <i>charge</i> into the cost field, the two cancel, and contribution margin is left carrying no delivery cost at all - with nothing on screen to say so. Open a client to see what that is worth.</p></div></div>`;
     $('#main tbody').addEventListener('click', e => {
       const tr = e.target.closest('tr[data-id]'); if (!tr) return;
       S.act = tr.dataset.id; localStorage.setItem(LS.act, S.act);
@@ -8914,7 +8914,7 @@ async function renderBrief(first) {
     cmOff ? LX.tile({ compact: true, label: 'Contribution margin', value: '<span style="color:var(--muted)">Not reported</span>', go: 'costs', sub: 'cost data unreliable, see the note above', info: `Switched off because this client's cost data in Triple Whale can't be trusted: ${cq.reason}. Set real COGS in Triple Whale, or a flat margin on Costs.` })
       : nt('Contribution margin', 'cm', M, 'Did the day actually make money? Revenue minus product costs (COGS), payment fees and ad spend. ' + (d.cm_pct != null ? `Using the ${Math.round(d.cm_pct * 100)}% margin override.` : a.cm_basis === 'cogs' ? 'Using the client’s real COGS from Triple Whale.' : a.cm_basis === 'tw' ? 'Using Triple Whale’s gross profit.' : 'Needs COGS in Triple Whale or a flat margin set on Costs.')),
     nt('Revenue', 'sales', M, 'Net Sales + Shipping: Shopify Total Sales minus sales tax, every channel, after discounts and returns. Not ad-platform attributed revenue; the same line every tab uses.'),
-    nt('Ad spend', 'spend', M, 'All ad platforms blended (Meta + Google), from Triple Whale. The plan is the monthly spend goal spread evenly across the days. Spend is a decision, so it carries no good or bad colour.', 'n'),
+    nt('Ad spend', 'spend', M, 'All ad platforms blended (Meta + Google), from Triple Whale. The plan is the monthly spend goal spread evenly across the days. Spend is a decision, so it carries no good or bad color.', 'n'),
     nt('MER', 'mer', fx, 'All store revenue divided by all ad spend, blended on both sides. Plan = the revenue goal divided by the spend goal.'),
     nt('aMER', 'amer', fx, 'New-customer revenue divided by that same total ad spend, so email and repeat buyers cannot flatter the ads.'),
   ].join('');
@@ -9087,7 +9087,7 @@ async function renderBrief(first) {
   if (bfWrite) bfWrite.onclick = async () => {
     /* A first write needs no dialog. A REWRITE is the one that throws wording
        away, so that is where the steer box lives - the same box as the Slack
-       card's Rewrite button. null = cancelled; '' = go ahead, no direction. */
+       card's Rewrite button. null = canceled; '' = go ahead, no direction. */
     let steer = '';
     if (bfDraft) {
       steer = await steerModal({ title: 'Rewrite this draft?', what: `the brief for ${d.date}`, current: bfDraft.steer || '' });
@@ -9217,7 +9217,7 @@ async function renderBrief(first) {
     } catch (e) { bfRev.classList.toggle('on', !on); noteModal('Could not save', `<p>${esc(e.message)}</p>`); }
   };
 }
-/* Slack mrkdwn -> HTML. Slack's own flavour, NOT markdown: bold is *one
+/* Slack mrkdwn -> HTML. Slack's own flavor, NOT markdown: bold is *one
    asterisk*, italic _underscores_, links <url|label>. Escaped first, so
    everything below operates on already-safe text. */
 const SLACK_EMOJI = {
@@ -9257,7 +9257,7 @@ function slackPreview(text, opts = {}) {
 
 /* THE BRIEF AS IT READS (review round one, 2026-10-21). The v2 brief (account-health buildBriefTextV2) is a headline,
    number blocks ("Label: *value* (tail)") and short sections. The page draws it as a card you can skim: the headline
-   large, each number block as a strip of figures with the plan comparison coloured, the sections as text. An older
+   large, each number block as a strip of figures with the plan comparison colored, the sections as text. An older
    (v1) brief with no number blocks falls back to the Slack preview. */
 function briefCardHtml(text, opts = {}) {
   const raw = String(text || '').replace(/\r/g, '');
@@ -9297,7 +9297,7 @@ const RP = { act: null, period: null, start: null };
 const RS = { token: null };
 const shortD = ymd => `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+ymd.slice(5, 7) - 1]} ${+ymd.slice(8, 10)}`;
 /** Change-log categories are stored as snake_case ids; a raw CAMPAIGN_RELAUNCHED
- *  both reads like a database dump and overflows its column. `n` pluralises the
+ *  both reads like a database dump and overflows its column. `n` pluralizes the
  *  rollup counts ("14 new ads"). */
 const CAT_LABELS = {
   budget: ['budget change', 'budget changes'], bid_strategy: ['bid change', 'bid changes'],
@@ -9307,7 +9307,7 @@ const CAT_LABELS = {
   new_creative: ['new ad', 'new ads'], ad_paused: ['ad paused', 'ads paused'],
   ad_relaunched: ['ad relaunched', 'ads relaunched'],
   targeting: ['targeting change', 'targeting changes'],
-  optimisation: ['optimisation change', 'optimisation changes'],
+  optimisation: ['optimization change', 'optimization changes'],
   schedule: ['schedule change', 'schedule changes'],
   billing: ['billing event', 'billing events'], review: ['policy review', 'policy reviews'],
 };
@@ -9381,14 +9381,14 @@ function reportBodyHTML(d, summary, opts = {}) {
 
   /* `lower` says which direction is GOOD: false = higher is better, true = lower
      is better, and 'neutral' = neither, so the number is shown with no verdict
-     colour at all.
+     color at all.
      'neutral' exists for AD SPEND. Cole, 2026-09-07: "I don't think they should
      have red or green when it comes to ad spend because you can't really tell if
      something is good or bad when ad spend increases or decreases." He is right
      and it was worse than cosmetic - spend was treated as lower-is-better, so a
      week we deliberately scaled went out to the client in RED, and a week we
      underspent (which is exactly why Grunk is 51% behind plan) went out in
-     GREEN. The colour was actively arguing the opposite of the summary next to
+     GREEN. The color was actively arguing the opposite of the summary next to
      it. Spend is an input we chose; only the return on it can be good or bad. */
   const vsPill = (a, b, lower) => {
     if (a == null || b == null || !b) return '';
@@ -9464,10 +9464,10 @@ function reportBodyHTML(d, summary, opts = {}) {
 
   const kpis = [
     kpi('Revenue', t.sales, money, f.sales, p.sales, false, 'Shopify Total Sales minus sales tax - every channel (paid, organic, email, direct), after discounts and returns, including shipping charged to customers. Not any ad platform’s attributed number.'),
-    kpi('Ad spend', t.spend, money, f.spend, p.spend, 'neutral', 'Every platform combined - Meta, Google and anything else Triple Whale tracks. Shown without a good/bad colour on purpose: spend is a decision, not a result - whether it was the right amount is what MER, aMER and CPA answer.'),
+    kpi('Ad spend', t.spend, money, f.spend, p.spend, 'neutral', 'Every platform combined - Meta, Google and anything else Triple Whale tracks. Shown without a good/bad color on purpose: spend is a decision, not a result - whether it was the right amount is what MER, aMER and CPA answer.'),
     kpi('MER', t.mer, fmtX, f.mer, p.mer, false, 'All store revenue ÷ all ad spend, blended on both sides. The honest “are the ads paying for themselves” number - the same thing as blended ROAS.'),
     kpi('aMER', t.amer, fmtX, f.amer, p.amer, false, 'New-customer revenue ÷ that same total ad spend. Repeat buyers and email can’t flatter it - this is what the ads actually bought.'),
-    t.cm != null ? kpi('Contribution margin', t.cm, money, f.cm, p.cm, false, 'Revenue minus every variable cost - product, fulfilment, handling, payment fees and ad spend. Excludes fixed costs like rent, salaries and software.') : '',
+    t.cm != null ? kpi('Contribution margin', t.cm, money, f.cm, p.cm, false, 'Revenue minus every variable cost - product, fulfillment, handling, payment fees and ad spend. Excludes fixed costs like rent, salaries and software.') : '',
     /* Fixed costs and net profit (2026-11-25): one total, never a category. Shown only when the report froze the switch
        on at generation (d.fixed.in_posts), the same value its headline and client post read. Report contribution margin
        does not hold the costs marked "counts as ad spend", so they get their own tile: the three add up to net. */
@@ -9528,7 +9528,7 @@ function reportBodyHTML(d, summary, opts = {}) {
   })() : '';
 
   const chartId = opts.internal ? 'rpSvg' : 'rsSvg';
-  const chartHtml = (d.chart || []).length > 1 ? `<div class="card"><div class="v2h"><h3>Day by day</h3><span class="find">Revenue from every channel against ad spend on every platform. The gap is what was left after advertising, before product costs, fulfilment and fees. Hover any day.</span></div>
+  const chartHtml = (d.chart || []).length > 1 ? `<div class="card"><div class="v2h"><h3>Day by day</h3><span class="find">Revenue from every channel against ad spend on every platform. The gap is what was left after advertising, before product costs, fulfillment and fees. Hover any day.</span></div>
     ${LX.dual(chartId, d.chart, cur, { h: 220 })}</div>` : '';
 
   const splitHtml = t.new_rev != null ? `<div class="card"><h3 style="margin-bottom:6px">New customers vs returning</h3>
@@ -9566,7 +9566,7 @@ function reportBodyHTML(d, summary, opts = {}) {
       if (off === 0) return '';
       const sign = `${off > 0 ? '+' : ''}${off}%`;
       // Same rule as the scorecard: spend moving is a decision we made, so it is
-      // reported without a verdict colour. ROAS and CPA moving are results.
+      // reported without a verdict color. ROAS and CPA moving are results.
       if (lower === 'neutral') return ` <span class="dlt flat">${sign}</span>`;
       const good = lower ? off < 0 : off > 0;
       return ` <span class="dlt ${good ? 'up' : 'dn'}">${sign}</span>`;
@@ -9576,7 +9576,7 @@ function reportBodyHTML(d, summary, opts = {}) {
     const row = (label, val, extra, before) => `<div class="ad-row"><span>${label}</span>${before || ''}<b>${val}</b>${extra || ''}</div>`;
     // A verdict WORD, not a bar. The bar was scaled against the benchmark, which
     // meant nothing without knowing the benchmark - Cole read it as "out of 100"
-    // and could not tell good from bad. The word says which it is; the colour
+    // and could not tell good from bad. The word says which it is; the color
     // only reinforces it.
     const GOOD = new Set(['strong', 'above']), OK = new Set(['average', 'typical']);
     const verdict = r => !r ? '' : `<span class="vtag ${GOOD.has(r.tag) ? 'good' : OK.has(r.tag) ? 'ok' : 'bad'}">${r.tag}</span>`;
@@ -9734,7 +9734,7 @@ function reportBodyHTML(d, summary, opts = {}) {
        every model, because Triple Whale does not measure delivery and does not
        claim to. Spend is also what the swapped figures are divided BY, so it
        has to stay the same number or the ratios stop meaning anything.
-       The prior-period column stays platform-reported and is labelled as such:
+       The prior-period column stays platform-reported and is labeled as such:
        the snapshot only carries this period's attribution. */
     const swap = attrCh(c.id);
     const A = swap
@@ -10245,7 +10245,7 @@ function attachPlay(m) {
     /* Meta renders its preview at a FIXED size (a mobile feed unit, ~340x620).
        Dropped into a 4:5 card it was cropped to a letterbox of itself, which is
        the "formatting is weird" Cole saw. Scale the whole unit to fit and
-       centre it: the ad is small but WHOLE, and nothing is cut off. */
+       center it: the ad is small but WHOLE, and nothing is cut off. */
     fitEmbed(m);
     // The click IS the user gesture, but the await for the URL breaks the
     // chain, so `autoplay` alone can be refused and leave a paused frame
@@ -10342,7 +10342,7 @@ async function renderReportsAll(first) {
      fallback dressed as a check - and it hid a real state: every report in the
      database right now is `skipped`, generated in full and then marked as not
      to be sent. Reading "draft" told you there was something to review when
-     there was not. A status this page does not recognise says so rather than
+     there was not. A status this page does not recognize says so rather than
      picking the nearest familiar word. */
   const PILL = { sent: ['good', 'sent'], draft: ['warn', 'draft'], skipped: ['unk', 'skipped'], handled: ['good', 'handled'] };
   const state = (row, auto) => {
@@ -10440,7 +10440,7 @@ async function renderReports(first) {
      the moment it is generated (status 'handled'; an older 'draft' reads the
      same). Editable and rewritable, never sendable. Cole, 2026-09-10. */
   const internalOnly = !acct?.brief_channel;
-  /* THE PICKER: the latest four as chips, everything older behind one labelled
+  /* THE PICKER: the latest four as chips, everything older behind one labeled
      dropdown. Twelve chips wrapped to three rows above the report, and nobody
      opens a nine-week-old report often enough to earn a permanent button. */
   /* THE PICKER (2026-10-08): one v2 menu, the open report on its face, every report inside
@@ -11104,7 +11104,7 @@ async function renderPlan(first) {
     { key: 'margin', label: 'Product margin', unit: 'pct',
       srcTxt: src.margin_month ? `Measured from your own data: ${esc(monthLabel(src.margin_month))} actual.` : 'Measured from the last complete month.',
       caveat: '',
-      info: 'Gross margin before ad spend: revenue less product cost, fulfilment, handling and payment fees. Only used to work out the expected contribution margin - it does not change the revenue or spend numbers.' },
+      info: 'Gross margin before ad spend: revenue less product cost, fulfillment, handling and payment fees. Only used to work out the expected contribution margin - it does not change the revenue or spend numbers.' },
   ];
 
   const asmShow = (a, v) => v == null ? 'not measured'
@@ -11136,7 +11136,7 @@ async function renderPlan(first) {
     return `<details class="asm-card"${n ? ' open' : ''}>
     <summary><span><b>What this plan assumes</b> <span class="tiny" style="color:var(--muted)">&middot; ${n ? `${n} changed by you` : 'all three measured from your own data'}</span></span><span class="asm-chev">&#9662;</span></summary>
     <div class="asm-body">
-      <p class="tiny" style="margin:0 0 13px;color:var(--muted);line-height:1.6">Each is pre-filled with what your data measured, and <b>each can be changed</b>. Anything you change is labelled as yours here and on the client link.</p>
+      <p class="tiny" style="margin:0 0 13px;color:var(--muted);line-height:1.6">Each is pre-filled with what your data measured, and <b>each can be changed</b>. Anything you change is labeled as yours here and on the client link.</p>
       ${ASSUMPS.map(assumpRow).join('')}
       <div class="asm-row asm-floor${A.spend_floor_per_day != null ? ' over' : ''}">
         <div class="asm-head">
@@ -11244,7 +11244,7 @@ async function renderPlan(first) {
           <th class="num">Ad spend <span class="info-i" title="Every ad platform combined for the month, from Triple Whale: Meta plus Google plus anything else running. Not Meta alone.">i</span></th>
           <th class="num">MER <span class="info-i" title="Marketing Efficiency Ratio = all store revenue divided by all ad spend. Blended on both sides, so it is not ROAS and it is not platform-attributed. 3.00x means three dollars came into the store for every dollar spent on ads.">i</span></th>
           <th class="num">aMER <span class="info-i" title="Acquisition MER = NEW-customer revenue divided by that same total ad spend. Repeat buyers and email cannot flatter it, so it isolates whether the ads are actually buying customers.">i</span></th>
-          <th class="num">Margin <span class="info-i" title="Gross margin BEFORE ad spend: revenue minus product costs, fulfilment, handling and payment fees, as a share of revenue. This is not contribution margin, because ad spend has not been taken off yet.">i</span></th></tr></thead>
+          <th class="num">Margin <span class="info-i" title="Gross margin BEFORE ad spend: revenue minus product costs, fulfillment, handling and payment fees, as a share of revenue. This is not contribution margin, because ad spend has not been taken off yet.">i</span></th></tr></thead>
         <tbody>${hist.slice(-6).map(h => `<tr${h.partial ? ' style="opacity:.6"' : ''}>
           <td><b>${esc(monthLabel(h.month))}</b>${h.partial ? ` <span class="tiny">(${h.days} of ${h.days_in_month} days)</span>` : ''}</td>
           <td class="num"><b>${fmtK(h.sales, cur)}</b></td><td class="num">${fmtK(h.spend, cur)}</td>
@@ -11833,7 +11833,7 @@ async function renderCustomers(first) {
     LX.tile({ compact: true, label: 'Cost to get a new customer', value: fmtMoney(h.cac, cur), sub: `ad spend divided by ${fmtN(h.new_orders)} new customers`, info: 'All ad spend across every platform divided by the number of first-time customers in the window (Triple Whale). Reports call this New-customer CPA; it is the same number.' }),
     LX.tile({ compact: true, label: 'Their first order', value: fmtMoney(h.new_aov, cur), sub: 'what a new customer spends first', info: 'Revenue from new customers divided by their orders, in the selected window.' }),
     d.cm_ok
-      ? LX.tile({ compact: true, label: 'Left after costs on that order', value: `<span class="${pb != null ? (pb >= 1 ? 'good' : 'warn') : ''}">${fmtMoney(h.first_order_gp, cur)}</span>`, bullet: pb != null && h.cac ? window.V2UI.bullet(h.first_order_gp, h.cac, false, 'cost to get them') : '', sub: pb != null ? (pb >= 1 ? `covers the cost to get them, with ${fmtMoney(h.first_order_gp - h.cac, cur)} to spare` : `covers ${fmtPct(pb)} of the cost to get them`) : 'after product, shipping and fees', info: 'The first order after product costs, fulfilment and payment fees. When this is bigger than the cost to get the customer, the brand is in profit on day one.' })
+      ? LX.tile({ compact: true, label: 'Left after costs on that order', value: `<span class="${pb != null ? (pb >= 1 ? 'good' : 'warn') : ''}">${fmtMoney(h.first_order_gp, cur)}</span>`, bullet: pb != null && h.cac ? window.V2UI.bullet(h.first_order_gp, h.cac, false, 'cost to get them') : '', sub: pb != null ? (pb >= 1 ? `covers the cost to get them, with ${fmtMoney(h.first_order_gp - h.cac, cur)} to spare` : `covers ${fmtPct(pb)} of the cost to get them`) : 'after product, shipping and fees', info: 'The first order after product costs, fulfillment and payment fees. When this is bigger than the cost to get the customer, the brand is in profit on day one.' })
       : LX.tile({ compact: true, label: 'Left after costs on that order', value: '<span style="color:var(--muted)">–</span>', go: 'costs', sub: 'needs trusted cost data (Settings, Costs)', info: 'Needs a product margin this brand’s cost data does not support yet.' }),
     LX.tile({ compact: true, label: 'Spent in their first 90 days', value: c90 && c90.ltv != null ? fmtMoney(c90.ltv, cur) : '<span style="color:var(--muted)">–</span>', sub: c90 && c90.ltv != null ? `per customer, ${fmtN(c90.customers)} old enough to count` : 'needs 90 days of history', info: 'Everything the average customer has spent in the 90 days after their first order, from Triple Whale order history.' }),
     LX.tile({ compact: true, label: 'Spent in their first year', value: c365 && c365.ltv != null ? fmtMoney(c365.ltv, cur) : '<span style="color:var(--muted)">–</span>', sub: c365 && c365.ltv != null ? `per customer, ${fmtN(c365.customers)} old enough to count` : 'needs a year of history', info: 'Everything the average customer has spent in the 365 days after their first order.' }),
@@ -12061,7 +12061,7 @@ async function renderSettings() {
     <div class="brow-c">${control}</div></div>`;
 
   /* A brand row holds ~13 settings. Ungrouped they read as one long form, so
-     they sit in five labelled groups, most used first: what the brand is,
+     they sit in five labeled groups, most used first: what the brand is,
      its goals, where its reporting goes, its money basis, then the rare
      data repairs and the way out. Every data-k hook is unchanged. */
   let grpN = 0;

@@ -173,7 +173,7 @@ function askLine(a) {
   return `${a.text || ''}${bits.length ? ` (${bits.join(', ')})` : ''}`;
 }
 
-/** The weekly or monthly client post: labelled bullets, one comparison each vs the period before. */
+/** The weekly or monthly client post: labeled bullets, one comparison each vs the period before. */
 /* OUR WORK (2026-11-21, Cole: learn from Well Copy's weekly report, for an ADS agency): every weekly report shows the
    client the work, the way Well Copy shows "16 to 24 emails a month": new ads launched (Meta, by created time) and the
    changes we made that the client can read about (Ads > Updates rows with a client why), with the link to those. */

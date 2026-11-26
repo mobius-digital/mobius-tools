@@ -313,7 +313,7 @@ await check('the 2026-10-14 audit: every brand field is checked (array act, a se
     const res = await (w === 'ah' ? AH : PF).fetch(new Request(`https://${w}.test${p}`, { method: m, headers: { Authorization: 'Bearer ' + CLIENT, ...(ct ? { 'Content-Type': ct } : {}) }, body: bodyText }), w === 'ah' ? ahEnv : pfEnv, ctx);
     return res.status;
   };
-  /* An act sent as an array, or an act_id beside a matching act, or a JSON body labelled text/plain: all refused. */
+  /* An act sent as an array, or an act_id beside a matching act, or a JSON body labeled text/plain: all refused. */
   assert.equal(await raw('ah', 'POST', '/api/activities?act=brand_alpha', JSON.stringify({ act: ['brand_beta'], summary: 'x' }), 'application/json'), 403);
   assert.equal(await raw('ah', 'POST', '/api/activities', JSON.stringify({ act: 'brand_alpha', act_id: 'brand_beta', summary: 'x' }), 'application/json'), 403);
   assert.equal(await raw('ah', 'POST', '/api/activities?act=brand_alpha', JSON.stringify({ act: 'brand_beta', summary: 'x' }), 'text/plain'), 403);
@@ -556,7 +556,7 @@ await check('the 2026-10-27 audit: act_id alone is written back as act (no fall-
   const items = cal.j.items || cal.j.events || [];
   assert.ok(items.some(e => e.name === 'Alpha drop'), 'its own date is there');
   assert.ok(!items.some(e => (e.act || e.act_id) === 'brand_beta' || e.name === 'Beta sale'), 'another brand\'s dates leaked through act_id');
-  /* a JSON body padded past the old 64-byte sniff and labelled as an upload: refused everywhere but the upload routes */
+  /* a JSON body padded past the old 64-byte sniff and labeled as an upload: refused everywhere but the upload routes */
   const raw = async (w, m, p, bodyText, ct) => (await (w === 'ah' ? AH : PF).fetch(new Request(`https://${w}.test${p}`, { method: m, headers: { Authorization: 'Bearer ' + CLIENT, 'Content-Type': ct }, body: bodyText }), w === 'ah' ? ahEnv : pfEnv, ctx)).status;
   const padded = ' '.repeat(80) + JSON.stringify({ act: 'brand_alpha', meta: 'act_222' });
   assert.equal(await raw('ah', 'PUT', '/api/brand-links', padded, 'multipart/form-data; boundary=x'), 403);
@@ -835,7 +835,7 @@ await check('Stock, Buying and Drops (2026-10-12): a client reads its whole bran
     assert.equal(writes().length, before, 'nothing refused reached Supply');
     assert.ok(seen.every(x => x.auth === 'Bearer supply-token'), 'Supply is called with the Supply token, never the client session');
 
-    /* the team: unchanged. The same read for any brand; the Strategist's proxy honours ?brand= and names the person */
+    /* the team: unchanged. The same read for any brand; the Strategist's proxy honors ?brand= and names the person */
     const t = await ah(TEAM, 'GET', '/api/supply/client?act=brand_beta&what=state');
     assert.equal(t.status, 200, 'team ' + JSON.stringify(t.j)); assert.equal(t.j.brand, 'beta');
     const tw = await ah(TEAM, 'PUT', '/api/supply/products/101?brand=beta', { decision: 'keep' });

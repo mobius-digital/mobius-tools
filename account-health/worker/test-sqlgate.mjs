@@ -31,8 +31,8 @@ db.exec(`
 `);
 const SECRETS = ['made-up-hash', 'made-up-access', 'made-up-refresh', 'made-up-key', 'made-up', 'made-up-doc-key', 'made-up-share'];
 
-/* What the engine does at run time: every table the catalogue lists (minus the secret-shaped names), and the
-   star list grown from the catalogue's own column names. */
+/* What the engine does at run time: every table the catalog lists (minus the secret-shaped names), and the
+   star list grown from the catalog's own column names. */
 const catalogue = db.prepare(`SELECT name, sql FROM sqlite_master WHERE type = 'table'`).all();
 const allowed = catalogue.map(r => r.name).filter(n => !/^(settings|_cf|sqlite_|d1_)/i.test(n));
 const derived = tablesWithColumns(catalogue, _test.SQL_NO_COLUMNS, _test.SQL_OK_COLUMNS);
@@ -43,7 +43,7 @@ const gate = sql => gateSql(sql, allowed, opts);
 let n = 0;
 const ok = (c, m) => { assert.ok(c, m); n++; };
 
-/* ---- the catalogue read ---- */
+/* ---- the catalog read ---- */
 for (const t of ['p_shopify', 'social_account', 'p_plan', 'p_newthing'])
   ok(derived.includes(t), `${t} has a secret-shaped column`);
 for (const t of ['tw_daily', 'p_checked']) ok(!derived.includes(t), `${t} has none (PRIMARY KEY / CHECK / UNIQUE are not columns)`);
@@ -92,7 +92,7 @@ const REFUSED = [
   `SELECT * FROM "main"."p_shopify"`,
   `SELECT * FROM main . settings`,
   `SELECT * FROM temp.sqlite_temp_master`,
-  /* the catalogue */
+  /* the catalog */
   `SELECT sql FROM sqlite_master`,
   `SELECT sql FROM sqlite_schema`,
   `SELECT * FROM "sqlite_master"`,
@@ -191,7 +191,7 @@ ok(/LIMIT \d+$/.test(gate(`SELECT act_id /* x */ FROM tw_daily -- y`).sql), 'LIM
 ok(!/--|\/\*/.test(gate(`SELECT act_id /* x */ FROM tw_daily -- y`).sql), 'no comment survives');
 ok(/LIMIT 5$/.test(gate(`SELECT act_id FROM tw_daily LIMIT 5`).sql), 'its own LIMIT is kept');
 
-/* A host that passes no lists (the Ledger, Supply) keeps its old behaviour, plus the comment and quote handling. */
+/* A host that passes no lists (the Ledger, Supply) keeps its old behavior, plus the comment and quote handling. */
 const plain = sql => gateSql(sql, ['bills', 'settings_log'], {});
 ok(plain(`SELECT key, receipt_key FROM bills`).sql, 'no column rule unless the host asks for one');
 ok(plain(`SELECT * FROM bills`).sql, 'no star rule unless the host asks for one');

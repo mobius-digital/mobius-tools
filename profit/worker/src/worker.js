@@ -194,7 +194,7 @@ const isAdmin = async (request, env) => (await authKind(request, env)) === 'admi
 /* ---- Roles ----
    TWO roles and no more: admin, and viewer. `settings.userRoles` maps an email
    to its role and ANYONE NOT LISTED IS AN ADMIN, which is exactly today's
-   behaviour - so adding this cannot lock anybody out, including whoever forgets
+   behavior - so adding this cannot lock anybody out, including whoever forgets
    they added themselves.
    A viewer is GET-only. That is the whole rule: they see every screen and can
    press nothing that leaves the building - no send to client, no plan save, no
@@ -480,7 +480,7 @@ const pick = (piv, date, ids) => { for (const id of ids) { const v = piv[id]?.[d
 
 /** One day of store-level economics.
  *  Follows CTC's definition: contribution margin = net revenue minus ALL VARIABLE
- *  costs (product, fulfilment, handling, payment fees, ad spend). Fixed costs —
+ *  costs (product, fulfillment, handling, payment fees, ad spend). Fixed costs —
  *  rent, salaries, software, our own retainer — are excluded by definition.
  *  Revenue is Shopify's TOTAL SALES minus sales tax - which is CTC's reported
  *  "Net Sales + Shipping" line. Shipping charged to customers is already inside
@@ -546,7 +546,7 @@ async function seriesFor(env, acct, from, to) {
   const marginPct = marginOverride(acct, monthOf(to));
   let ship = shippingMode(piv);              // diagnostic only - see shippingMode()
   const rules = (await loadCostRules(env, [acct.act_id]).catch(() => ({})))[acct.act_id] || [];
-  /* A shipping rule set in Locus is a fulfilment cost: the "nothing booked against delivery" flag no longer holds. */
+  /* A shipping rule set in Locus is a fulfillment cost: the "nothing booked against delivery" flag no longer holds. */
   if (ship.mode === 'uncosted' && rules.length && shippingRuled(rules, from, to)) ship = { ...ship, mode: 'measured', source: 'locus', note: 'shipping cost comes from the rule set in Locus' };
   const rows = [];
   for (let d = from; d <= to; d = addDays(d, 1)) {
@@ -675,7 +675,7 @@ function hoursOf(day) {
   return Array.from({ length: n }, (_, i) => ({ hour: i, sales: Math.max(0, (sales[i] || 0) - (tax[i] || 0)), spend: spend[i] || 0 }));
 }
 
-/** Does this client actually record what fulfilment costs them?/** Does this client actually record what fulfilment costs them?
+/** Does this client actually record what fulfillment costs them?/** Does this client actually record what fulfillment costs them?
  *  DIAGNOSTIC ONLY. Shipping charged to customers is already inside Triple Whale's
  *  netSales, so it cannot be netted back out - a client who bills for shipping and
  *  records no cost against it genuinely has overstated profit, and the honest move
@@ -689,7 +689,7 @@ function hoursOf(day) {
  *  that an exactly-matching cost could not be a real rate - the delivery charge swings
  *  with destination and basket (Lucky ranges $2.00 to $34.67 per order) while a rate is
  *  a rule that would not follow it. The evidence still says that. It is not our call.
- *  The brand configures its own fulfilment costs in Triple Whale; if a figure comes
+ *  The brand configures its own fulfillment costs in Triple Whale; if a figure comes
  *  through, it is the brand's figure and this tool reports it rather than second-
  *  guessing it. Flag what is MISSING, never what is merely surprising.
  */
@@ -727,7 +727,7 @@ function shippingMode(piv) {
   };
   if (rev <= 0 && cost <= 0) return { ...base, mode: 'none', note: 'no shipping billed or costed' };
   if (rev > 0 && cost <= 0) {
-    return { ...base, mode: 'uncosted', note: `customers were charged ${Math.round(rev)} for shipping and Triple Whale records no fulfilment cost against any of it, so contribution margin is overstated by whatever delivery actually costs - add shipping rates in Triple Whale to close the gap` };
+    return { ...base, mode: 'uncosted', note: `customers were charged ${Math.round(rev)} for shipping and Triple Whale records no fulfillment cost against any of it, so contribution margin is overstated by whatever delivery actually costs - add shipping rates in Triple Whale to close the gap` };
   }
   if (billed >= 10 && matched >= billed * 0.95) {
     // Deliberately falls through to `measured`. See the note above shippingMode().
@@ -1350,7 +1350,7 @@ async function customerEconomics(env, acct, months = 6, days = 30, range = null)
  * 60 days of history may have bought before the data starts, so they are kept out of the
  * averages (uncertain) and the page says so. Guest orders (no customer id) count as orders but
  * cannot join a cohort. Products are the cart's add-to-cart events, not the receipt: a signal,
- * labelled as one, until Shopify is connected.
+ * labeled as one, until Shopify is connected.
  */
 const LTV_HORIZONS = [30, 60, 90, 180, 365];
 async function productTitles(env, acct, ids) {
@@ -2084,7 +2084,7 @@ export default {
          reading "8 of 61 ads" learns only that something is being withheld. */
       delete d.floor; delete d.matched; delete d.acct_cpa; delete d.total_spend; delete d.shown_spend;
       /* `account` CARRIES THE META act_id and the stored payload is the whole
-         /api/ads response, so spreading it after a sanitised account object
+         /api/ads response, so spreading it after a sanitized account object
          silently put our ad account id on a page we send to clients - the same
          leak the reports route already guards against. Deleted here, and the
          spread now comes BEFORE the clean account so ordering can never undo
@@ -2194,12 +2194,12 @@ export default {
       const days = Math.min(+url.searchParams.get('days') || 30, 180);
       /* An explicit window, for the period bar's "Last month" and "Custom range".
          Neither is expressible as "N days ending yesterday", which is all `days`
-         can say. When absent every caller keeps the old behaviour exactly.
+         can say. When absent every caller keeps the old behavior exactly.
          `to` is still clamped to yesterday per account below - today is partial
          everywhere in this tool and must not leak into a window. */
       const qFrom = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('from') || '') ? url.searchParams.get('from') : null;
       const qTo = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('to') || '') ? url.searchParams.get('to') : null;
-      /** The window for one account, honouring an explicit range over `days`. */
+      /** The window for one account, honoring an explicit range over `days`. */
       const windowFor = (acct) => {
         const today = localDate(acct.tz), yday = addDays(today, -1);
         // Today is allowed ONLY when asked for by name; it is served live, never from tw_daily.
@@ -2212,7 +2212,7 @@ export default {
       if (path === '/api/overview') {
         /* A client: only its own brands are built (2026-10-14 audit; the guard's filter then has nothing to drop). */
         const cScope = clientScope(request);
-        /* SPEED (2026-10-26, "switching takes several seconds"): the answer is memoised for 90 seconds per isolate,
+        /* SPEED (2026-10-26, "switching takes several seconds"): the answer is memoized for 90 seconds per isolate,
            keyed by who is asking (session kind + the client's brand scope) and the exact query, so a period flipped
            back and forth or a second screen reading the snapshot is instant. `fresh=1` (sent after a save) skips the
            memo and replaces it, and any write through this worker clears it (memo.js). A team login limited to some
@@ -2286,7 +2286,7 @@ export default {
             spark: (rows.length > 60 ? rows.slice(-60) : rows).map(r => r.sales ?? null),
             /* Home (2026-10-07): the compare period's totals, the daily series for the window
                and the compare period, and the channel split. Both series are capped at 100
-               points; a longer custom window is still summarised correctly by `window`. */
+               points; a longer custom window is still summarized correctly by `window`. */
             prev: prevRows.length ? totals(prevRows) : null,
             prev_window: pFrom ? { from: pFrom, to: pTo, kind: cmp } : null,
             /* new_orders / new_rev / cm ride along (2026-10-09) so every Home tile carries its own day-by-day line. */

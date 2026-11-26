@@ -1,0 +1,55 @@
+{
+ "account": {
+  "act_id": "brand_north_kites",
+  "name": "North Kites",
+  "currency": "USD",
+  "tz": "America/Chicago",
+  "today": "2026-01-15"
+ },
+ "attribution": "triple_whale:lastPlatformClick",
+ "rows": [
+  {
+   "act_id": "brand_north_kites",
+   "date": "2026-01-15",
+   "spend": 234.09,
+   "impressions": 21068,
+   "reach": 14045,
+   "clicks": 492,
+   "link_clicks": 375,
+   "purchases": 7,
+   "revenue": 444.77,
+   "video_views": 2809,
+   "source": "meta",
+   "synced_at": "2026-01-15 12:00:00",
+   "meta_purchases": 8,
+   "meta_revenue": 561.82
+  },
+  {
+   "act_id": "brand_north_kites",
+   "date": "2026-01-15",
+   "spend": 201.33,
+   "impressions": 18120,
+   "reach": 12080,
+   "clicks": 423,
+   "link_clicks": 322,
+   "purchases": 6,
+   "revenue": 382.53,
+   "video_views": 2416,
+   "source": "meta",
+   "synced_at": "2026-01-15 12:00:00",
+   "meta_purchases": 7,
+   "meta_revenue": 483.19
+  }
+ ],
+ "events": [
+  {
+   "id": "a1",
+   "event_time": "2026-01-15 12:00:00",
+   "category": "budget",
+   "summary": "Budget up",
+   "reason": null,
+   "suggested_reason": null,
+   "manual": 0
+  }
+ ]
+}

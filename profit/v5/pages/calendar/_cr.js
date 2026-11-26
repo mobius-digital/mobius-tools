@@ -59,7 +59,7 @@ export function copyBtn(url, label = 'Copy link') {
   } });
 }
 
-/** A brand's name with its colour as a small square. */
+/** A brand's name with its color as a small square. */
 export function brandTag(name, color) {
   return h('span', { class: 'cr-brand' }, h('i', { style: { '--dot': color || 'var(--faint)' } }), name);
 }

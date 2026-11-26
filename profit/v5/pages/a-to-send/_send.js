@@ -1,0 +1,321 @@
+/* Send, Edit and Do not send for one waiting client message, done in v5. Shared by Agency > To send and the
+   brand Reports page. Every call is the one old Locus makes, with the same body:
+
+   Daily update (brief), what the client gets is the short client post, not the team's long brief:
+     GET  /api/brief-client-post?act=&date=          the exact post Send will put in the client channel
+     PUT  /api/brief-client-post { act, date, text }  save a hand edit of that post (Edit)
+     PUT  /api/brief-client-post { act, date, text: '', reset: true }   back to the built post
+     POST /api/brief-send { act, date }               Send: posts in the client channel, as the owner
+     POST /api/brief-send { act, date, to: 'team' }   a brand with no client channel: post in its team channel
+     POST /api/brief-skip { act, date }               Do not send
+   Weekly or monthly report:
+     GET  /api/report?act=&period=&start=             the report, for its summary
+     GET  /api/client-post/preview?act=               the weekly post as the client sees it (latest weekly only)
+     PUT  /api/report-summary { act, period, start, summary }   Edit (the summary on the full report page)
+     POST /api/report-send { act, period, start }     Send: posts in the client channel and freezes the report
+     POST /api/report-send { act, period, start, to: 'team' }   no client channel: post in the team channel
+     POST /api/report-skip { act, period, start }     Do not send
+   GET  /api/slack-channels                           the channel's name for the confirm sheet (read once)
+
+   Sample mode never calls a route: every write is simulated and says so. */
+
+import { h, addStyles, put, button, sheet, toast, statusDot } from '../../kit.js';
+import { fixture } from '../../data.js';
+import { legacyUrl, APP_NAME } from '../../config.js';
+import { short, span } from '../calendar/_cr.js';
+import { canWrite } from '../production/_act.js';
+import { forgetWaiting } from '../../bell.js';
+
+const SAMPLE_NOTE = 'Sample: nothing was changed';
+
+const CSS = `.sd{display:grid;gap:16px}
+.sd-where{margin:0;font-size:14.5px;line-height:1.5;color:var(--ink)}
+.sd-note{margin:0;font-size:13px;line-height:1.5;color:var(--muted)}
+.sd-err{margin:0;padding:10px 12px;border-radius:10px;background:var(--bad-bg);color:var(--bad);font-size:14px;line-height:1.5}
+.sd-post{margin:0;padding:14px 16px;border-radius:12px;background:var(--bg-sunk);box-shadow:inset 0 0 0 1px var(--line);font-size:14.5px;line-height:1.55;color:var(--ink);white-space:pre-wrap;word-break:break-word;max-height:46vh;overflow:auto}
+.sd-post b{font-weight:650}
+.sd-lab{margin:0 0 -8px;font-size:12px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.sd-acts{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.sd-ta{min-height:260px;font-size:14.5px}
+.sd-old{font-size:13px;color:var(--muted)}
+.sd-row{display:inline-flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end}
+@media (max-width:759px){
+  .sd-acts .lx-btn{min-height:44px;flex:1 1 auto}
+  .sd-row{justify-content:flex-start}
+  .sd-row .lx-btn{min-height:44px}
+}`;
+const style = () => addStyles('lx-sd-css', CSS);
+
+/* ---------- what an item is ---------- */
+/** item: { kind: 'brief' | 'report', act_id, brand, day, end, period, status } */
+const nameOf = i => i.kind === 'brief' ? 'daily update for ' + short(i.day) : (i.period === 'monthly' ? 'monthly report, ' : 'weekly report, ') + span(i.day, i.end);
+const Cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+const errText = e => (e && e.message) || 'No answer from the server.';
+
+/* ---------- sample data ---------- */
+let samplePosts = null;
+async function sampleData() {
+  if (!samplePosts) samplePosts = fixture('a-to-send/_sample/posts.json').catch(() => ({}));
+  return samplePosts;
+}
+const sampleKey = i => i.kind === 'brief' ? i.act_id + '|' + i.day : i.act_id + '|' + i.period + '|' + i.day;
+/* Hand edits made in sample mode live only on this page, so the flow can be clicked through. */
+const SAMPLE_EDITS = new Map();
+
+/* ---------- the client channel ---------- */
+/** { known, has, id }. known is false when the brand list did not say (the server then decides). */
+async function channelOf(i, ctx) {
+  if (ctx.sample) {
+    const d = await sampleData();
+    const ch = (d.channels || {})[i.act_id];
+    return { known: ch !== undefined, has: !!ch, id: ch || null, name: ch || null };
+  }
+  const b = (ctx.brands || []).find(x => x.id === i.act_id);
+  if (!b || !('client_channel' in b)) return { known: false, has: true, id: null, name: null };
+  return { known: true, has: !!b.client_channel, id: b.client_channel || null, name: null };
+}
+let chanNames = null;
+async function channelName(ch, ctx) {
+  if (ch.name) return ch.name;
+  if (!ch.id || ctx.sample) return null;
+  if (!chanNames) chanNames = ctx.api('/api/slack-channels', { worker: 'ah' })
+    .then(r => Object.fromEntries((r.channels || []).map(c => [c.id, c.name])), () => ({}));
+  const map = await chanNames;
+  return map[ch.id] ? '#' + map[ch.id] : null;
+}
+/** True when the brand has no client channel, as far as the brand list says. For the row, no waiting. */
+export function noChannel(i, ctx, sampleChannels) {
+  if (ctx.sample) return !!sampleChannels && sampleChannels[i.act_id] === null;
+  const b = (ctx.brands || []).find(x => x.id === i.act_id);
+  return !!b && ('client_channel' in b) && !b.client_channel;
+}
+export async function sampleChannels() { return (await sampleData()).channels || {}; }
+
+/* ---------- reading the text ---------- */
+async function readBrief(i, ctx) {
+  if (ctx.sample) {
+    const d = await sampleData();
+    const text = SAMPLE_EDITS.get(sampleKey(i)) || (d.briefs || {})[sampleKey(i)] || d.brief_default || '';
+    return { text, edited: SAMPLE_EDITS.has(sampleKey(i)), sent: i.status === 'sent' };
+  }
+  return ctx.api(`/api/brief-client-post?act=${encodeURIComponent(i.act_id)}&date=${encodeURIComponent(i.day)}`, { worker: 'ah' });
+}
+async function readReport(i, ctx, { post = true } = {}) {
+  if (ctx.sample) {
+    const d = await sampleData();
+    const r = (d.reports || {})[sampleKey(i)] || d.report_default || {};
+    return { summary: SAMPLE_EDITS.has(sampleKey(i)) ? SAMPLE_EDITS.get(sampleKey(i)) : r.summary || '', post: i.period === 'weekly' ? r.post || null : null };
+  }
+  const act = encodeURIComponent(i.act_id);
+  const rep = await ctx.api(`/api/report?act=${act}&period=${encodeURIComponent(i.period)}&start=${encodeURIComponent(i.day)}`, { worker: 'ah' });
+  let text = null;
+  /* The exact weekly post is only built for the brand's newest weekly report, so use it only when it is this one. */
+  if (post && i.period === 'weekly') {
+    try { const p = await ctx.api('/api/client-post/preview?act=' + act, { worker: 'ah' }); if (p && p.weekly && p.weekly.start === i.day) text = p.weekly.text || null; }
+    catch { text = null; }
+  }
+  return { summary: rep.summary || '', post: text };
+}
+
+/** Slack text on screen: *bold*, <url|label> as the label. Never HTML from the server. */
+function slackText(t) {
+  const out = h('div', { class: 'sd-post' });
+  const re = /<([^>|]+)\|([^>]+)>|<([^>]+)>|\*([^*\n]+)\*/g;
+  let at = 0, m;
+  const s = String(t || '');
+  while ((m = re.exec(s))) {
+    if (m.index > at) out.append(s.slice(at, m.index));
+    if (m[2]) out.append(h('u', null, m[2]));
+    else if (m[3]) out.append(m[3]);
+    else out.append(h('b', null, m[4]));
+    at = re.lastIndex;
+  }
+  if (at < s.length) out.append(s.slice(at));
+  return out;
+}
+const loading = text => h('p', { class: 'sd-note' }, text || 'Reading it...');
+const oldLink = i => {
+  const url = legacyUrl(i.kind === 'brief' ? 'brief' : 'reports', i.act_id);
+  return url ? h('a', { class: 'sd-old', href: url }, 'Open in old ' + APP_NAME) : null;
+};
+
+/* ---------- Send ---------- */
+/** Send: one sheet with where it goes and the exact words, then a second tap sends. */
+export async function sendSheet(i, ctx, done) {
+  style();
+  const body = h('div', { class: 'sd' }, loading());
+  const sh = sheet({ title: 'Send the ' + nameOf(i) + '?', side: 'center', body });
+  let ch, txt;
+  try {
+    ch = await channelOf(i, ctx);
+    txt = i.kind === 'brief' ? await readBrief(i, ctx) : await readReport(i, ctx);
+  } catch (e) {
+    return put(body, h('p', { class: 'sd-err' }, 'Could not read it: ' + errText(e)), h('div', { class: 'sd-acts' }, button('Close', { large: true, onclick: () => sh.close() })), oldLink(i));
+  }
+  if (i.kind === 'brief' && txt && txt.sent) {
+    return put(body, h('p', { class: 'sd-where' }, 'This one was already sent. It cannot be sent again.'), slackText(txt.text), h('div', { class: 'sd-acts' }, button('Close', { large: true, onclick: () => sh.close() })));
+  }
+  if (ch.known && !ch.has) return teamOnly(i, ctx, sh, body, txt, done);
+
+  const where = await channelName(ch, ctx);
+  const brand = i.brand || 'this brand';
+  const lines = [
+    h('p', { class: 'sd-where' }, h('b', null, brand + '. '), 'Posts in the client\'s channel' + (where ? ', ' + where : '') + ', under your name. Everyone in that channel sees it.'),
+  ];
+  if (i.kind === 'brief') {
+    lines.push(h('p', { class: 'sd-lab' }, 'What the client gets'), slackText(txt.text || ''), h('p', { class: 'sd-note' }, 'The full numbers go in one reply under it.' + (txt.edited ? ' This post was edited by hand.' : '')));
+  } else {
+    if (txt.post) lines.push(h('p', { class: 'sd-lab' }, 'What the client gets'), slackText(txt.post));
+    else lines.push(h('p', { class: 'sd-note' }, 'The post has the four numbers, one line on the ' + (i.period === 'monthly' ? 'month' : 'week') + ' and a link to the full report. It is built from the numbers when it sends.'));
+    if (txt.summary) lines.push(h('p', { class: 'sd-lab' }, 'Summary on the full report'), slackText(txt.summary));
+    lines.push(h('p', { class: 'sd-note' }, 'Once sent, the report is frozen for good.'));
+  }
+  const err = h('div');
+  const go = button('Send it now', { primary: true, large: true });
+  const edit = button('Edit first', { large: true, onclick: () => { sh.close(); editSheet(i, ctx, done); } });
+  const back = button('Not now', { ghost: true, large: true, onclick: () => sh.close() });
+  if (i.kind === 'brief' && !String(txt.text || '').trim()) go.disabled = true;
+  go.addEventListener('click', async () => {
+    go.disabled = edit.disabled = back.disabled = true;
+    put(err);
+    try {
+      if (ctx.sample) { toast(SAMPLE_NOTE); sh.close(); done && done('sent'); return; }
+      const r = i.kind === 'brief'
+        ? await ctx.api('/api/brief-send', { worker: 'ah', method: 'POST', body: { act: i.act_id, date: i.day } })
+        : await ctx.api('/api/report-send', { worker: 'ah', method: 'POST', body: { act: i.act_id, period: i.period, start: i.day } });
+      if (r && r.error) throw new Error(r.error);
+      forgetWaiting(); sh.close();
+      toast('Sent to ' + brand + (where ? ', ' + where : ''));
+      done && done('sent');
+    } catch (e) {
+      go.disabled = edit.disabled = back.disabled = false;
+      put(err, h('p', { class: 'sd-err' }, 'Not sent: ' + errText(e)));
+    }
+  });
+  put(body, ...lines, err, h('div', { class: 'sd-acts' }, go, edit, back), oldLink(i));
+}
+
+/** A brand with no client channel: say so plainly. The one thing it can do is post in its own team channel. */
+function teamOnly(i, ctx, sh, body, txt, done) {
+  const err = h('div');
+  const team = button('Post in the team channel', { large: true });
+  const close = button('Close', { ghost: true, large: true, onclick: () => sh.close() });
+  team.addEventListener('click', async () => {
+    team.disabled = close.disabled = true;
+    put(err);
+    try {
+      if (ctx.sample) { toast(SAMPLE_NOTE); sh.close(); return; }
+      const r = i.kind === 'brief'
+        ? await ctx.api('/api/brief-send', { worker: 'ah', method: 'POST', body: { act: i.act_id, date: i.day, to: 'team' } })
+        : await ctx.api('/api/report-send', { worker: 'ah', method: 'POST', body: { act: i.act_id, period: i.period, start: i.day, to: 'team' } });
+      if (r && r.error) throw new Error(r.error);
+      forgetWaiting(); sh.close(); toast('Posted in the team channel');
+    } catch (e) {
+      team.disabled = close.disabled = false;
+      put(err, h('p', { class: 'sd-err' }, 'Not posted: ' + errText(e)));
+    }
+  });
+  const text = i.kind === 'brief' ? txt.text : txt.post || txt.summary;
+  put(body,
+    h('p', { class: 'sd-where' }, h('b', null, (i.brand || 'This brand') + ' has no client channel. '), 'Nothing can go to the client from here. Set a client channel in the brand\'s settings first.'),
+    h('p', { class: 'sd-note' }, 'You can post it in the brand\'s own team channel instead. The client does not see that.'),
+    text ? slackText(text) : null, err, h('div', { class: 'sd-acts' }, team, close), oldLink(i));
+}
+
+/* ---------- Edit ---------- */
+/** Edit: the words in a box. Save writes them through the old app's route, then the Send sheet opens. */
+export async function editSheet(i, ctx, done) {
+  style();
+  const body = h('div', { class: 'sd' }, loading());
+  const sh = sheet({ title: (i.kind === 'brief' ? 'Edit the client post, ' : 'Edit the summary, ') + (i.brand || ''), side: 'center', body });
+  let txt;
+  try { txt = i.kind === 'brief' ? await readBrief(i, ctx) : await readReport(i, ctx, { post: false }); }
+  catch (e) { return put(body, h('p', { class: 'sd-err' }, 'Could not read it: ' + errText(e)), h('div', { class: 'sd-acts' }, button('Close', { large: true, onclick: () => sh.close() })), oldLink(i)); }
+  if (i.kind === 'brief' && txt.sent) return put(body, h('p', { class: 'sd-where' }, 'This one was already sent, so it is a record of what the client got.'), slackText(txt.text), oldLink(i));
+  if (i.kind === 'brief' && txt.editable === false) return put(body, h('p', { class: 'sd-where' }, 'This brand has no client channel, so there is no client post to edit.'), h('div', { class: 'sd-acts' }, button('Close', { large: true, onclick: () => sh.close() })), oldLink(i));
+
+  const ta = h('textarea', { class: 'lx-input sd-ta', 'aria-label': i.kind === 'brief' ? 'The client post' : 'The report summary' });
+  ta.value = i.kind === 'brief' ? txt.text || '' : txt.summary || '';
+  const err = h('div');
+  const save = button('Save, then send', { primary: true, large: true });
+  const only = button('Save only', { large: true });
+  const cancel = button('Cancel', { ghost: true, large: true, onclick: () => sh.close() });
+  const reset = i.kind === 'brief' && txt.edited ? button('Back to the numbers', { ghost: true, large: true }) : null;
+  const all = [save, only, cancel, reset].filter(Boolean);
+  const lock = on => all.forEach(b => { b.disabled = on; });
+
+  const write = async (text, { resetIt = false } = {}) => {
+    if (ctx.sample) {
+      if (resetIt) SAMPLE_EDITS.delete(sampleKey(i)); else SAMPLE_EDITS.set(sampleKey(i), text);
+      toast(SAMPLE_NOTE);
+      return;
+    }
+    if (i.kind === 'brief') await ctx.api('/api/brief-client-post', { worker: 'ah', method: 'PUT', body: resetIt ? { act: i.act_id, date: i.day, text: '', reset: true } : { act: i.act_id, date: i.day, text } }).then(r => { if (r && r.error) throw new Error(r.error); });
+    else await ctx.api('/api/report-summary', { worker: 'ah', method: 'PUT', body: { act: i.act_id, period: i.period, start: i.day, summary: text } }).then(r => { if (r && r.error) throw new Error(r.error); });
+  };
+  const run = async (then, opts) => {
+    const text = ta.value;
+    if (i.kind === 'brief' && !opts && !text.trim()) { put(err, h('p', { class: 'sd-err' }, 'The post cannot be empty.')); return; }
+    lock(true); put(err);
+    try {
+      await write(text, opts);
+      sh.close();
+      if (!ctx.sample) toast(opts && opts.resetIt ? 'Back to the numbers' : 'Saved');
+      done && done('edited', opts && opts.resetIt ? null : text);
+      if (then) sendSheet(i, ctx, done);
+    } catch (e) {
+      lock(false);
+      put(err, h('p', { class: 'sd-err' }, 'Not saved: ' + errText(e)));
+    }
+  };
+  save.addEventListener('click', () => run(true));
+  only.addEventListener('click', () => run(false));
+  if (reset) reset.addEventListener('click', () => run(false, { resetIt: true }));
+  put(body,
+    h('p', { class: 'sd-note' }, i.kind === 'brief'
+      ? 'This is what the client gets, word for word. The numbers reply under it stays as it is.'
+      : 'This is the summary on the full report page the post links to. The Slack post itself is built from the numbers.'),
+    ta, err, h('div', { class: 'sd-acts' }, save, only, reset, cancel));
+  setTimeout(() => { try { ta.focus(); } catch {} }, 30);
+}
+
+/* ---------- Do not send ---------- */
+/** Do not send: a check, then the one skip route for this row. Never a bulk route. Nothing is deleted. */
+export function skipSheet(i, ctx, done) {
+  style();
+  const err = h('div');
+  const go = button('Do not send', { primary: true, large: true });
+  const no = button('Keep it', { large: true });
+  const sh = sheet({ title: 'Do not send this one?', side: 'center', body: h('div', { class: 'sd' },
+    h('p', { class: 'sd-where' }, h('b', null, Cap(nameOf(i)) + ' for ' + (i.brand || 'this brand') + '. '), 'This one will not go to the client. Nothing is deleted.'),
+    err, h('div', { class: 'sd-acts' }, go, no)) });
+  no.addEventListener('click', () => sh.close());
+  go.addEventListener('click', async () => {
+    go.disabled = no.disabled = true; put(err);
+    try {
+      if (ctx.sample) { toast(SAMPLE_NOTE); sh.close(); done && done('skipped'); return; }
+      const r = i.kind === 'brief'
+        ? await ctx.api('/api/brief-skip', { worker: 'ah', method: 'POST', body: { act: i.act_id, date: i.day } })
+        : await ctx.api('/api/report-skip', { worker: 'ah', method: 'POST', body: { act: i.act_id, period: i.period, start: i.day } });
+      if (r && r.error) throw new Error(r.error);
+      forgetWaiting(); sh.close(); toast('Marked Do not send'); done && done('skipped');
+    } catch (e) {
+      go.disabled = no.disabled = false;
+      put(err, h('p', { class: 'sd-err' }, 'Not saved: ' + errText(e)));
+    }
+  });
+}
+
+/* ---------- the three buttons on a row ---------- */
+/** Send, Edit, Do not send for one waiting item. Team only: a client or "See as client" gets nothing.
+    opts: { canSkip, noChannel } */
+export function actions(i, ctx, done, { canSkip = true, noChannel: none = false } = {}) {
+  if (!canWrite(ctx)) return null;
+  style();
+  const stop = fn => e => { if (e) e.stopPropagation(); fn(); };
+  return h('span', { class: 'sd-row' },
+    none ? statusDot('off', 'No client channel') : null,
+    button(none ? 'Team post' : 'Send', { primary: !none, onclick: stop(() => sendSheet(i, ctx, done)) }),
+    button('Edit', { onclick: stop(() => editSheet(i, ctx, done)) }),
+    canSkip ? button('Do not send', { ghost: true, onclick: stop(() => skipSheet(i, ctx, done)) }) : null);
+}

@@ -6,6 +6,7 @@
    rangeOf()    the date range in the page head, as real dates */
 
 import { workers, token, SAMPLE, LS, LS5 } from './config.js';
+import { tryEngine, shadow } from './engine.js';
 
 export { SAMPLE };
 
@@ -21,13 +22,25 @@ export class ApiError extends Error {
 export async function api(path, opts = {}) {
   if (SAMPLE) throw new ApiError('Sample mode never calls the API: ' + path, 0);
   const { worker = 'profit', body, headers, ...rest } = opts;
-  const base = workers()[worker === 'ah' ? 'ah' : 'profit'];
-  const res = await fetch(base + path, {
+  const which = worker === 'ah' ? 'ah' : 'profit';
+  const init = {
     ...rest,
     body: body == null ? undefined : typeof body === 'string' ? body : JSON.stringify(body),
     headers: { Authorization: 'Bearer ' + token(), ...(body != null ? { 'Content-Type': 'application/json' } : {}), ...(headers || {}) },
-  });
+  };
+  /* The new engine answers only when this browser is set to it and the path is ported (engine.js).
+     A read it gets wrong is asked of the old engine below and noted, so no page breaks because of it.
+     A write that may already have run there is final: asking the old engine too could save it twice. */
+  const eng = await tryEngine(which, path, init);
+  if (eng && eng.ok) return eng.json;
+  if (eng && eng.final) {
+    if (eng.status === 401) window.dispatchEvent(new CustomEvent('lx:unauthorized'));
+    throw new ApiError(eng.error || 'HTTP ' + eng.status, eng.status);
+  }
+  const res = await fetch(workers()[which] + path, init);
   const j = await res.json().catch(() => ({}));
+  if (eng) eng.note(res.status);
+  else if (res.ok) shadow(which, path, init, j);
   if (!res.ok) {
     if (res.status === 401) window.dispatchEvent(new CustomEvent('lx:unauthorized'));
     throw new ApiError(j.error || 'HTTP ' + res.status, res.status);
@@ -164,7 +177,9 @@ export const storedClient = () => { try { return localStorage.getItem(LS.role) =
    When a worker key is added later, add its name to AGENCY_KEYS or BRAND_RULES and no page changes.
    In sample mode nothing reaches a worker: every key reads and saves in the sample person's local store. */
 const AGENCY_KEYS = ['morningHour', 'morningCard', 'slackChannel', 'slackSendWho', 'paceAlertPct', 'movedPost', 'marketHandles', 'marketChatter',
-  'seasonTab', 'dailyBriefsChannel', 'briefClientStyle', 'todayPost', 'actionRemind', 'minOffPost', 'buyerPost', 'buyerOwner', 'buyerChannel'];
+  'seasonTab', 'dailyBriefsChannel', 'briefClientStyle', 'todayPost', 'actionRemind', 'minOffPost', 'buyerPost', 'buyerOwner', 'buyerChannel',
+  /* 2026-11-26: who each kind of message comes from, { all, kinds } (account-health sender.js) */
+  'senders'];
 const BRAND_GOALS = ['target_roas', 'target_cpa'];
 const BRAND_RULES = ['judge_spend', 'judge_days', 'yellow_pct', 'min_track', 'min_spend', 'min_days', 'min_cap_pct'];
 

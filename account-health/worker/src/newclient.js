@@ -39,8 +39,11 @@
 import { asana, asanaAll, googleToken, setDrive, PENDING, onboardAsanaTick } from './asana-brand.js';
 import { sendContract, contractDefaults, contractHtml, ensureContractTable, aiEdit, aiAmend, sendAmendment } from './contract.js';
 import { frameProject, frameStatus } from './frame.js';
-import { sendMail, testRecipient } from './mail.js';
+import { sendMail as sendMailAs, testRecipient } from './mail.js';
+import { senderToken } from './sender.js';
 import { ensureCalendlyHook } from './calendly.js';
+/* Every onboarding email comes from the onboarding_email sender (Agency settings > Sending and notifications). */
+const sendMail = (env, to, subject, text, o) => sendMailAs(env, to, subject, text, { kind: 'onboarding_email', ...(o || {}) });
 import { createBrand, addConnection, resolveBrandId, setTripleWhale } from './brands.js';
 import { todaysCard } from './morningcard.js';
 import { laneBlocks, fyi } from './lane.js';
@@ -49,7 +52,10 @@ const inThread = async (env, ch) => { const c = await todaysCard(env, ch).catch(
 /* 2026-11-09 (the lane format, lane.js): a team ask about a new client, OPS lane, in the internal channel (under today's card). */
 async function laneInternal(env, r, msg) {
   const m = laneBlocks({ lane: 'OPS', brand: r.name, ...msg });
-  return slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { ...(await inThread(env, r.slack_internal)), channel: r.slack_internal, unfurl_links: false, text: m.text, blocks: [m.blocks[0], ...(msg.extra || []), ...m.blocks.slice(1)] });
+  /* 2026-11-26 (the house style): the header and the summary, then the extra blocks (the client's own words, quoted as
+     before), then the gray line and the buttons. */
+  const tail = m.blocks.filter(b => b.type === 'context' || b.type === 'actions'), top = m.blocks.filter(b => !tail.includes(b));
+  return slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { ...(await inThread(env, r.slack_internal)), channel: r.slack_internal, unfurl_links: false, text: m.text, blocks: [...top, ...(msg.extra || []), ...tail] });
 }
 const firstId = async (env, list) => Object.values(await slackIds(env, list).catch(() => ({})))[0] || 'Cole';
 
@@ -489,7 +495,7 @@ async function stepEmail(env, r, b) {
   if (!subject || !body) throw new Error('The email needs a subject and a message.');
   if (!b.approved) throw new Error('The welcome email is only sent when you press Send on it.');
   if (safeJson(r.steps_json, {}).email?.status === 'done') throw new Error('The welcome email was already sent.');
-  try { await sendMail(env, r.contact_email, subject, body); }
+  try { await sendMail(env, r.contact_email, subject, body, { kind: 'onboarding_email' }); }
   catch (e) { throw new Error(/sign-in failed|unauthorized_client|access_denied|insufficient/i.test(e.message) ? NEEDS_GMAIL : e.message); }
   /* The welcome explains the invites, so they go now, not before. */
   const inv = await stepInvite(env, await getRun(env, r.id)).catch(e => ({ status: 'failed', text: e.message, notes: [] }));
@@ -1184,8 +1190,8 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
     }
     if (path === '/api/new-client/remove' && request.method === 'POST') {
       /* Forgets the row. Nothing made in Asana, Drive or Slack is deleted; an UNPAID Stripe
-         subscription is cancelled so a removed client is never invoiced again. Stripe is asked
-         first: a client who paid since the last look is never cancelled. */
+         subscription is canceled so a removed client is never invoiced again. Stripe is asked
+         first: a client who paid since the last look is never canceled. */
       const st = safeJson(r.steps_json, {}).stripe;
       /* v2: the first invoice (no subscription yet). An unpaid one is voided; a paid one is never touched. */
       if (isV2(r) && st?.mode === 'first_invoice' && st.invoice && !st.paid) {
@@ -1261,7 +1267,8 @@ async function tickForm(env, token, field) {
    Posted as Cole (SLACK_USER_TOKEN), pinned, with every link they need. Not before they are in:
    the hourly tick looks for a member of the client channel from outside the Mobius workspace. */
 async function welcomeOnJoin(env, r) {
-  const bot = env.SLACK_BOT_TOKEN, user = env.SLACK_USER_TOKEN;
+  /* Who posts the welcome = the onboarding_slack sender (sender.js): Cole's token by default, the app's when set to Locus. */
+  const bot = env.SLACK_BOT_TOKEN, user = await senderToken(env, 'onboarding_slack');
   if (!bot || !user || !r.slack_client) return false;
   const ours = (await slack(bot, 'auth.test', {})).team_id;
   const mem = await slack(bot, 'conversations.members', { channel: r.slack_client, limit: 200 }, true);
@@ -1351,7 +1358,7 @@ export async function onCallBooked(env, r, info) {
   const team = safeJson(r.team_json, {});
   /* 2026-11-09 (lane.js): a booking is the strategist's ask; a cancellation asks nobody (a roundup line). */
   if (!r.slack_internal) return;
-  if (info.canceled) { await fyi(env, { act: r.act_id || '', lane: 'OPS', line: `${r.name} cancelled the strategy call (${when}). Their form's "book the call" box is open again.` }); return; }
+  if (info.canceled) { await fyi(env, { act: r.act_id || '', lane: 'OPS', line: `${r.name} canceled the strategy call (${when}). Their form's "book the call" box is open again.` }); return; }
   await laneInternal(env, r, { who: await firstId(env, roleList(team.strategist)), ask: `Review ${r.name}'s answers and run Research in Locus before the strategy call`, why: `they booked it for ${when}`,
     buttons: answersBtn(r) });
 }
@@ -1442,8 +1449,9 @@ export async function markShopifySent(env, id) {
   store = store || 'your store';
   const note = `We just sent the Shopify collaborator request for ${store}. Please approve it: open the email from Shopify, or in Shopify go to Settings > Users > Collaborators. It takes a few seconds and lets us work in your store without you making us an account.`;
   let how = '';
-  if (st.slack_welcome && r.slack_client && env.SLACK_USER_TOKEN) {
-    const m = await slack(env.SLACK_USER_TOKEN, 'chat.postMessage', { channel: r.slack_client, text: note, unfurl_links: false });
+  const onbTok = await senderToken(env, 'onboarding_slack');
+  if (st.slack_welcome && r.slack_client && onbTok) {
+    const m = await slack(onbTok, 'chat.postMessage', { channel: r.slack_client, text: note, unfurl_links: false });
     if (m.ok) how = 'in their Slack channel';
   }
   if (!how && emailOk(r.contact_email)) { await sendMail(env, r.contact_email, `Please approve our Shopify request for ${store}`, `Hi ${firstName(r.contact_name)},\n\n${note}\n\nThanks,`).then(() => { how = 'by email'; }).catch(() => {}); }
@@ -1515,7 +1523,8 @@ export async function newClientTick(env) {
       const link = `https://tools.go-mobius-digital.com/onboard/voice.html?t=${r.token}`;
       const note = `Thanks for sending the onboarding form! One more thing when you have 20 minutes (after our strategy call is perfect): your voice interview.\n${link}\n\nYou talk, we ask, then you rate a few sample lines. It becomes the guide every ad and email we write for you is checked against.`;
       let how = null;
-      if (steps.slack_welcome && r.slack_client && env.SLACK_USER_TOKEN) { const m = await slack(env.SLACK_USER_TOKEN, 'chat.postMessage', { channel: r.slack_client, text: note, unfurl_links: false }); if (m.ok) how = 'slack'; }
+      const onbTok = await senderToken(env, 'onboarding_slack');
+      if (steps.slack_welcome && r.slack_client && onbTok) { const m = await slack(onbTok, 'chat.postMessage', { channel: r.slack_client, text: note, unfurl_links: false }); if (m.ok) how = 'slack'; }
       if (!how && emailOk(r.contact_email)) await sendMail(env, r.contact_email, `One more thing: your voice interview`, `Hi ${firstName(r.contact_name)},\n\n${note}\n\nThanks,`).then(() => { how = 'email'; }).catch(() => {});
       if (how) await setStep(env, r.id, 'voice_sent', { how, at: new Date().toISOString() });
     }

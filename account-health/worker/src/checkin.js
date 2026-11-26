@@ -26,6 +26,7 @@ import { AUTO_APPROVE_KEY } from './clientchan.js';
 import { teamOf } from './calendar.js';
 import { ROSTER, addAction } from './actions.js';
 import { laneBlocks, laneWho } from './lane.js';
+import { houseMessage } from './house.js';
 
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const ORIGIN = 'https://mobius-account-health.mobius-digital.workers.dev';
@@ -155,7 +156,7 @@ const rtEmpty = rt => !linesOf(rt).length;
 export const shortLine = (t, n = 74) => { const x = clean(String(t).split(/\s+why:/i)[0], 400).replace(/[.,;:]$/, ''); if (x.length <= n) return x; const c = x.slice(0, n - 1); return c.slice(0, Math.max(c.lastIndexOf(' '), 30)).replace(/[ ,;:.]+$/, '') + '…'; };
 
 /* ---------- the day post (the board) ---------- */
-function boardBlocks(date, day, people) {
+export function boardBlocks(date, day, people) {
   const monday = weekday(date) === 1;
   const rows = Object.entries(people).filter(([, p]) => !p.weekOnly || monday).map(([uid, p]) => {
     const s = day.people?.[uid] || {};
@@ -168,20 +169,23 @@ function boardBlocks(date, day, people) {
   });
   const need = Object.entries(people).flatMap(([uid, p]) => (day.people?.[uid]?.need || []).map(n => `• ${p.name} needs from ${esc(needLine(n))}`));
   const sent = (day.sent || []).map(s => `• ${esc(s.label)} (${esc(s.by)})`);
-  const blocks = [
-    { type: 'section', text: md(`*☀️ ${dayName(date)} · Daily check-in*\nTap a button below. Everything you post goes in this thread.`) },
-    { type: 'section', text: md(rows.join('\n') || '_No one on the check-in list yet._') },
-  ];
-  if (need.length) blocks.push({ type: 'section', text: md(`🔴 *Needs*\n${need.join('\n')}`) });
-  if (day.missed?.length) blocks.push(ctxLine(`_Last check-in:_ ${day.missed.map(esc).join(' · ')}`));
-  if (sent.length) blocks.push({ type: 'section', text: md(`🖼️ *Sent to Cole for review*\n${sent.join('\n')}`) });
+  /* 2026-11-26 (the house style, house.js): header "Friday check-in", one summary line, one line per person (the
+     board must show everyone, so these rows are not cut at 5), the needs and the sent reviews, the last check-in in the
+     gray line, the buttons in one row. No emoji in the header. */
   const btns = [
     { type: 'button', action_id: 'ci_plan', style: 'primary', text: pt('Post my plan'), value: date },
     { type: 'button', action_id: 'ci_wrap', text: pt('Post what I did'), value: date },
     ...(weekday(date) === 1 ? [{ type: 'button', action_id: 'ci_week', text: pt('Post my week'), value: date }] : []),
     { type: 'button', action_id: 'ci_out', text: pt("I'm out today"), value: date },
   ];
-  blocks.push({ type: 'actions', block_id: 'ci_btns', elements: btns });
+  const hm = houseMessage({ title: `${dayName(date)} check-in`, summary: 'Tap a button below. Everything you post goes in this thread.',
+    context: day.missed?.length ? `Last check-in: ${day.missed.join(' · ')}` : '', buttons: btns });
+  const body = [{ type: 'section', text: md(rows.join('\n') || '_No one on the check-in list yet._') }];
+  if (need.length) body.push({ type: 'section', text: md(`*Needs*\n${need.join('\n')}`) });
+  if (sent.length) body.push({ type: 'section', text: md(`*Sent to Cole for review*\n${sent.join('\n')}`) });
+  const blocks = [...hm.blocks.slice(0, 2), ...body, ...hm.blocks.slice(2)];
+  const row = blocks.find(b => b.type === 'actions');
+  if (row) row.block_id = 'ci_btns';
   return blocks;
 }
 async function redraw(env, d, date, day) {
@@ -602,7 +606,7 @@ function reviewHead(st, by) {
   const line = [angle && `*Angle:* ${angle}`, testing && `*Testing:* ${testing}`, `${ads.length} ad${ads.length === 1 ? '' : 's'}`].filter(Boolean).join('  ·  ');
   /* 2026-11-09 (the lane format, lane.js): "*CREATIVE · Brand*", Cole tagged with the ask, who sent it and what it tests. */
   const lane = laneBlocks({ lane: 'CREATIVE', brand: shortName(r.brand), who: 'Cole', ask: `Review ${label}`, why: `${by} sent it for your look · ${line}` });
-  return { label, head: lane.blocks[0].text.text };
+  return { label, head: lane.mrkdwn };
 }
 /* Every picture of the batch (newest version of each ad, every card of a carousel) and the videos, in ad order. */
 function reviewMedia(st) {
@@ -769,9 +773,10 @@ export async function checkinTick(env, d) {
     const people = await peopleOf(env, d);
     const sent = [];
     for (const [uid, p] of Object.entries(people).filter(([, p]) => p.dm)) {
-      const r = await d.slackApi(env, 'chat.postMessage', { channel: uid, text: 'Post your week for the Monday call',
-        blocks: [{ type: 'section', text: md(`Morning ${p.name}. Post your week for today's Monday call: the main focus and what you're working on, per brand.`) },
-          { type: 'actions', elements: [{ type: 'button', action_id: 'ci_week', style: 'primary', text: pt('Post my week'), value: date }] }] }).catch(e => ({ error: e.message }));
+      /* 2026-11-26 (the house style): header, one summary line, one button. */
+      const hm = houseMessage({ title: 'Post your week for the Monday call', summary: `Morning ${p.name}. The main focus and what you're working on, per brand.`,
+        buttons: [{ type: 'button', action_id: 'ci_week', style: 'primary', text: pt('Post my week'), value: date }] });
+      const r = await d.slackApi(env, 'chat.postMessage', { channel: uid, text: hm.text, blocks: hm.blocks }).catch(e => ({ error: e.message }));
       sent.push(`${p.name}: ${r?.ok ? 'sent' : r?.error || 'failed'}`);
     }
     await d.putSetting(env, `checkinWeekDm:${date}`, JSON.stringify(sent));

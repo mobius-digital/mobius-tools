@@ -807,6 +807,14 @@ export function createAssistant(config) {
     return (C.strongWhen && C.strongWhen.test(s)) ? C.strongModel : C.model;
   };
 
+  /* Every number in a long read (the stored text is cut at 16,000 characters), so the source line can still find the
+     figure an answer took from further down. Capped; repeats dropped. */
+  function numsOf(text) {
+    const out = new Set();
+    for (const m of String(text || '').matchAll(/(?<![\w.])\d[\d,]*(?:\.\d+)?/g)) { const v = +m[0].replace(/,/g, ''); if (isFinite(v)) out.add(v); if (out.size >= 20000) break; }
+    return [...out];
+  }
+
   async function callClaude(env, system, messages, tools, model = C.model, final = false, effort = null) {
     /* Only Haiku answers in 1200 tokens: Sonnet and Opus spend thinking inside max_tokens, so an app whose
        base model is one of them (the Strategist, 2026-10-09) needs the big budget on every round. */
@@ -1269,7 +1277,7 @@ export function createAssistant(config) {
       }
       if (cached.length) { cached[cached.length - 1].cache_control = { type: 'ephemeral' }; blocks.push(...cached); }
     }
-    blocks.push({ type: 'text', text: `Today is ${today}. The current month is ${h.monthOf(today)}.` });
+    blocks.push({ type: 'text', text: C.dateLine ? C.dateLine(today) : `Today is ${today}. The current month is ${h.monthOf(today)}.` });
     if (live) blocks.push({ type: 'text', text: live });
     const brief = await getBrief(env, h);
     if (brief) blocks.push({ type: 'text', text: '## What you know about the company\n' + brief });
@@ -1297,9 +1305,9 @@ export function createAssistant(config) {
 
 ACCESS RULE: this person may only see ${name}. Read, mention, compare or total no other brand, and never guess at one; if asked about another brand, the agency's other clients, the agency's own costs or its internal notes, say that is not something their login covers. Every number comes from a tool call you made in this conversation; say which page or period it came from. Your tools read the app exactly as this person's own login does, so whatever they return is theirs to see. You cannot apply changes from this chat: when they ask for one, say which page in the app has the button (the same buttons the agency uses), or that their team can do it.
 
-Plain English, no em dashes, lead with the answer.` }];
+Plain English in American spelling (behavior, color, summarize, canceled), no em dashes, lead with the answer.` }];
     if (C.clientSystem) for (const b of (await C.clientSystem(env, h, extra).catch(() => [])) || []) { const text = typeof b === 'string' ? b : b?.text; if (text) blocks.push({ type: 'text', text }); }
-    blocks.push({ type: 'text', text: `Today is ${today}. The current month is ${h.monthOf(today)}.` });
+    blocks.push({ type: 'text', text: C.dateLine ? C.dateLine(today, { client: true }) : `Today is ${today}. The current month is ${h.monthOf(today)}.` });
     if (extra.screen) blocks.push({ type: 'text', text: '## What the person is looking at right now, in the app\n' + JSON.stringify(extra.screen, null, 1) + '\nResolve "this", "that number", "this month" against it. Verify any figure with a tool before quoting it back.' });
     return blocks;
   }
@@ -1322,6 +1330,9 @@ Plain English, no em dashes, lead with the answer.` }];
   async function loop(env, h, system, messages, toolDefs, runExtra, usage, model = C.model, ctx = null, effort = null) {
     let inTok = 0, outTok = 0, answer = '', sql = [], flags = {}, cost = 0, cacheRead = 0, cacheWrite = 0, steps = 0, stopped = false;
     const lead = [];
+    /* What the tools read on the way (name, input, ok, the start of what came back): the app writes the answer's one
+       source line from this in code (C.finishAnswer), never the model. */
+    const reads = [];
     const t0 = Date.now();
     const step = async (s) => { steps++; if (ctx?.onStep) await ctx.onStep(s).catch(() => {}); };
     try {
@@ -1413,6 +1424,9 @@ Plain English, no em dashes, lead with the answer.` }];
           /* A tool may hand back content blocks (text + an image it made, so the model can look at it), and what it
              spent outside the model (an image, a sandbox run), which joins the answer's cost line. */
           if (typeof out?.cost === 'number' && isFinite(out.cost)) cost += out.cost;
+          /* ok: no tool error AND not a view that answered {"error": ...} as plain text (read_app never sets is_error). */
+          const readText = typeof out?.text === 'string' ? out.text : '';
+          reads.push({ name: c.name, input: c.input || {}, ok: !out?.is_error && !/^\s*\{\s*"error"\s*:/.test(readText), action: !!actionByName[c.name], sql: c.name === C.sqlTool, text: readText.slice(0, 16000), ...(readText.length > 16000 ? { nums: numsOf(readText) } : {}) });
           results.push({ type: 'tool_result', tool_use_id: c.id, content: Array.isArray(out.content) && out.content.length ? out.content : String(out.text ?? ''), ...(out.is_error ? { is_error: true } : {}) });
         }
         messages.push({ role: 'user', content: results });
@@ -1433,6 +1447,41 @@ Plain English, no em dashes, lead with the answer.` }];
         answer = (reply.content || []).filter(c => c.type === 'text').map(c => c.text).join('').trim();
         if (lead.length) answer = [...lead, answer].filter(Boolean).join('\n\n');
       }
+      /* THE CHECK (2026-11-26, AI eval round 17: most answers ran twice their length, a client draft carried ad set
+         names). The app's answerCheck reads the finished answer; anything it finds (over the word budget, internal
+         names in client text) gets ONE rewrite round with tools off. The rewrite is kept only when the same check
+         finds fewer problems in it than in the first (so a rewrite that ADDS a needed line, a label or a team line,
+         can land, and one still over length cannot) and C.rewriteOk says it lost nothing that must stay (a warning,
+         the draft line); otherwise the first answer goes out as it was. */
+      /* Only the person's own question is checked (never the app's own prompts: ctx.noCheck). A client's own login
+         is checked in its own shape (opts.client). */
+      const own = !!(answer && !stopped && ctx?.question && !ctx?.noCheck);
+      const checkOpts = { reads, client: !!ctx?.client };
+      const check = a => { try { return C.answerCheck(a, ctx.question, checkOpts) || []; } catch { return []; } };
+      if (own && C.answerCheck) {
+        const problems = check(answer);
+        if (problems.length) {
+          messages.push({ role: 'assistant', content: [{ type: 'text', text: answer }] });
+          messages.push({ role: 'user', content: 'Before this goes out, fix it:\n- ' + problems.join('\n- ') + '\nReply with the rewritten answer only, in the same voice, same facts, same numbers, links and card lines. Keep every warning (a wait window, the anchor of a working set, a big change, anything broken) and every step. Keep a "---- draft ----" line and the draft after it if there was one, and an "Assumed:" line if there was one. Add nothing beyond what the fixes ask and no source line.' });
+          /* The rewrite is optional: a failed call (a 524, a 529, a broken stream) keeps the finished first answer,
+             so a card raised this turn is still shown and nothing is asked twice. */
+          let reply = null;
+          try { reply = await callClaude(env, system, messages, toolDefs, model, true, effort); } catch { reply = null; }
+          if (!reply) { messages.splice(-2, 2); flags.checked = { problems, rewritten: false }; }
+          else {
+          const u = reply.usage || {};
+          inTok += (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
+          cacheRead += u.cache_read_input_tokens || 0; cacheWrite += u.cache_creation_input_tokens || 0;
+          outTok += u.output_tokens || 0;
+          cost += costOf(reply.model || model, u);
+          const again = (reply.content || []).filter(c => c.type === 'text').map(c => c.text).join('').trim();
+          const safe = !!again && (() => { try { return !C.rewriteOk || C.rewriteOk(answer, again, ctx.question, { cards: flags.proposals?.length || 0 }) !== false; } catch { return false; } })();
+          const kept = safe && check(again).length < problems.length;
+          if (kept) answer = again;
+          flags.checked = { problems, rewritten: kept };
+          }
+        }
+      }
     } finally {
       usage.count = (usage.count || 0) + 1;
       usage.inTok = (usage.inTok || 0) + inTok;
@@ -1442,6 +1491,9 @@ Plain English, no em dashes, lead with the answer.` }];
     /* A card is waiting: the words must say so, whatever the model wrote. */
     /* Not on a scheduled run: its host posts the cards itself (a task) or drops them (askschedule.js). */
     if (flags.proposals?.length && !ctx?.scheduled && !/tap apply/i.test(answer)) answer = [answer, flags.proposals.length > 1 ? 'Nothing has changed yet. Tap Apply to do them.' : 'Nothing has changed yet. Tap Apply to do it.'].filter(Boolean).join('\n\n');
+    /* The ONE source line (where, which dates, which definition), written by code from what the tools read, last.
+       Never for a client's own login: its reads carry the agency's internal source names. */
+    if (C.finishAnswer && answer && !stopped && ctx?.question && !ctx?.noCheck && !ctx?.client) { try { answer = C.finishAnswer(answer, { question: ctx.question, reads, cards: flags.proposals?.length || 0 }) || answer; } catch { /* the answer goes as it is */ } }
     return { answer, sql, inTok, outTok, cacheRead, cacheWrite, cost, steps, stopped, ms: Date.now() - t0, flags };
   }
 
@@ -1556,12 +1608,14 @@ TABLES: when you compare 3+ items or show several numbers per item, write a mark
 DRAFTS: when asked for something to send or paste (a message for a client or partner, copy), put it LAST, after a line exactly "---- draft ----": it is posted as its own message so it copies cleanly. Write the draft in plain words, no markdown.
 ${slackToolDefs.some(t => t.name === 'make_canvas') ? 'FORWARDING: when the person will forward a longer write-up (an analysis for a partner or client, a plan), call make_canvas with the full version and keep the message itself to the short read plus the canvas link.' + String.fromCharCode(10) : ''}DON'T: end with an offer ("Want me to...?", "Let me know if...") or a question unless you truly cannot go on without the answer; then ask ONE question. Never ask what you can work out: the brand is this channel's or thread's brand (or the one named or obvious from the products), the period is the one in the thread. Never hand the person a job your tools can do.` }];
     const prior = await threadTranscript(env, h, ev);
-    const asked = prior ? prior + `${C.owner || 'The asker'} now asks: ` + q : q;
+    /* The word budget for this kind of question rides on the question itself (C.answerNote), after the thread. */
+    const note = C.answerNote ? (() => { try { return C.answerNote(q) || ''; } catch { return ''; } })() : '';
+    const asked = (prior ? prior + `${C.owner || 'The asker'} now asks: ` + q : q) + (note ? '\n\n' + note : '');
     /* Images posted WITH the question are shown to the model (C.slackImages turns Slack files into image blocks);
        without the hook, or when none open, the question goes as text as before. */
     const seen = C.slackImages && (ev.files || []).length ? await C.slackImages(env, ev.files).catch(() => []) : [];
     const messages = [{ role: 'user', content: seen.some(b => b.type === 'image') ? [{ type: 'text', text: asked }, ...seen] : asked }];
-    const ctx = { env, h, ev, say, channel, thread, screen: extra.screen || null, surface: 'slack', runId, call: extra.call || null, who: extra.who || null,
+    const ctx = { env, h, ev, say, channel, thread, screen: extra.screen || null, surface: 'slack', runId, call: extra.call || null, who: extra.who || null, question: q,
       onStep: async s => {
         const line = s.label || s.note; if (!line) return;
         stepsSeen.push(line);
@@ -1661,8 +1715,16 @@ type is "bar" (comparing items), "line" (a trend; labels are dates) or "table" (
     }
     if (messages.length && messages[0].role === 'assistant') messages.shift();
     const choice = extra.model ? { model: extra.model } : C.choose ? await C.choose(q, env, h, extra).catch(() => ({ model: pickModel(q) })) : { model: pickModel(q) };
-    if (messages.length && messages[messages.length - 1].role === 'user') messages[messages.length - 1].content += '\n\n' + (choice.question || q);
-    else messages.push({ role: 'user', content: choice.question || q });
+    /* A fixed answer shape (extra.style: the nightly watches want bare JSON) gets no word budget and no check; nor
+       does a question the app wrote itself (extra.noCheck: the Monday review, a scheduled question), whose own
+       prompt sets its length and whose words are not the person's. */
+    const asked = choice.question || q;
+    const quiet = !!(extra.style || extra.noCheck);
+    /* A client's own login gets the client shape of the note (no team draft line, no source line from code). */
+    const note = C.answerNote && !quiet ? (() => { try { return C.answerNote(asked, { client: !!client }) || ''; } catch { return ''; } })() : '';
+    const turn = asked + (note ? '\n\n' + note : '');
+    if (messages.length && messages[messages.length - 1].role === 'user') messages[messages.length - 1].content += '\n\n' + turn;
+    else messages.push({ role: 'user', content: turn });
     const runId = extra.runId || null;
     const stepsSeen = [];
     const t0 = Date.now();
@@ -1671,7 +1733,7 @@ type is "bar" (comparing items), "line" (a trend; labels are dates) or "table" (
       r = await loop(env, h, system, messages, client ? clientToolDefs : webToolDefs, async (name, input) => {
         const t = extraWeb.find(x => x.def.name === name);
         return t ? await t.run(env, input, { env, h, screen: extra.screen, surface: 'web', client }) : null;
-      }, usage, choice.model, { env, h, screen: extra.screen, surface: 'web', who: extra.who || null, auth: extra.auth || null, call: extra.call || null, runId,
+      }, usage, choice.model, { env, h, screen: extra.screen, surface: 'web', who: extra.who || null, auth: extra.auth || null, call: extra.call || null, runId, question: asked, noCheck: quiet,
         ...(extra.scheduled ? { scheduled: true } : {}),
         ...(client ? { client, allow: clientAllow, noUsage: true } : {}),
         onStep: async s => { const line = s.label || s.note; if (!line) return; stepsSeen.push(line); if (runId && C.progress) await C.progress.set(env, runId, { steps: stepsSeen.slice(-12), stop: false, at: Date.now() }); },

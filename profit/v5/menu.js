@@ -3,7 +3,7 @@
 
    line  = { id, label, icon, who, tabs, note?, count?, foot?, top?, gap? }
    tab   = { id, label, team?, legacy }
-   who   = 'all' (team and client) or 'team'
+   who   = 'all' (team and client), 'team', or 'owner' (the owner alone)
    legacy = the old Locus page id (opens ../?open=<legacy>&act=<brand>), or null when there is none.
    A line with no sub pages has one tab with id 'index'.
    The page file for a route is always pages/<line id>/<tab id>.js */
@@ -73,7 +73,7 @@ export const BRAND_MENU = [
     { id: 'calendar', label: 'Calendar', icon: 'calendar', who: 'all', tabs: one('calendar') },
     { id: 'offers', label: 'Offers', icon: 'offers', who: 'all', tabs: one('season') },
     { id: 'black-friday', label: 'Black Friday', icon: 'star', who: 'all', note: 'in season', tabs: [
-      t('pace', 'Pace', 'warlive'), t('plan', 'Plan', 'warplan')] },
+      t('pace', 'Pace', 'warlive'), t('plan', 'Plan', 'warplan'), t('war-room', 'War Room', 'warlive', true)] },
   ] },
   { group: 'Reports', lines: [
     { id: 'reports', label: 'Reports', icon: 'report', who: 'all', tabs: one('reports') },
@@ -105,7 +105,7 @@ export const AGENCY_MENU = [
   ] },
   { group: 'Calendar', lines: [
     { id: 'a-calendar', label: 'Calendar', icon: 'calendar', who: 'team', tabs: one('calendar') },
-    { id: 'a-black-friday', label: 'Black Friday', icon: 'star', who: 'team', note: 'in season', tabs: [t('pace', 'Pace', 'warlive'), t('plan', 'Plan', 'warplan')] },
+    { id: 'a-black-friday', label: 'Black Friday', icon: 'star', who: 'team', note: 'in season', tabs: [t('war-room', 'War Room', 'warlive'), t('pace', 'Pace', 'warlive'), t('plan', 'Plan', 'warplan')] },
   ] },
   { group: 'Reports', lines: [
     { id: 'a-to-send', label: 'To send', icon: 'send', who: 'team', tabs: one('reports') },
@@ -127,6 +127,7 @@ export const AGENCY_MENU = [
     { id: 'a-settings', label: 'Agency settings', icon: 'gear', who: 'team', foot: true, tabs: [
       t('clients', 'Clients', 'settings'), t('team', 'Team', 'settings'), t('integrations', 'Integrations', 'settings'), t('ask', AI_NAME, 'settings'),
       t('how-we-run-ads', 'How we run ads', 'settings'), t('sending', 'Sending and notifications', 'settings')] },
+    { id: 'a-engine', label: 'Engine', icon: 'pulse', who: 'owner', foot: true, tabs: [t('compare', 'Compare'), t('switch', 'Switch')] },
   ] },
 ];
 
@@ -143,7 +144,7 @@ export const TOP_LINES = [
 ];
 
 /* ---------- reading the menus ---------- */
-const canSee = (who, role) => who === 'all' || role !== 'client';
+const canSee = (who, role) => (who === 'owner' ? role === 'owner' : who === 'all' || role !== 'client');
 
 /** The menu for a view and a role. role: 'owner' | 'team' | 'client'. The client's is the trimmed brand menu. */
 export function menuFor(view, role) {

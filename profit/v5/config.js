@@ -39,10 +39,22 @@ export const LS5 = {
   set: 'lx5_set',                  // the per person settings store (data.js setting / saveSetting), one JSON object per user
   asClient: 'lx5_as_client',       // "See as client" is on (sessionStorage: it ends with the browser tab)
   aiCard: 'lx5_ai_card',           // the card a link from a connected AI opened (sessionStorage, read once by profile/ai-cards)
+  engine: 'lx5_engine',            // which engine answers in this browser: old, new or compare (engine.js)
+  engineMiss: 'lx5_engine_miss',   // the calls the new engine got wrong or failed, kept for the compare page
 };
 
 export const DEFAULT_PROFIT_URL = `https://${ORG_KEY}-profit.${ORG_HOST}.workers.dev`;
 export const DEFAULT_AH_URL = `https://${ORG_KEY}-account-health.${ORG_HOST}.workers.dev`;
+/* The new engine (engine/worker in the repo). One worker that answers both old workers' paths:
+   <engine>/pw/api/... and <engine>/ah/api/... The name is the worker's own, an address and not copy. */
+export const ENGINE_URL = `https://locus-engine.${ORG_HOST}.workers.dev`;
+/* Which engine answers when a browser has made no choice of its own: 'old', 'new' or 'compare'.
+   'new' = the new engine answers what it has its own code for. Any read it fails or does not answer in
+   time is asked of the old engine (engine.js), and a write is never sent twice. The ways back, each one line:
+     this browser   Agency > Engine > This browser > Old engine (or localStorage lx5_engine = 'old')
+     everyone now   Agency > Engine > Everyone > Send everything back (the engine's own flag, no deploy)
+     everyone       set this line back to 'old' */
+export const ENGINE_DEFAULT = 'new';
 
 const get = k => { try { return localStorage.getItem(k); } catch { return null; } };
 /* A developer's own machine and nothing else: localhost, 127.0.0.1, [::1] or a name ending in .localhost. */
@@ -57,11 +69,12 @@ function override(param, key) {
   return /^https?:\/\/\S+$/i.test(v) ? v : '';
 }
 
-/** Where the two workers live: the defaults, except on localhost where a developer may point at their own. */
+/** Where the workers live: the defaults, except on localhost where a developer may point at their own. */
 export function workers() {
   return {
     profit: (override('worker', LS.url) || DEFAULT_PROFIT_URL).replace(/\/+$/, ''),
     ah: (override('ah', LS.ah) || DEFAULT_AH_URL).replace(/\/+$/, ''),
+    engine: (override('engine', 'pf_engine') || ENGINE_URL).replace(/\/+$/, ''),
   };
 }
 
