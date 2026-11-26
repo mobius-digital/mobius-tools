@@ -1684,9 +1684,12 @@ type is "bar" (comparing items), "line" (a trend; labels are dates) or "table" (
     }
     if (messages.length && messages[0].role === 'assistant') messages.shift();
     const choice = extra.model ? { model: extra.model } : C.choose ? await C.choose(q, env, h, extra).catch(() => ({ model: pickModel(q) })) : { model: pickModel(q) };
-    /* A fixed answer shape (extra.style: the nightly watches want bare JSON) gets no word budget and no check. */
+    /* A fixed answer shape (extra.style: the nightly watches want bare JSON) gets no word budget and no check; nor
+       does a question the app wrote itself (extra.noCheck: the Monday review, a scheduled question), whose own
+       prompt sets its length and whose words are not the person's. */
     const asked = choice.question || q;
-    const note = C.answerNote && !extra.style ? (() => { try { return C.answerNote(asked) || ''; } catch { return ''; } })() : '';
+    const quiet = !!(extra.style || extra.noCheck);
+    const note = C.answerNote && !quiet ? (() => { try { return C.answerNote(asked) || ''; } catch { return ''; } })() : '';
     const turn = asked + (note ? '\n\n' + note : '');
     if (messages.length && messages[messages.length - 1].role === 'user') messages[messages.length - 1].content += '\n\n' + turn;
     else messages.push({ role: 'user', content: turn });
@@ -1698,7 +1701,7 @@ type is "bar" (comparing items), "line" (a trend; labels are dates) or "table" (
       r = await loop(env, h, system, messages, client ? clientToolDefs : webToolDefs, async (name, input) => {
         const t = extraWeb.find(x => x.def.name === name);
         return t ? await t.run(env, input, { env, h, screen: extra.screen, surface: 'web', client }) : null;
-      }, usage, choice.model, { env, h, screen: extra.screen, surface: 'web', who: extra.who || null, auth: extra.auth || null, call: extra.call || null, runId, question: asked, noCheck: !!extra.style,
+      }, usage, choice.model, { env, h, screen: extra.screen, surface: 'web', who: extra.who || null, auth: extra.auth || null, call: extra.call || null, runId, question: asked, noCheck: quiet,
         ...(extra.scheduled ? { scheduled: true } : {}),
         ...(client ? { client, allow: clientAllow, noUsage: true } : {}),
         onStep: async s => { const line = s.label || s.note; if (!line) return; stepsSeen.push(line); if (runId && C.progress) await C.progress.set(env, runId, { steps: stepsSeen.slice(-12), stop: false, at: Date.now() }); },

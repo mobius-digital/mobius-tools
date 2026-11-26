@@ -82,7 +82,9 @@ export async function reviewBrand(env, d, b, { dry = false, who = 'Monday review
   const today = d.centralDate();
   const { engine, h } = d.strategist();
   const r = await engine.answerWeb(env, reviewPrompt(b, today), [], h(), {
-    who, screen: { screen: 'Monday account review (Slack)', brand_selected: b.name, act_id: b.act_id },
+    /* noCheck: this prompt is the app's, not a person's question; it sets its own length (under 250 words) and the
+       read is internal, so it names ad sets on purpose (no client-draft budget or leak check). */
+    who, noCheck: true, screen: { screen: 'Monday account review (Slack)', brand_selected: b.name, act_id: b.act_id },
   }).catch(e => ({ error: String(e.message || e) }));
   if (!r || r.error) return { error: (r && r.error) || 'no answer' };
   const text = slackAnswer(r.answer || '');

@@ -37,6 +37,7 @@ import { SCHED_SQL, whenText } from './askschedule.js';
 import { stockView, supplyFetch, supplyBrandOf } from './stock.js';
 import { calendarView, calendarData } from './calendar.js';
 import { metaOf, resolveBrandId } from './brands.js';
+import { moveBillingDay } from './newclient.js';
 import { stratTools, stratActions, stratHooks } from './strattools.js';
 import { writeTools, writeActions } from './metawrite.js';
 import { dataTools } from './stratdata.js';
@@ -199,8 +200,10 @@ const RULES = `
   handling and payment fees), only when asked, and named as that. Never your
   own formula.
 - AMAZON: every whole-store number (sales, orders, AOV, MER) says whether
-  Amazon is in or out ("Amazon included", "website only"): the store view's
-  amazon field, or source_name in store_sql.
+  Amazon is in or out ("Amazon included", "website only"). Triple Whale's
+  Amazon metric alone never settles it (a brand that syncs Amazon orders into
+  Shopify shows it empty while they are in the numbers): check source_name in
+  store_sql for the same range first, as the store view's amazon field says.
 - LEADS: a lead campaign is judged on cost per lead only, never ROAS: against
   the brand's own lead goal when its goal measure is cost per lead, else the
   house line of $0.50 to $0.75 a lead. Never a sales CPA, an old remembered
@@ -239,9 +242,6 @@ const RULES = `
   For someone without a login (a client), give the brand's public link (the
   Your ads page: locus_get /api/your-ads-link?act=<brand id>), never a Locus
   page link.
-- BILLING IS CLOSED TO YOU: retainers, subscriptions, invoices, payment
-  methods and plans. You cannot see or change them and there is no card for
-  it. Say so in one line, and that the owner does it in Stripe or the Ledger.
 - WHEN SOMETHING IS BROKEN ("not working", "error", "failed", "doesn't work",
   a screenshot of an error, "why did it skip"): read the problems view FIRST,
   then explain in plain words what happened, what they can do right now, and
@@ -1523,8 +1523,22 @@ const BUTTONS = (d) => {
         if (!steps.length) return { error: `${e.name} already has its Asana tasks, or has no work steps left.` };
         return { summary: `${a.name}: Asana tasks for ${e.name}`, detail: steps.map(s => `${e.name}: ${s.label.toLowerCase()}, due ${s.due}`).join('\n'), request: { method: 'POST', path: '/api/calendar/asana', body: { id: e.id } } };
       }), done: r => `Made ${r && r.made != null ? r.made : 'the'} Asana tasks.` }),
-    /* No billing from the assistant (2026-11-26, AI eval C04): retainers, subscriptions and invoices are the owner's,
-       in Stripe or the Ledger. The Billing day button on the brand row is the only door; the assistant says so. */
+    /* Retainer billing day (2026-10-30, newclient.js moveBillingDay): the card shows Stripe as it is now and
+       the move worked out (dry run); Apply posts the same route the Billing day button on the brand row uses. */
+    routeAction({ name: 'move_billing_day',
+      description: 'Move a client\'s monthly retainer (Mobius Digital\'s own Stripe subscription for that brand) to a new billing day of the month, 1 to 28. gap = what happens to the days between the end of the period they already paid for and the new day: "charge" adds the prorated amount to the first invoice on the new day, "free" gives it. Starts the next time that day comes round after the paid period, unless start (YYYY-MM-DD, on that day) is given. sub = the Stripe subscription id (sub_...) when Cole gives one; Locus remembers it per brand afterwards. If Cole did not say charge or free, ask which in one line before proposing.',
+      input_schema: { type: 'object', properties: { brand: { type: 'string' }, day: { type: 'integer', description: '1 to 28' }, gap: { type: 'string', enum: ['charge', 'free'] },
+        start: { type: 'string', description: "'YYYY-MM-DD', optional, must fall on that day" }, sub: { type: 'string', description: 'sub_..., optional' }, summary: { type: 'string' } }, required: ['brand', 'day', 'gap', 'summary'] },
+      describe: safe(async (env, i) => {
+        const a = await brandOr(env, i.brand);
+        const body = { act: a.act_id, day: i.day, gap: i.gap, start: i.start || undefined, sub: i.sub || undefined };
+        const { info, plan, sub } = await moveBillingDay(env, a.act_id, { ...body, dry: true });
+        const d8 = iso => iso ? new Date(iso).toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', year: 'numeric' }) : 'none';
+        const amt = c => `$${(c / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        return { summary: i.summary,
+          detail: `${a.name} (${info.customer_name}, ${sub}). Now: bills on the ${info.billing_day}, paid through ${d8(info.trial_end || info.period_end)}, next invoice ${d8(info.next_invoice?.date)}${info.next_invoice ? ` for ${amt(info.next_invoice.amount_due)}` : ''}.\nAfter: ${plan.text}`,
+          request: { method: 'POST', path: '/api/new-client/billing-day', body: { ...body, sub } } };
+      }), done: r => `Moved. ${r?.plan?.text || ''}`.trim() }),
     routeAction({ name: 'log_change',
       description: 'Write a change into a brand\'s change log by hand (the Changes tab): what was done on the account and why, so the brief and the team see it. Use it when someone says "log that we ...".',
       input_schema: { type: 'object', properties: { brand: { type: 'string' }, summary: { type: 'string', description: 'What changed, one line.' }, reason: { type: 'string' },

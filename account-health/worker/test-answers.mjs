@@ -32,9 +32,21 @@ await check('budgets: each kind of question gets its own ceiling (lookup 40, cha
   assert.equal(k('Something nobody can classify about the brand overall'), 'decision:120', 'unsure = the largest budget');
   assert.equal(answerKind('list them all: every creator with a live ad').more, true);
 });
+await check('a draft needs a writing ask: questions that only mention a message, a channel or an update are not drafts', () => {
+  for (const q of ["What's the latest update on the client's ad sets?", 'What did the client say in their last message?',
+    'Which post did best in the channel last week?', 'How many new customer orders did we get, quick note?'])
+    assert.notEqual(answerKind(q).kind, 'draft', q);
+  assert.equal(answerKind('Write an update for the client on the Black Friday ads.').kind, 'draft');
+  assert.equal(answerKind('Reply to the client in their channel about the budget.').kind, 'draft');
+});
+await check('an internal answer that names sets is never sent back for leaks; only the text after the draft line is checked', () => {
+  assert.deepEqual(answerProblems('412 | UGC and [XX] CBO carried the week: $900 at 2.10x.', "What's the latest update on the client's ad sets?"), []);
+  assert.deepEqual(answerProblems('Hi Sam, the sale ads did well this week, 40 orders.', 'Draft the reply I can send the client'), [], 'no draft line, nothing to leak-check');
+  assert.deepEqual(answerProblems('Team note: 412 | UGC is the winner.\n---- draft ----\nHi Sam, the sale ads did well this week, 40 orders.', 'Draft the reply I can send the client'), []);
+});
 await check('the note rides with the question: the budget, top 3 unless asked, and the draft split', () => {
   assert.match(answerNote('What was the MER yesterday?'), /at most 40 words[\s\S]*top 3 only/);
-  assert.match(answerNote('Draft the reply I can send the client'), /The draft itself at most 110 words, the line above it at most 20/);
+  assert.match(answerNote('Draft the reply I can send the client'), /after a line exactly "---- draft ----"; the draft itself at most 110 words, the line above it at most 20/);
   assert.match(answerNote('give the full list of every ad'), /They asked for the full list/);
 });
 await check('word count leaves out tables and chart blocks', () => {
@@ -56,6 +68,19 @@ await check('client text: internal names and ids are caught, plain client words 
   assert.equal(clientLeaks('We paused test 395 and the ad 120200000000000001.').length, 2);
   assert.equal(clientLeaks('Moved money into brand_harbor_golf via act_1234567').length, 1);
   assert.equal(clientLeaks('The New people | Adv+ set did best').length >= 1, true);
+  assert.ok(clientLeaks('Black Friday | Everyone spent most').length >= 1);
+  assert.ok(clientLeaks('We paused test 412-1 today').length >= 1);
+});
+await check('client text: normal client messages are not refused (links, permalinks, order numbers, plain words)', () => {
+  for (const t of [
+    'Here is what we changed this week: <https://app.example.com/profit/?open=adupdates&act=brand_x|your Updates page>',
+    'Everything we changed is on https://app.example.com/profit/?open=adupdates&act=brand_harbor_golf',
+    'See the thread: https://example.slack.com/archives/C0123ABCD/p1731234567890123',
+    'Next week we will test 30 new ads and test 100 new hooks.',
+    'The gift card 100 offer sold well, and so did the red | blue polo.',
+    'Prices shown [USD] All in.',
+    'Order 5678901234567 shipped; tracking number 940011189922385512345678 and FedEx tracking 123456789012345.',
+  ]) assert.deepEqual(clientLeaks(t), [], t);
 });
 
 /* ---------------- calc ---------------- */
@@ -72,6 +97,8 @@ await check(`calc: under ${MIN_SALES} sales it says "too few sales to call", on 
 await check('calc: MER, CAC, AOV, cost per lead against the $0.50 to $0.75 line (or the brand goal), product margin and what is taken out', () => {
   const r = calc({ net_sales: 6000, ad_spend: 4000, new_customers: 40, orders: 80 });
   assert.equal(r.mer.value, '1.50x'); assert.equal(r.cac.value, '$100.00'); assert.equal(r.aov.value, '$75.00');
+  const one = calc({ spend: 300, sales: 5, net_sales: 20000 });
+  assert.equal(one.mer, undefined, 'one ad spend is not ad_spend'); assert.equal(one.aov, undefined, 'attributed sales are not orders'); assert.equal(one.cost_per_sale.value, '$60.00');
   const l = calc({ spend: 450, leads: 1000 }).cost_per_lead;
   assert.equal(l.value, '$0.45'); assert.match(l.against, /at or under the \$0\.50 to \$0\.75 lead line/);
   assert.match(calc({ spend: 420, leads: 500 }).cost_per_lead.against, /^over/);
@@ -117,13 +144,13 @@ await check('a budget card over 50% says BIG CHANGE first; 20% and non-budget ca
 });
 
 /* ---------------- store ---------------- */
-await check('store extras: product margin with what is taken out; Amazon in when Triple Whale has Amazon sales, else website only', () => {
+await check('store extras: product margin with what is taken out; Amazon is never called in or out from the metric alone', () => {
   const piv = { netSales: { '2026-11-10': 6000, '2026-11-11': 4000, '2026-11-20': 999 }, totalProductCosts: { '2026-11-10': 800, '2026-11-11': 700 }, totalAmazonSales: { '2026-11-10': 300 }, totalAmazonOrders: { '2026-11-10': 6 } };
   const x = storeExtras(piv, '2026-11-10', '2026-11-16');
   assert.equal(x.product_margin_pct, 85); assert.match(x.product_margin_taken_out, /product costs only/);
-  assert.equal(x.amazon.in_store_numbers, true); assert.equal(x.amazon.orders, 6);
+  assert.equal(x.amazon.in_store_numbers, null); assert.equal(x.amazon.metric_orders, 6); assert.match(x.amazon.say, /source_name/);
   const y = storeExtras({ netSales: { '2026-11-10': 100 } }, '2026-11-10', '2026-11-10');
-  assert.equal(y.amazon.in_store_numbers, false); assert.match(y.amazon.say, /website only/); assert.equal(y.product_margin_pct, null);
+  assert.equal(y.amazon.in_store_numbers, null); assert.match(y.amazon.say, /^Cannot tell[\s\S]*source_name[\s\S]*only if there are none, say "website only"/); assert.equal(y.product_margin_pct, null);
 });
 
 /* ---------------- the engine post-step ---------------- */
@@ -166,6 +193,11 @@ await check('engine: a rewrite that comes back empty or longer is dropped and th
   bodies = []; script = [words(90)];
   const w = await eng.answerWeb(env, Q, [], h(), { style: 'Reply with ONLY the JSON object asked for.' });
   assert.equal(bodies.length, 1); assert.doesNotMatch(bodies[0].messages.at(-1).content, /Length for this answer/); assert.equal(w.answer, words(90));
+});
+await check('engine: a prompt the app wrote (noCheck: the Monday review, a scheduled question) gets no note and no check', async () => {
+  bodies = []; script = ['Team read: 412 | UGC carried the week. ' + words(200)];
+  const r = await eng.answerWeb(env, 'Review Harbor Golf for this week and post the message for the channel.', [], h(), { noCheck: true });
+  assert.equal(bodies.length, 1, 'no rewrite round'); assert.doesNotMatch(bodies[0].messages.at(-1).content, /Length for this answer/); assert.equal(r.checked, undefined);
 });
 await check('engine: Slack carries the note after the thread and checks the answer the same way', async () => {
   bodies = []; script = [words(90), 'Revenue was $1,240.50 on Monday Nov 16.'];
