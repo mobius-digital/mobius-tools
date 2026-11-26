@@ -482,10 +482,19 @@ function goalsFor(acct, ym) {
   return { ...inheritedGoals(g, ym), ...(g[ym] || {}) };
 }
 const marginOverride = (acct, ym) => goalsFor(acct, ym).cm_pct ?? null;
-/* NO GOAL SET (2026-11-26): a month counts as planned only when its OWN key carries a sales goal. A margin save, a
-   spend-only save or the strategist's goals tool can leave goals_json[ym] as {} or { cm_pct }: that month is NOT
-   planned, and goalsFor still hands back the inherited goal. Same test as account-health briefData and reportData. */
-export const goalsPlanned = (acct, ym) => safeJson(acct.goals_json, {})?.[ym]?.sales != null;
+/* NO GOAL SET (2026-11-26): is a month PLANNED (somebody typed its sales goal) or only carrying an earlier month's?
+   Planned when the month's own key has a sales goal, or when it does not (no key at all, or a key a margin or
+   spend-only save left without sales) and "default" has a sales goal: brands keep the current month's goal in default
+   on purpose. Only falling back to a PREVIOUS MONTH's key (inheritedGoals) is unplanned. The one helper for this
+   worker; the same rule as account-health goalplan.js monthPlanned and the engine's series.js goalsPlanned. */
+export function monthPlanned(g, ym) {
+  if (!g || typeof g !== 'object') return false;
+  const own = g[ym];
+  if (own && typeof own === 'object' && own.sales != null) return true;
+  const d = g.default;
+  return !!(d && typeof d === 'object' && d.sales != null);
+}
+export const goalsPlanned = (acct, ym) => monthPlanned(safeJson(acct.goals_json, {}), ym);
 const pubAccount = a => ({ act_id: a.act_id, name: a.name, currency: a.currency, tz: a.tz, tw_shop: a.tw_shop });
 
 /* ---------------- the money model ----------------

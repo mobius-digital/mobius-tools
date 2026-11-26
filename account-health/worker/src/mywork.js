@@ -42,6 +42,7 @@
  * no DM. Switch: settings.myworkDm = 'off' stops it. Metered with subCanAfford (d.canAfford). No em dashes anywhere.
  */
 import { houseMessage } from './house.js';
+import { monthPlanned } from './goalplan.js';
 import { listActions, ROSTER } from './actions.js';
 import { listBoard } from './production.js';
 import { DEFAULT_PEOPLE } from './checkin.js';
@@ -158,14 +159,14 @@ function slackTitle(text, name) {
 }
 
 /** The months a brand still needs a goal typed for, on `today`: this month when it has none, and next month from the
- *  25th. `goalsJson` = the brand's accounts.goals_json (an explicit "YYYY-MM" key with a sales goal, the same test as
- *  briefData's goals_planned; a margin or spend save can leave a key with no sales goal). Pure. */
+ *  25th. `goalsJson` = the brand's accounts.goals_json. Planned = goalplan.js monthPlanned (the month's own sales
+ *  goal, else default's; only a previous month's goal is unplanned), the same test as briefData's goals_planned. Pure. */
 export function goalMonthsDue(goalsJson, today) {
   const g = (typeof goalsJson === 'string' ? safe(goalsJson, {}) : goalsJson) || {};
   const ym = today.slice(0, 7), d = new Date(ym + '-15T12:00:00Z');
   d.setUTCMonth(d.getUTCMonth() + 1);
   const months = [ym, ...(+today.slice(8, 10) >= 25 ? [d.toISOString().slice(0, 7)] : [])];
-  return months.filter(m => !(g[m] && typeof g[m] === 'object' && g[m].sales != null));
+  return months.filter(m => !monthPlanned(g, m));
 }
 /** "Set December's goal for Sample Golf" lines, each for the brand's strategist, else the owner (OWNER_EMAIL). Pure. */
 export function goalItems(g, person) {

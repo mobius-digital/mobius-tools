@@ -5,10 +5,16 @@ import assert from 'node:assert/strict';
 import { hideUnsetGoals, goalsPlanned } from './src/worker.js';
 
 /* goalsPlanned (GET /api/client goals_planned, GET /api/overview goals_planned + month, GET /api/plan planned):
-   only the month's own sales goal counts. The routes themselves are proven in test-costs.mjs (section 18). */
+   the month's own sales goal, else default's; only a previous month's goal is unplanned. The routes themselves are
+   proven in test-costs.mjs (section 18). */
 {
   const a = g => ({ goals_json: g == null ? g : JSON.stringify(g) });
-  assert.equal(goalsPlanned(a({ default: { sales: 9000 } }), '2026-12'), false, 'no key: unplanned (the default is inherited)');
+  assert.equal(goalsPlanned(a({ default: { sales: 9000 } }), '2026-12'), true, 'default only: planned (typed there on purpose)');
+  assert.equal(goalsPlanned(a({ '2026-08': { sales: 1 }, default: { sales: 9000 }, '2026-10': { sales: 9000 } }), '2026-11'), true, 'no own key, previous months and default: planned');
+  assert.equal(goalsPlanned(a({ '2026-12': { sales: 7000 }, default: { sales: 9000 } }), '2026-12'), true, 'own key and default');
+  assert.equal(goalsPlanned(a({ '2026-12': { cm_pct: 0.5 }, default: { sales: 9000, cm_pct: 0.5 } }), '2026-12'), true, 'margin-only own key falls back to default sales');
+  assert.equal(goalsPlanned(a({ '2026-12': { spend: 4000 }, default: { spend: 4000 } }), '2026-12'), false, 'spend-only own key, spend-only default');
+  assert.equal(goalsPlanned(a({ '2026-11': { sales: 9000 }, default: { cm_pct: 0.5 } }), '2026-12'), false, 'previous month and a margin-only default');
   assert.equal(goalsPlanned(a({ '2026-11': { sales: 9000 } }), '2026-12'), false, 'an earlier month does not plan this one');
   assert.equal(goalsPlanned(a({ '2026-12': {} }), '2026-12'), false, 'an empty key');
   assert.equal(goalsPlanned(a({ '2026-12': { spend: 4000 } }), '2026-12'), false, 'spend only');

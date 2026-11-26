@@ -110,12 +110,19 @@ test('same answer as the old engine with no history at all: the forecast says so
 });
 
 /* NO GOAL SET (2026-11-26): goals_planned on /api/client and /api/overview (with month), and planned on /api/plan,
-   count a month as planned only when its own key carries a sales goal. Old and new answer the same for each case. */
+   count a month as planned when its own key carries a sales goal, else when default does (a goal typed into default
+   counts). Only falling back to a previous month's key is unplanned. Old and new answer the same for each case. */
+const prevYm = (() => { const d = new Date(ym + '-15T12:00:00Z'); d.setUTCMonth(d.getUTCMonth() - 1); return d.toISOString().slice(0, 7); })();
 const GOAL_CASES = [
-  ['no key for the month (only the default)', { default: { sales: 40000, spend: 9000 } }, false],
-  ['an empty key', { default: { sales: 40000 }, [ym]: {} }, false],
-  ['a spend only key', { default: { sales: 40000 }, [ym]: { spend: 11000 } }, false],
-  ['a margin only key', { default: { sales: 40000 }, [ym]: { cm_pct: 0.5 } }, false],
+  ['default only', { default: { sales: 40000, spend: 9000 } }, true],
+  ['no own key, a previous month and default', { [prevYm]: { sales: 30000 }, default: { sales: 40000, spend: 9000 } }, true],
+  ['own key and default', { [ym]: { sales: 52000 }, default: { sales: 40000 } }, true],
+  ['an empty own key and default', { default: { sales: 40000 }, [ym]: {} }, true],
+  ['a spend only own key and default', { default: { sales: 40000 }, [ym]: { spend: 11000 } }, true],
+  ['a margin only own key and default', { default: { sales: 40000 }, [ym]: { cm_pct: 0.5 } }, true],
+  ['a spend only own key, a spend only default', { default: { spend: 11000 }, [ym]: { spend: 11000 } }, false],
+  ['previous month only', { [prevYm]: { sales: 30000, spend: 9000 } }, false],
+  ['a margin only own key, previous month, no default', { [prevYm]: { sales: 30000 }, [ym]: { cm_pct: 0.5 } }, false],
   ['a sales goal of its own', { [ym]: { sales: 52000, spend: 11000 } }, true],
   ['a sales goal of 0', { [ym]: { sales: 0 } }, true],
 ];

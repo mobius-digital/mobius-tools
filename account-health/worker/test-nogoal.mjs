@@ -3,6 +3,7 @@
 import { dailyPost, noGoalLine } from './src/clientpost.js';
 import { _test } from './src/mywork.js';
 import { readFacts } from './src/reportread.js';
+import { monthPlanned } from './src/goalplan.js';
 const { goalMonthsDue, goalItems, forPerson, dmText, dmMessage } = _test;
 let n = 0, bad = 0;
 const ok = (c, m) => { n++; if (!c) { bad++; console.log('FAIL', m); } };
@@ -89,6 +90,23 @@ ok(fUn.month_pacing.sales_to_date === 3000 && !('month_goal' in fUn.month_pacing
 ok(fUn.no_goal_set.join() === '2026-12' && !JSON.stringify(fUn).includes('9000') && !JSON.stringify(fUn).includes('2800'), 'unplanned: month named, no goal number');
 const wk = readFacts({ ...pl, forecast: { ...pl.forecast, months: { '2026-11': { planned: true }, '2026-12': { planned: false } } }, pacing: undefined });
 ok(wk.plan_for_period === null && wk.no_goal_set.join() === '2026-12', 'week across a planned and an unplanned month: no plan');
+
+// 8. A goal typed into "default" counts (2026-11-26 later): brands keep the current month's goal there. Only falling
+//    back to a PREVIOUS month's key is unplanned. An own key without sales falls back to default's sales.
+const typedDefault = { '2026-08': { sales: 5 }, default: { sales: 7, spend: 3 }, '2026-09': { sales: 6 }, '2026-10': { sales: 7, spend: 3 } };
+ok(monthPlanned(typedDefault, '2026-11') === true, 'no own key, default has sales: planned');
+ok(monthPlanned(JSON.stringify(typedDefault), '2026-11') === true, 'JSON string input');
+ok(monthPlanned({ default: { sales: 7 } }, '2026-11') === true, 'default only: planned');
+ok(monthPlanned({ '2026-11': { sales: 9 }, default: { sales: 7 } }, '2026-11') === true, 'own key and default: planned');
+ok(monthPlanned({ '2026-11': { cm_pct: 0.4 }, default: { sales: 7, cm_pct: 0.4 } }, '2026-11') === true, 'margin-only own key, default has sales: planned');
+ok(monthPlanned({ '2026-11': { spend: 500 }, default: { spend: 500 } }, '2026-11') === false, 'spend-only own key, default spend-only: unplanned');
+ok(monthPlanned({ '2026-10': { sales: 7 } }, '2026-11') === false, 'previous month only: unplanned');
+ok(monthPlanned({ '2026-10': { sales: 7 }, default: { cm_pct: 0.4 } }, '2026-11') === false, 'previous month and a margin-only default: unplanned');
+ok(monthPlanned({}, '2026-11') === false && monthPlanned(null, '2026-11') === false && monthPlanned('not json', '2026-11') === false, 'nothing: unplanned');
+ok(goalMonthsDue(typedDefault, '2026-11-26').length === 0, 'My day: default typed, nothing due (next month falls back to default too)');
+ok(goalMonthsDue({ '2026-10': { sales: 7 } }, '2026-11-02').join() === '2026-11', 'My day: previous month only, still due');
+const gDef = { ...g, goals: [{ act_id: 'brand_dartee_golf', name: 'Brand A', goals_json: JSON.stringify(typedDefault), brief_enabled: 1 }] };
+ok(goalItems(gDef, noma).length === 0, 'My day: no Set goal line when default is typed');
 
 console.log(`${n - bad}/${n} passed`);
 if (bad) process.exit(1);

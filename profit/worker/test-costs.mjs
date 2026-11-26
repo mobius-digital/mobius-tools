@@ -628,14 +628,17 @@ await check('17. a teammate limited to one brand cannot write another brand\'s c
   db.exec(`DELETE FROM p_cost_rule WHERE rule = 'zone'`);
 });
 
-await check('18. goals_planned (client, overview with month) and planned (plan): only the month\'s own sales goal counts', async () => {
+await check('18. goals_planned (client, overview with month) and planned (plan): own sales goal, else default\'s; a previous month alone is unplanned', async () => {
   const ym = '2026-10';   // the frozen clock's month
   const was = db.prepare(`SELECT goals_json FROM brands WHERE id = 'brand_alpha'`).get().goals_json;
   const cases = [
-    ['no key for the month', { default: { sales: 40000, spend: 9000 } }, false],
-    ['an empty key', { default: { sales: 40000 }, [ym]: {} }, false],
-    ['a spend only key', { default: { sales: 40000 }, [ym]: { spend: 11000 } }, false],
-    ['a margin only key', { default: { sales: 40000 }, [ym]: { cm_pct: 0.5 } }, false],
+    ['no key for the month, default has sales', { default: { sales: 40000, spend: 9000 } }, true],
+    ['no key, a previous month and default', { '2026-09': { sales: 40000 }, default: { sales: 40000, spend: 9000 } }, true],
+    ['a previous month only', { '2026-09': { sales: 40000, spend: 9000 } }, false],
+    ['an empty key, default has sales', { default: { sales: 40000 }, [ym]: {} }, true],
+    ['a spend only key, default spend only', { default: { spend: 11000 }, [ym]: { spend: 11000 } }, false],
+    ['a margin only key, default has sales', { default: { sales: 40000 }, [ym]: { cm_pct: 0.5 } }, true],
+    ['a margin only key, no default', { '2026-09': { sales: 40000 }, [ym]: { cm_pct: 0.5 } }, false],
     ['planned', { [ym]: { sales: 52000, spend: 11000 } }, true],
   ];
   try {

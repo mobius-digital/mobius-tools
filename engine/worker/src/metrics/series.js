@@ -28,9 +28,18 @@ export function goalsFor(acct, ym) {
 
 export const marginOverride = (acct, ym) => goalsFor(acct, ym).cm_pct ?? null;
 
-/* A month counts as planned only when its own key carries a sales goal (old goalsPlanned, 2026-11-26). A margin or a
-   spend-only save leaves a key without one: that month is not planned, and goalsFor hands back the inherited goal. */
-export const goalsPlanned = (acct, ym) => safeJson(acct.goals_json, {})?.[ym]?.sales != null;
+/* Is a month PLANNED (old goalsPlanned, 2026-11-26)? Planned when its own key has a sales goal, or when it does not
+   (no key at all, or a key a margin or spend-only save left without sales) and "default" has a sales goal: brands keep
+   the current month's goal in default on purpose. Only falling back to a PREVIOUS MONTH's key (inheritedGoals) is
+   unplanned. Same rule as account-health goalplan.js and profit worker.js monthPlanned. */
+export function monthPlanned(g, ym) {
+  if (!g || typeof g !== 'object') return false;
+  const own = g[ym];
+  if (own && typeof own === 'object' && own.sales != null) return true;
+  const d = g.default;
+  return !!(d && typeof d === 'object' && d.sales != null);
+}
+export const goalsPlanned = (acct, ym) => monthPlanned(safeJson(acct.goals_json, {}), ym);
 
 export const pubAccount = a => ({ act_id: a.act_id, name: a.name, currency: a.currency, tz: a.tz, tw_shop: a.tw_shop });
 
