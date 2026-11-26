@@ -23,7 +23,10 @@
  *   connect    the owner                         "N client connect asks waiting on you"             the key is pasted (p_br_doc) or the
  *                                                 (Klaviyo key, Clarity token, Google request)        Google request goes through
  *   creators   the buyer / the reviewer          "N approved creator videos to load"                loaded into Meta / reviewed in Trybe
- *              (agency switch creatorProgram)    "N creator videos to review"
+ *              (agency switch creatorProgram)    "N creator videos to review" (+ "N waiting 2 days or more")
+ *                                                 "Answer N creators waiting in Discord"             the next morning's snapshot (trybe.js
+ *                                                 Monday: "Rebook N creators this week"               settings trybeAsks) no longer lists it
+ *   weekplan is also behind the agency switch feature:weekPlan (a54; missing = on, as today).
  *
  * Reads are quiet: one that fails leaves its line out and never breaks My day. No client names, no em dashes. */
 import { DEFAULT_PEOPLE, DEFAULT_CHANNEL } from './checkin.js';
@@ -82,6 +85,8 @@ export async function gatherLines(env, d, { today, brands = [] } = {}) {
     channel: (await S('checkinChannel')) || DEFAULT_CHANNEL,
   }), null);
   out.mondayPlans = safe(await S(`mondayPlans:${today}`), null);
+  /* a54: the Monday week plan is our process, so it sits behind the agency switch feature:weekPlan (missing = on) */
+  out.weekPlanOn = await quiet(() => featureOn(env, 'weekPlan', d && d.getSetting ? (e, k) => d.getSetting(e, k) : undefined), true);
   out.weekplan = safe(await S(`weekplan:${mondayOf(today)}`), {}) || {};
   out.countdown = safe(await S('calCountdown'), null);
   const since = addDays(today, -14);
@@ -129,10 +134,15 @@ export async function gatherLines(env, d, { today, brands = [] } = {}) {
     const NL = `status = 'approved' AND ads_count = 0 AND NOT EXISTS (SELECT 1 FROM p_trybe_ad a WHERE a.act_id = s.act_id AND a.trybe_id = s.trybe_id)`;
     const rows = ((await env.DB.prepare(`SELECT act_id, SUM(status = 'pending') AS review, SUM(${NL}) AS queue FROM p_trybe_sub s GROUP BY act_id`).all()).results) || [];
     const live = rows.filter(r => (+r.review || 0) + (+r.queue || 0) > 0);
-    if (!live.length) return { brands: [], team: {} };
+    /* this morning's asks snapshot (trybe.js trybeTick, settings trybeAsks): reviews 2+ days old, Discord, rebook */
+    const snap = safe(await S('trybeAsks'), null);
+    const asks = snap && snap.date === today && Array.isArray(snap.brands)
+      ? snap.brands.filter(a => a && a.act && ((+a.old_review || 0) > 0 || (+a.discord || 0) > 0 || (Array.isArray(a.rebook) && a.rebook.length))) : [];
+    if (!live.length && !asks.length) return { brands: [], team: {}, asks: [] };
     const name = id => (brands.find(b => b.act_id === id) || {}).name || id;
-    const team = await teamOf(env, live.map(r => r.act_id)).catch(() => ({}));
-    return { brands: live.map(r => ({ act: r.act_id, name: name(r.act_id), review: +r.review || 0, queue: +r.queue || 0 })), team };
+    const team = await teamOf(env, [...new Set([...live.map(r => r.act_id), ...asks.map(a => a.act)])]).catch(() => ({}));
+    return { brands: live.map(r => ({ act: r.act_id, name: name(r.act_id), review: +r.review || 0, queue: +r.queue || 0 })), team,
+      asks: asks.map(a => ({ act: a.act, name: name(a.act) || a.name, old_review: +a.old_review || 0, discord: +a.discord || 0, rebook: (a.rebook || []).map(c => clean(c && c.name, 60)).filter(Boolean) })) };
   }, null);
   return out;
 }
@@ -160,7 +170,7 @@ export function lineItems(L, person, { isPerson, strat = {}, ownerEmail = '' } =
 
   /* a31 + a54: Monday, the brands with no week plan yet, to their strategist (else the owner) */
   const mp = L.mondayPlans;
-  if (mp && mp.date === today && Array.isArray(mp.brands)) {
+  if (mp && L.weekPlanOn !== false && mp.date === today && Array.isArray(mp.brands)) {
     const planned = new Set(Object.values(L.weekplan || {}).flatMap(w => ((w && w.brands) || []).map(x => x && x.a)));
     const mine = mp.brands.filter(b => b && b.act && !planned.has(b.act) && (strat[b.act] ? me(strat[b.act]) : owner));
     if (mine.length) out.push({ id: `weekplan:${today}`, source: 'weekplan', bucket: 'today', text: `Write this week's plan for ${many(mine.length, 'brand')}`,
@@ -243,12 +253,26 @@ export function lineItems(L, person, { isPerson, strat = {}, ownerEmail = '' } =
     const load = cr.brands.filter(b => b.queue > 0 && me(laneOwner('MEDIA BUYING', (cr.team || {})[b.act])));
     const review = cr.brands.filter(b => b.review > 0 && me(laneOwner('CREATORS', (cr.team || {})[b.act])));
     const sum = (xs, k) => xs.reduce((n, b) => n + b[k], 0);
+    /* the asks snapshot, all for the reviewer (the CREATORS lane: review, Discord and rebooking, as the post tagged) */
+    const asks = (cr.asks || []).filter(a => me(laneOwner('CREATORS', (cr.team || {})[a.act])));
+    const oldOf = act => (asks.find(a => a.act === act) || {}).old_review || 0;
     if (load.length) out.push({ id: `creators:load:${today}`, source: 'creators', bucket: 'today', text: `${many(sum(load, 'queue'), 'approved creator video')} to load`,
       detail: load.map(b => `${noDash(b.name)} ${b.queue}`).join(', ') + '.', from: 'Creators', brand: load.length === 1 ? noDash(load[0].name) : '', act_id: load.length === 1 ? load[0].act : '', due: '',
       v5: V5.creatorsLoad, link: v5Link(V5.creatorsLoad), btn_label: 'Open Creators', done: false });
-    if (review.length) out.push({ id: `creators:review:${today}`, source: 'creators', bucket: 'today', text: `${many(sum(review, 'review'), 'creator video')} to review`,
-      detail: review.map(b => `${noDash(b.name)} ${b.review}`).join(', ') + '.', from: 'Creators', brand: review.length === 1 ? noDash(review[0].name) : '', act_id: review.length === 1 ? review[0].act : '', due: '',
-      v5: V5.creatorsReview, link: v5Link(V5.creatorsReview), btn_label: 'Review', done: false });
+    if (review.length) {
+      const old = review.reduce((n, b) => n + oldOf(b.act), 0);
+      out.push({ id: `creators:review:${today}`, source: 'creators', bucket: 'today', text: `${many(sum(review, 'review'), 'creator video')} to review`,
+        detail: review.map(b => `${noDash(b.name)} ${b.review}`).join(', ') + '.' + (old ? ` ${many(old, 'video')} waiting 2 days or more.` : ''), from: 'Creators', brand: review.length === 1 ? noDash(review[0].name) : '', act_id: review.length === 1 ? review[0].act : '', due: '',
+        v5: V5.creatorsReview, link: v5Link(V5.creatorsReview), btn_label: 'Review', done: false });
+    }
+    const dc = asks.filter(a => a.discord > 0);
+    if (dc.length) out.push({ id: `creators:discord:${today}`, source: 'creators', bucket: 'today', text: `Answer ${many(sum(dc, 'discord'), 'creator')} waiting in Discord`,
+      detail: dc.map(a => `${noDash(a.name)} ${a.discord}`).join(', ') + '. Counted this morning.', from: 'Creators', brand: dc.length === 1 ? noDash(dc[0].name) : '', act_id: dc.length === 1 ? dc[0].act : '', due: '',
+      v5: V5.creatorsReview, link: v5Link(V5.creatorsReview), btn_label: 'Open Creators', done: false });
+    const rb = asks.filter(a => a.rebook.length);
+    if (rb.length) out.push({ id: `creators:rebook:${today}`, source: 'creators', bucket: 'today', text: `Rebook ${many(rb.reduce((n, a) => n + a.rebook.length, 0), 'creator')} this week`,
+      detail: rb.map(a => `${noDash(a.name)}: ${listOf(a.rebook.map(noDash))}`).join('; ') + '. Their ads beat the account cost per sale and they have gone quiet.', from: 'Creators', brand: rb.length === 1 ? noDash(rb[0].name) : '', act_id: rb.length === 1 ? rb[0].act : '', due: '',
+      v5: V5.creatorsReview, link: v5Link(V5.creatorsReview), btn_label: 'Open Creators', done: false });
   }
   return out;
 }

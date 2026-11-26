@@ -48,7 +48,8 @@ import { houseMessage } from './house.js';
 import { monthPlanned } from './goalplan.js';
 import { listActions, ROSTER } from './actions.js';
 import { listBoard } from './production.js';
-import { DEFAULT_PEOPLE } from './checkin.js';
+import { DEFAULT_PEOPLE, plansToday, planFromLocus } from './checkin.js';
+import { featureOn } from './jobflags.js';
 import { permalink } from './slackindex.js';
 import { onboardLines, lineFor, myWorkItem } from './onboard.js';
 import { allSavedNotify, cleanNotify, catalogTypes, wants } from './notify.js';
@@ -395,6 +396,25 @@ export async function handleMyWork(request, env, url, path, json, d) {
         note: await readNote(env, who), saved: await listSaved(env, who),
         dm: { on: !off && !!a.person.slack && list.some(n => n.toLowerCase() === who.toLowerCase()), text: dmText(r, a.person, g.today), at: '5:00am Central, weekdays' } });
     }
+    /* The daily check-in in Locus (2026-11-26, move lines a10, checkin.js): today's board for Agency > Team and My day
+       (who posted a plan, who is out, who has not), and the person's own plan or "out today". Same storage as the
+       Slack form (settings checkin:<date>). */
+    if (path === '/api/mywork/plans' && request.method === 'GET') {
+      const v = await plansToday(env, d, { date: d.centralDate() });
+      return json({ ...v, me: a.person.slack || null, on_list: !!(a.person.slack && v.people.some(p => p.uid === a.person.slack && !p.week_only)) });
+    }
+    if (path === '/api/mywork/plan' && request.method === 'POST') {
+      if (!a.person.slack) throw err(400, 'You are not on the daily check-in list. Ask the owner to add you.');
+      return json({ ok: true, row: await planFromLocus(env, d, { uid: a.person.slack, text: body.text, out: !!body.out, types: body.types, date: d.centralDate() }) });
+    }
+    /* The Monday week plans still to write (a54, behind the agency switch feature:weekPlan): the Monday agenda's row. */
+    if (path === '/api/mywork/weekplan' && request.method === 'GET') {
+      const today = d.centralDate();
+      const on = await featureOn(env, 'weekPlan', (e, k) => d.getSetting(e, k)).catch(() => true);
+      const mp = safe(await d.getSetting(env, `mondayPlans:${today}`).catch(() => null), null);
+      const wp = safe(await d.getSetting(env, `weekplan:${mondayOf(today)}`).catch(() => null), {}) || {};
+      return json({ on, date: today, monday: dow(today) === 1, brands: on ? weekPlanMissing(mp, wp, today, STRAT) : [] });
+    }
     if (request.method !== 'PUT' && request.method !== 'POST') return json({ error: 'not found' }, 404);
     if (path === '/api/mywork/note') {
       const text = String(body.text ?? '').replace(/\r/g, '').slice(0, 20000), at = now();
@@ -422,4 +442,11 @@ export async function handleMyWork(request, env, url, path, json, d) {
   } catch (e) { return json({ error: e.message }, e.status || 500); }
 }
 
+/** The brands the Monday list (callnudge.js mondayPlans:<date>) still has no week plan for (weekplan:<monday>), each with
+ *  its strategist (STRAT, else '' = the owner). Today only: another day's list answers []. Pure. */
+export function weekPlanMissing(mp, weekplans, today, strat = STRAT) {
+  if (!mp || mp.date !== today || !Array.isArray(mp.brands)) return [];
+  const planned = new Set(Object.values(weekplans || {}).flatMap(w => ((w && w.brands) || []).map(x => x && x.a)));
+  return mp.brands.filter(b => b && b.act && !planned.has(b.act)).map(b => ({ act: b.act, name: noDash(clean(b.name || b.act, 60)), strategist: strat[b.act] || '' }));
+}
 export const _test = { goalMonthsDue, goalItems, peopleFrom, access, forPerson, dmText, dmMessage, dmWindow, isPerson, myWorkDmTick, handleMyWork, slackTitle, dmRecipients };

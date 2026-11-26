@@ -10,6 +10,7 @@ import { put } from '../../kit.js';
 import { askWhy, helpBar, dl } from '../home/_biz.js';
 import { h, em, card, kpi, kpis, takeaway, button, table, barChart, statusDot, skeleton } from '../../kit.js';
 import { ok, usd, sum, shortDate, addDays, css, head, soft, notConnected, num } from '../email/_em.js';
+import { digestLines } from './_digest.js';
 
 /* ---------- real mode: the stock feed, shaped like the fixture ---------- */
 function shape(st, ads) {
@@ -20,7 +21,7 @@ function shape(st, ads) {
   for (let w = 0; w < 12; w++) { const s = 6 + w * 7; weeks.push({ label: shortDate(addDays(today, s - 90)), sold: day.slice(s, s + 7).reduce((a, x) => a + x, 0) }); }
   const firstOut = p => { const v = (p.variants || []).filter(x => x.isCore && x.velocity > 0.001).sort((a, b) => (a.onHand <= 0 ? -1 : a.runOutDays ?? 9e9) - (b.onHand <= 0 ? -1 : b.runOutDays ?? 9e9))[0]; return v && (p.variants || []).length > 1 ? v.axis || v.title || v.sku || null : null; };
   return {
-    connected: true, today, weeks: weeks.some(w => w.sold > 0) ? weeks : [], note: null,
+    connected: true, today, weeks: weeks.some(w => w.sold > 0) ? weeks : [], note: null, digest: digestLines(st),
     products: (st.products || []).filter(p => !['off', 'drop_done'].includes(p.status) && (p.velocity > 0.001 || p.onHand > 0)).map(p => ({
       id: String(p.id), title: p.title, on_hand: Math.max(0, p.onHand || 0), per_day: p.velocity || 0,
       days_left: p.velocity > 0.001 ? (p.status === 'out' ? 0 : p.runOutDays ?? 0) : null,
@@ -83,6 +84,17 @@ function chartCard(d) {
     barChart({ values: w.map(x => x.sold), labels: w.map(x => x.label), lead: w.length - 1, note: d.note && d.note.index != null ? d.note : null, height: 300, phoneHeight: 260,
       label: 'Units sold each week, the last ' + w.length + ' weeks',
       hover: i => [b('Week of ' + w[i].label), h('span', null, 'Sold ', b(num(w[i].sold)))] }));
+}
+
+/* The stock digest (a66): the same lines the Monday stock post carries, for the team. */
+function digestCard(d, ctx) {
+  const g = d.digest;
+  if (ctx.isClient || !g) return null;
+  return card({ title: 'This week in stock', note: 'the same lines as the Monday stock post' },
+    h('p', null, statusDot(g.tone, g.summary)),
+    g.items.length ? h('ul', { class: 'em-digest', style: { display: 'grid', gap: '12px', listStyle: 'none', padding: '0', margin: '0' } }, g.items.map(x => h('li', { style: { display: 'grid', gap: '4px' } }, statusDot(x.tone, h('b', null, x.title)), x.body ? h('div', { class: 'em-none' }, x.body) : null)))
+      : h('p', { class: 'em-none' }, 'Nothing needs a decision this week.'),
+    g.more ? h('p', { class: 'em-none' }, `And ${g.more} more in Products and Stock.`) : null);
 }
 
 function listCard(d, rule) {
@@ -157,6 +169,7 @@ export default {
       ], h('span', { class: 'bz-chip' }, 'As of today')),
       h('section', { class: 'lx-hero line' }, figures(d, rule)),
       verdict(d, rule, ctx),
+      digestCard(d, ctx),
       chartCard(d),
       listCard(d, rule),
     ].filter(Boolean));
