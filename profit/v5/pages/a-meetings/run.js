@@ -446,7 +446,7 @@ const CSS = `
 .mr-rail button.on small{color:rgba(255,255,255,.72)}
 .mr-head{display:flex;align-items:flex-end;gap:14px 28px;flex-wrap:wrap}
 .mr-head>div{display:grid;gap:8px;min-width:0}
-.mr-head h2{margin:0;font-size:56px;font-weight:600;letter-spacing:-.045em;line-height:1.02;overflow-wrap:anywhere}
+.mr-head h2{margin:0;font-size:var(--num-xl);font-weight:600;letter-spacing:-.045em;line-height:1.02;overflow-wrap:anywhere}
 .mr-head .mt-light{margin-bottom:8px}
 .mr-head .when{margin-left:auto;margin-bottom:10px;color:var(--muted);font-size:16px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .mr-ask{margin:0;max-width:940px;font-size:23px;line-height:1.4;letter-spacing:-.018em;color:var(--ink-2)}
@@ -455,13 +455,13 @@ const CSS = `
 .mr-nums,.mr-counts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:48px}
 .mr-fig{display:grid;gap:8px;min-width:0;align-content:start}
 .mr-fig .l{font-size:14.5px;font-weight:550;color:var(--muted)}
-.mr-fig .v{font-size:76px;font-weight:600;letter-spacing:-.05em;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mr-fig .v{font-size:var(--num-xl);font-weight:600;letter-spacing:-.05em;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
 .mr-fig .v.w{font-size:24px;letter-spacing:-.02em;line-height:1.25;color:var(--ink-2);white-space:normal}
 .mr-fig .s{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;font-size:15px;color:var(--muted)}
 .mr-chan{display:flex;gap:14px 44px;flex-wrap:wrap;padding-top:22px;border-top:1px solid var(--line)}
 .mr-chan>span{display:inline-flex;align-items:baseline;gap:12px}
 .mr-chan small{font-size:14px;color:var(--muted)}
-.mr-chan b{font-size:28px;font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.mr-chan b{font-size:var(--num-l);font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 .mr-sec{display:grid;gap:14px;min-width:0}
 .mr-sec .mt-h h3{font-size:22px}
 .mr-sec .mt-h>span{font-size:14.5px}
@@ -476,7 +476,7 @@ const CSS = `
 .mr-dec .txt b{font-size:24px;font-weight:600;letter-spacing:-.026em;line-height:1.28}
 .mr-dec .txt small{font-size:14px;color:var(--muted)}
 .mr-dec .num{display:grid;gap:2px;padding-left:36px;border-left:1px solid var(--line)}
-.mr-dec .num span{font-size:56px;font-weight:600;letter-spacing:-.045em;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mr-dec .num span{font-size:var(--num-xl);font-weight:600;letter-spacing:-.045em;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
 .mr-dec .num small{font-size:13px;color:var(--muted)}
 .mr-dec .btns{display:grid;gap:10px}
 .mr-dec .btns .lx-btn{justify-content:center}
@@ -507,15 +507,15 @@ const CSS = `
 .mr-sb .nm i.good{background:var(--good)}.mr-sb .nm i.warn{background:var(--watch)}.mr-sb .nm i.bad{background:var(--bad)}
 .mr-sb .n{display:grid;gap:1px;min-width:0;justify-items:start}
 .mr-sb .n small{font-size:12px;color:var(--muted)}
-.mr-sb .n b{font-size:28px;font-weight:600;letter-spacing:-.035em;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mr-sb .n b{font-size:var(--num-l);font-weight:600;letter-spacing:-.035em;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap}
 .mr-sb .n em{font-style:normal;font-size:13px;color:var(--muted)}
-.mr-sb .n.mer b{font-size:34px}
+.mr-sb .n.mer b{font-size:var(--num-l)}
 .mr-sb .n.none{grid-column:2/5;font-size:16px;font-weight:550;color:var(--muted)}
 .mr-q{display:grid;grid-template-columns:minmax(0,220px) 190px minmax(0,1fr) 110px;gap:24px;align-items:center;width:100%;min-height:84px;padding:14px 30px;border:0;border-top:1px solid var(--line);background:none;text-align:left;font:inherit;color:inherit;cursor:pointer}
 .mr-q:first-child{border-top:0}
 .mr-q .nm{font-size:20px;font-weight:600;letter-spacing:-.02em;min-width:0}
 .mr-q .nm small{display:block;font-size:13px;font-weight:500;color:var(--muted)}
-.mr-q .big{font-size:32px;font-weight:600;letter-spacing:-.035em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mr-q .big{font-size:var(--num-l);font-weight:600;letter-spacing:-.035em;font-variant-numeric:tabular-nums;white-space:nowrap}
 .mr-q .big small{font-size:13px;font-weight:500;letter-spacing:0;color:var(--muted);margin-left:8px}
 .mr-q .say{font-size:15.5px;line-height:1.4;color:var(--ink-2);min-width:0}
 .mr-q .say b{font-weight:600;color:var(--ink)}
@@ -535,7 +535,7 @@ const CSS = `
 .mr-insheet .mt-light{justify-self:start;box-shadow:inset 0 0 0 1px var(--line-strong)}
 .mr-sheet .mr-brand{gap:28px}
 .mr-sheet .mr-nums{grid-template-columns:1fr;gap:22px}
-.mr-sheet .mr-fig .v{font-size:48px}
+.mr-sheet .mr-fig .v{font-size:var(--num-xl)}
 .mr-sheet .mr-dec{grid-template-columns:1fr;gap:18px;padding:20px}
 .mr-sheet .mr-dec .num{padding-left:0;border-left:0}
 .mr-sheet .mr-dec .btns{grid-template-columns:1fr 1fr}
@@ -543,9 +543,9 @@ const CSS = `
 .mr-sheet .mr-list li{font-size:16.5px}
 .mr-sheet .mr-task .who{width:auto}
 @media (max-width:1040px){
-  .mr-head h2{font-size:44px}
+  .mr-head h2{font-size:var(--num-xl)}
   .mr-nums,.mr-counts{gap:28px}
-  .mr-fig .v{font-size:54px}
+  .mr-fig .v{font-size:var(--num-xl)}
   .mr-dec{grid-template-columns:minmax(0,1fr) auto;gap:22px}
   .mr-dec .btns{grid-column:1/-1;grid-template-columns:1fr 1fr}
   .mr-sb{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:16px;padding:14px 20px}
@@ -555,19 +555,19 @@ const CSS = `
 }
 @media (max-width:759px){
   .mr{gap:26px}
-  .mr-head h2{font-size:34px}
+  .mr-head h2{font-size:var(--num-l)}
   .mr-head .when{margin-left:0;margin-bottom:0;flex:1 1 100%;font-size:14.5px}
   .mr-ask{font-size:18px}
   .mr-brand{gap:28px}
   .mr-nums,.mr-counts{grid-template-columns:1fr;gap:22px}
-  .mr-fig .v{font-size:52px}
+  .mr-fig .v{font-size:var(--num-xl)}
   .mr-chan{gap:10px 28px;padding-top:18px}
   .mr-chan b{font-size:22px}
   .mr-list li{font-size:17px}
   .mr-dec{grid-template-columns:1fr;gap:18px;padding:20px 18px}
   .mr-dec .txt b{font-size:20px}
   .mr-dec .num{padding-left:0;border-left:0}
-  .mr-dec .num span{font-size:44px}
+  .mr-dec .num span{font-size:var(--num-xl)}
   .mr-add{flex-wrap:wrap}
   .mr-add .mr-in{flex:1 1 100%}
   .mr-notes{font-size:16px}

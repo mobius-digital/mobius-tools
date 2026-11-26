@@ -79,7 +79,7 @@ const CSS = `
 .ww-g{display:grid;gap:8px;align-content:start;min-width:0}
 .ww-g .hd{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600}
 .ww-g .hd .lx-stat{margin-left:auto}
-.ww-g .v{font-size:28px;font-weight:600;letter-spacing:-.035em;font-variant-numeric:tabular-nums;line-height:1.1}
+.ww-g .v{font-size:var(--num-l);font-weight:600;letter-spacing:-.035em;font-variant-numeric:tabular-nums;line-height:1.1}
 .ww-g .v small{font-size:12px;font-weight:500;color:var(--muted);letter-spacing:0;margin-left:6px}
 .ww-g .v.dim{color:var(--faint)}
 .ww-g p{font-size:12.5px;color:var(--muted)}

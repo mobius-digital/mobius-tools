@@ -119,7 +119,7 @@ const CSS = `
 .lx-rc-three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;align-items:stretch}
 .lx-rc-card{display:flex;flex-direction:column;gap:6px}
 .lx-rc-card .l{font-size:13px;color:var(--muted)}
-.lx-rc-card .big{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:34px;font-weight:600;letter-spacing:-.04em;line-height:1.1;font-variant-numeric:tabular-nums}
+.lx-rc-card .big{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:var(--num-l);font-weight:600;letter-spacing:-.04em;line-height:1.1;font-variant-numeric:tabular-nums}
 .lx-rc-card .big small{font-size:14px;font-weight:400;letter-spacing:0;color:var(--muted)}
 .lx-rc-card .big.word{font-size:22px;letter-spacing:-.025em;padding:6px 0}
 .lx-rc-card p{font-size:13.5px;color:var(--muted);padding:6px 0 14px}

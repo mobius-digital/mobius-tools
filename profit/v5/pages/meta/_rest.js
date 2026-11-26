@@ -78,15 +78,15 @@ const CSS = `
 .mr-tile.sm{width:56px;height:70px}.mr-tile.xs{width:32px;height:40px;border-radius:8px}.mr-tile.xs svg{width:16px;height:16px}
 .mr-tile.lg{width:76px;height:95px}
 .mr-kp{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--sp-8)}
-.mr-kp .lx-kpi .v{font-size:clamp(30px,3.4vw,44px)}
+.mr-kp .lx-kpi .v{font-size:var(--num-xl)}
 .mr-kp .lx-kpi .v small{font-size:14px}
-.mr-n{font-size:28px;font-weight:600;letter-spacing:-.03em;line-height:1.1;color:var(--ink);font-variant-numeric:tabular-nums}
+.mr-n{font-size:var(--num-l);font-weight:600;letter-spacing:-.03em;line-height:1.1;color:var(--ink);font-variant-numeric:tabular-nums}
 .mr-dim{color:var(--muted)}.mr-faint{color:var(--faint)}
 .mr-num{font-variant-numeric:tabular-nums;white-space:nowrap}
 .mr-more{display:flex;justify-content:center;padding:6px 0 0}
 @media (max-width:759px){
   .mr-kp{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-5)}
-  .mr-kp .lx-kpi .v{font-size:28px}
+  .mr-kp .lx-kpi .v{font-size:var(--num-l)}
   .mr-kp>:last-child:nth-child(odd){grid-column:1/-1}
   .mr-bar{gap:10px}
 }`;

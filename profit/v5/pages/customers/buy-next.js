@@ -35,7 +35,7 @@ const CSS = `
   .bn-picks{display:flex;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
   .bn-pick{flex:0 0 46%;scroll-snap-align:start;padding:14px 16px}
   .bn-after{padding:14px 18px 4px}
-  .bn-kpis .lx-kpi.lg .v{font-size:28px}
+  .bn-kpis .lx-kpi.lg .v{font-size:var(--num-l)}
   .bn-kpis .lx-kpi .l{white-space:normal}
 }`;
 

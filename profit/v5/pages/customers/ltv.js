@@ -29,9 +29,9 @@ const CSS = `
 @media (max-width:759px){
   .lv-pad{padding:18px}
   .lv-flush .lv-head{padding:16px 18px 6px}
-  .lv-kpis .lx-kpi.lg .v{font-size:32px}
+  .lv-kpis .lx-kpi.lg .v{font-size:var(--num-l)}
   .lv-kpis .lx-kpi .l{white-space:normal}
-  .lv-big .lx-hero-num{font-size:36px}
+  .lv-big .lx-hero-num{font-size:var(--num-xl)}
 }`;
 const headOf = (title, sub, ...tools) => h('div', { class: 'lv-head' }, h('div', null, h('h3', null, title), sub ? h('p', null, sub) : null), tools.filter(Boolean).length ? h('div', null, tools) : null);
 

@@ -85,7 +85,7 @@ const CSS = `
   .lx-card.flush>.fx-head{padding:16px 18px 6px}
   .fx-steps{display:none}
   .fx-rows{display:block}
-  .fx-kpis .lx-kpi.lg .v{font-size:32px}
+  .fx-kpis .lx-kpi.lg .v{font-size:var(--num-l)}
   .fx-flow text{font-size:11.5px}
   .fx-flow .cols span{font-size:12.5px}
   .fx-flow .cols b{font-size:9.5px;letter-spacing:.05em}

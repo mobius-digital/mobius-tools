@@ -86,7 +86,7 @@ const CSS = `
 .mo-need{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-8);padding:6px 28px 4px}
 .mo-need>div{display:grid;gap:4px;min-width:0}
 .mo-need small{font-size:13px;color:var(--muted)}
-.mo-need span.lx-big{font-size:44px;color:var(--ink)}
+.mo-need span.lx-big{font-size:var(--num-xl);color:var(--ink)}
 .mo-need span{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 .mo-days{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));margin:18px 28px 0;border-top:1px solid var(--line)}
 .mo-days>div{display:grid;gap:3px;align-content:start;padding:14px 12px 16px 0;min-width:0}
@@ -139,7 +139,7 @@ tr.total .lx-gauge-track,.mo-item.total .lx-gauge-track{background:#E4E2DC}
   .mo{gap:var(--sp-5)}
   .mo-chart{padding:18px 14px 12px}
   .mo-need{padding:4px 18px 0;gap:var(--sp-5)}
-  .mo-need span.lx-big{font-size:30px}
+  .mo-need span.lx-big{font-size:var(--num-l)}
   .mo-days{grid-template-columns:repeat(2,minmax(0,1fr));margin:14px 18px 0}
   .mo-more{padding:0 18px 18px}
   .mo-budget{padding:8px 18px 14px}

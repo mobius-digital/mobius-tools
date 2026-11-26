@@ -199,7 +199,7 @@ const CSS = `
 .mp-figs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:40px}
 .mp-fig{display:grid;gap:6px;min-width:0;align-content:start}
 .mp-fig .l{font-size:13.5px;font-weight:550;color:var(--muted)}
-.mp-fig .v{font-size:52px;font-weight:600;letter-spacing:-.045em;line-height:1;font-variant-numeric:tabular-nums}
+.mp-fig .v{font-size:var(--num-xl);font-weight:600;letter-spacing:-.045em;line-height:1;font-variant-numeric:tabular-nums}
 .mp-fig .v.bad{color:var(--bad)}
 .mp-fig .s{font-size:13.5px;color:var(--muted)}
 .mp-sec{display:grid;gap:14px;min-width:0;justify-items:stretch}
@@ -253,7 +253,7 @@ const CSS = `
 @media (max-width:759px){
   .mp{gap:30px}
   .mp-figs{gap:22px 16px}
-  .mp-fig .v{font-size:40px}
+  .mp-fig .v{font-size:var(--num-xl)}
   .mp-m{grid-template-columns:46px minmax(0,1fr);gap:6px 12px;padding:14px 16px;align-items:start}
   .mp-m .ti b{white-space:normal}
   .mp-m .wh,.mp-m>.lx-stat,.mp-m>.lx-pill{grid-column:2}

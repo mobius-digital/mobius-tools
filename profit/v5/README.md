@@ -275,7 +275,15 @@ All return a DOM node unless noted.
 - Controls: `tabs(items, active, onPick)`, `segmented(items, active, onPick)`,
   `field({ label, hint, icon, id, ...inputAttrs })`, `toggle({ label, checked, onchange })`
 - Overlays: `toast(text, { tone, ms })`, `sheet({ title, body, side, onClose, class })`
-  (a side panel on desktop, a sheet from the bottom on a phone)
+  (THE detail pattern: a centered modal sheet on desktop, 720px wide, or 560px with `side: 'center'` for a confirm;
+  a sheet from the bottom on a phone. No side panels. Escape, backdrop click, focus trap, focus returns.)
+- Ask in place: `askpanel.js` `openAskPanel({ route, brand, title, range, href })` (the top bar button, Ctrl K and the
+  phone Ask tab open it; it reuses `askOnce` from `pages/ask/index.js` and sends the page as `screen`).
+- Type scale (app.css): `--num-xl` (the one hero number, 36px max, nothing on a page is bigger), `--num-l` (26px,
+  kpi tiles), `--num-m` (20px), `--num-s` (16px), `--fs-body` 14px, `--fs-cell` 13px, `--row-h` 36px tables.
+  Pages use these tokens, never their own px for a figure.
+- Exports (`pages/a-black-friday/_export.js`): `hiCanvas(w, h)` draws at 3x or more (about 3840 to 4200 wide) and
+  `fontsReady(faces)` waits for the web fonts first; reuse both for any new PNG or PDF.
 
 ### The one chart
 

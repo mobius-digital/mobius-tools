@@ -40,7 +40,7 @@ const CSS = `
 .gg-status .r{margin-left:auto}
 .gg-figs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--sp-8)}
 .gg-figs.three{grid-template-columns:repeat(3,minmax(0,1fr))}
-.gg-figs .lx-kpi .v{font-size:clamp(30px,3.4vw,44px)}
+.gg-figs .lx-kpi .v{font-size:var(--num-xl)}
 .gg-figs .lx-kpi .v small{font-size:13px;font-weight:500;letter-spacing:0;color:var(--muted);margin-left:8px}
 .gg-figs .lx-kpi .s{flex-wrap:wrap}
 .gg-figs .lx-gauge{margin-top:14px}
@@ -93,7 +93,7 @@ const CSS = `
 .gg-sug .tx span{display:block;font-size:13px;color:var(--muted);margin-top:2px}
 .gg-sug .tx .w{font-size:12px;color:var(--faint)}
 .gg-n{display:flex;align-items:baseline;gap:12px;color:var(--muted);font-size:13.5px}
-.gg-n b{font-size:44px;font-weight:600;letter-spacing:-.04em;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
+.gg-n b{font-size:var(--num-xl);font-weight:600;letter-spacing:-.04em;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
 .gg-day{display:grid;grid-template-columns:92px minmax(0,1fr);gap:8px 22px;padding:18px 0;border-top:1px solid var(--line)}
 .gg-day:first-of-type{border-top:0;padding-top:4px}
 .gg-day .d{font-size:13px;font-weight:600;color:var(--ink-2);padding-top:2px}
@@ -126,7 +126,7 @@ const CSS = `
   .gg-splitc .lx-table td,.gg-splitc .lx-table th{padding-left:8px;padding-right:8px}
   .gg-splitc .lx-table td:first-child,.gg-splitc .lx-table th:first-child{padding-left:18px}
   .gg-figs .lx-kpi .l{white-space:normal;line-height:1.3}
-  .gg-figs .lx-kpi .v{font-size:30px;white-space:normal;flex-wrap:wrap}
+  .gg-figs .lx-kpi .v{font-size:var(--num-l);white-space:normal;flex-wrap:wrap}
   .gg-figs .lx-kpi .v small{display:block;width:100%;margin:4px 0 0}
   .gg-figs .lx-gauge{min-width:0;max-width:100%}
   .gg-figs.three{grid-template-columns:1fr}
@@ -146,7 +146,7 @@ const CSS = `
   .gg-chg .tx{flex-basis:calc(100% - 90px)}
   .gg-chg .ba{text-align:left;padding-left:88px;width:100%}
   .gg-chg .ba b{display:inline;margin-right:6px}
-  .gg-n b{font-size:36px}
+  .gg-n b{font-size:var(--num-xl)}
 }`;
 export function styles() { addStyles('gg-css', CSS); }
 

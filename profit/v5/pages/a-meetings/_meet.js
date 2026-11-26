@@ -237,7 +237,7 @@ const CSS = `
 .mt-light i.on.good{background:var(--good);box-shadow:0 0 0 4px rgba(11,125,85,.15)}
 .mt-light b{margin-left:5px;font-weight:600}
 .mt-three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:56px}
-.mt-three .lx-kpi .v,.mt-three .lx-hero-num{font-size:52px;line-height:1}
+.mt-three .lx-kpi .v,.mt-three .lx-hero-num{font-size:var(--num-xl);line-height:1}
 .mt-three .lx-kpi .s{margin-top:8px}
 .mt-three .lx-spark{height:44px;margin-top:14px}
 .mt-three .gref{stroke:var(--ink-2);stroke-width:1;stroke-dasharray:3 3;vector-effect:non-scaling-stroke}
@@ -257,7 +257,7 @@ const CSS = `
 .mt-own b{display:block;font-weight:600;line-height:1.2}
 .mt-own small{display:block;color:var(--muted);font-size:12.5px}
 .mt-bignum{display:grid;gap:2px;padding-left:48px;border-left:1px solid var(--line)}
-.mt-bignum .n{font-size:60px;font-weight:600;line-height:1;letter-spacing:-.045em;font-variant-numeric:tabular-nums}
+.mt-bignum .n{font-size:var(--num-xl);font-weight:600;line-height:1;letter-spacing:-.045em;font-variant-numeric:tabular-nums}
 .mt-bignum small{color:var(--muted);font-size:13px}
 .mt-btns{display:grid;gap:10px}
 .mt-btns .lx-btn{justify-content:center}
@@ -298,16 +298,16 @@ const CSS = `
 .mt-seg.alt i{background:var(--slate)}
 .mt-seg.lead i{background:var(--grad);box-shadow:0 6px 14px -6px rgba(255,100,30,.7)}
 .mt-seg .at{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}
-.mt-seg .m{font-size:40px;font-weight:600;letter-spacing:-.04em;line-height:1.05;font-variant-numeric:tabular-nums}
+.mt-seg .m{font-size:var(--num-xl);font-weight:600;letter-spacing:-.04em;line-height:1.05;font-variant-numeric:tabular-nums}
 .mt-seg .m small{font-size:13px;font-weight:500;letter-spacing:0;color:var(--muted);margin-left:4px}
 .mt-seg b{font-size:14.5px;font-weight:600;letter-spacing:-.01em;margin-top:4px;white-space:nowrap}
 .mt-seg .in{font-size:12.5px;color:var(--muted);line-height:1.35}
-.mt-seg.lead .m{font-size:64px}
+.mt-seg.lead .m{font-size:var(--num-xl)}
 .mt-cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
 .mt-col{padding:0 36px;border-left:1px solid var(--line);display:grid;gap:22px;align-content:start;min-width:0}
 .mt-col:first-child{border-left:0;padding-left:0}
 .mt-col:last-child{padding-right:0}
-.mt-col h2{margin:6px 0 0;font-size:30px;font-weight:600;letter-spacing:-.035em;line-height:1.1}
+.mt-col h2{margin:6px 0 0;font-size:var(--num-l);font-weight:600;letter-spacing:-.035em;line-height:1.1}
 .mt-step{display:flex;gap:14px;align-items:flex-start}
 .mt-step .n{flex:none;width:28px;height:28px;border-radius:50%;background:var(--bg-sunk);display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:650}
 .mt-step b{display:block;font-size:15.5px;font-weight:550;letter-spacing:-.01em;line-height:1.35;padding-top:3px}
@@ -322,18 +322,18 @@ const CSS = `
 .mt-db{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:56px}
 .mt-db a{display:grid;gap:4px;color:inherit;text-decoration:none;min-width:0}
 .mt-db .nm{font-size:15px;font-weight:600}
-.mt-db .n{font-size:44px;font-weight:600;letter-spacing:-.04em;line-height:1.05;font-variant-numeric:tabular-nums}
+.mt-db .n{font-size:var(--num-xl);font-weight:600;letter-spacing:-.04em;line-height:1.05;font-variant-numeric:tabular-nums}
 .mt-db .n small{font-size:13px;font-weight:500;letter-spacing:0;color:var(--muted);margin-left:8px}
 .mt-db .lx-gauge{margin-top:8px;max-width:260px}
 .mt-db .ow{font-size:13px;color:var(--muted);margin-top:8px}
 .mt-hero-act{display:flex;align-items:center;gap:18px;align-self:center;margin-left:auto}
 @media (max-width:1040px){
   .mt-three{gap:28px}
-  .mt-three .lx-kpi .v,.mt-three .lx-hero-num{font-size:40px}
+  .mt-three .lx-kpi .v,.mt-three .lx-hero-num{font-size:var(--num-xl)}
   .mt-decide{grid-template-columns:minmax(0,1fr) auto;gap:28px}
   .mt-btns{grid-column:1/-1;grid-template-columns:1fr 1fr}
   .mt-row{grid-template-columns:190px minmax(0,1fr) auto 20px}
-  .mt-seg.lead .m{font-size:48px}.mt-seg .m{font-size:32px}
+  .mt-seg.lead .m{font-size:var(--num-xl)}.mt-seg .m{font-size:var(--num-l)}
   .mt-col{padding:0 22px}
   .mt-db{gap:28px}
 }
@@ -344,13 +344,13 @@ const CSS = `
   .mt-hero-top{flex-direction:column;gap:14px}
   .mt-hero p.mt-verdict{font-size:17px}
   .mt-three{grid-template-columns:1fr;gap:26px}
-  .mt-three .lx-kpi .v,.mt-three .lx-hero-num{font-size:44px}
+  .mt-three .lx-kpi .v,.mt-three .lx-hero-num{font-size:var(--num-xl)}
   .mt-panel{padding:20px 14px 14px}
   .mt-h .lx-legend{margin-left:0}
   .mt-decide{grid-template-columns:1fr;gap:22px;padding:22px 18px}
   .mt-decide h2{font-size:21px}
   .mt-bignum{padding-left:0;border-left:0;padding-top:18px;border-top:1px solid var(--line)}
-  .mt-bignum .n{font-size:52px}
+  .mt-bignum .n{font-size:var(--num-xl)}
   .mt-prom{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:4px 12px}
   .mt-prom .what{grid-column:2}
   .mt-prom .who{grid-column:2;grid-row:2;width:auto}
@@ -364,7 +364,7 @@ const CSS = `
   .mt-line{flex-direction:column;gap:16px}
   .mt-seg{flex:none!important;grid-template-columns:48px 76px minmax(0,1fr);gap:0 8px;align-items:baseline}
   .mt-seg i{grid-column:1/-1;height:8px;margin-bottom:8px;width:calc(18% + var(--min,3)*3.9%)}
-  .mt-seg .m,.mt-seg.lead .m{font-size:30px}
+  .mt-seg .m,.mt-seg.lead .m{font-size:var(--num-l)}
   .mt-seg b{margin-top:0;white-space:normal}
   .mt-seg .in{grid-column:3}
   .mt-seg .at,.mt-seg .m{grid-row:2/4}

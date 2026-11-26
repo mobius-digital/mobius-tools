@@ -36,13 +36,13 @@ const CSS = `
 .mo-figs,.mo-two,.mo-chart,.mo-camps,.mo-checks{min-width:0}
 .mo-figs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--sp-8)}
 .mo-figs .lx-gauge{margin-top:22px}
-.mo-figs .lx-kpi .v{font-size:clamp(30px,3.4vw,44px)}
+.mo-figs .lx-kpi .v{font-size:var(--num-xl)}
 .mo-chart .lx-legend span.sq::before{width:8px;height:8px;border:0;border-radius:2px;background:#D9DDE6}
 .mo-read{margin:10px 0 0 -13px}
 .mo-counts{display:flex;gap:44px;align-items:baseline;flex-wrap:wrap;padding:8px 28px 14px}
 .mo-counts span{display:inline-flex;gap:10px;align-items:baseline;color:var(--muted);font-size:13px}
-.mo-n{font-size:28px;font-weight:600;letter-spacing:-.03em;line-height:1.1;color:var(--ink);font-variant-numeric:tabular-nums}
-.mo-n.xl{font-size:44px;letter-spacing:-.04em;line-height:1}
+.mo-n{font-size:var(--num-l);font-weight:600;letter-spacing:-.03em;line-height:1.1;color:var(--ink);font-variant-numeric:tabular-nums}
+.mo-n.xl{font-size:var(--num-xl);letter-spacing:-.04em;line-height:1}
 .mo-camps .lx-gauge{min-width:150px}
 .mo-camps .mo-bar{padding-left:28px}
 .mo-camps td.mo-bar{width:220px}
@@ -82,7 +82,7 @@ const CSS = `
 }
 @media (max-width:759px){
   .mo-figs{gap:var(--sp-5)}
-  .mo-figs .lx-kpi .v{font-size:28px}
+  .mo-figs .lx-kpi .v{font-size:var(--num-l)}
   .mo-figs .lx-kpi .s{flex-wrap:wrap;white-space:normal}
   .mo-chart .lx-legend{gap:8px 14px;font-size:12px}
   .mo-counts{gap:20px;padding:6px 18px 12px}

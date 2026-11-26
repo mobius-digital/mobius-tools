@@ -59,7 +59,7 @@ const CSS = `
 @media (max-width:1040px){.em-two{grid-template-columns:1fr}}
 @media (max-width:759px){
   .em-chart{padding:18px 12px 14px}
-  .em-kpis .lx-kpi.lg .v{font-size:32px}
+  .em-kpis .lx-kpi.lg .v{font-size:var(--num-l)}
   .em-name{max-width:46vw}
   .em-bar .lx-cellbar{display:none}
   .em-keys{gap:16px 24px}

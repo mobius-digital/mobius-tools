@@ -1,7 +1,7 @@
-/* Ask > Free answers. The numbers, dates and statuses the app answers with no AI allowance used.
+/* Ask > Quick lookups (was "Free answers"). The numbers, dates and statuses the app answers with no AI allowance used.
    Real mode:
-     account-health GET  /api/lookups                    the list (and whether free answers are switched on)
-     account-health POST /api/lookup {question, act}     one free answer, written by code from the brand's numbers.
+     account-health GET  /api/lookups                    the list (and whether quick lookups are switched on)
+     account-health POST /api/lookup {question, act}     one quick lookup, written by code from the brand's numbers.
                                                          Asking is the person's own tap, never done on load. It only reads.
      account-health POST /api/ask {question, full:true}  "Ask why": the same question, sent to the full assistant.
    Off by default (the settings key freeLookups on the account-health worker). There is no route for that switch
@@ -14,7 +14,7 @@ import { put } from '../../kit.js';
 import { h, card, em, button, addStyles, pill, empty } from '../../kit.js';
 import { AI_NAME } from '../../config.js';
 
-const OFF_LINE = 'Free answers are switched off, so this was not looked up.';
+const OFF_LINE = 'Quick lookups are switched off, so this was not looked up.';
 
 function draw(el, data, ctx) {
   addStyles('lx-fl-css', CSS);
@@ -39,7 +39,7 @@ function draw(el, data, ctx) {
       h('p', { class: 'lx-fl-q' }, q),
       h('div', { class: 'lx-fl-a' }, words.length ? [h('p', { class: 'lead' }, words[0]), ...words.slice(1).map(w => h('p', null, w))] : h('p', null, a.error || 'No answer came back.')),
       h('div', { class: 'lx-fl-foot' },
-        a.lookup ? pill('', 'Free') : null,
+        a.lookup ? pill('', 'Quick lookup') : null,
         a.sample ? pill('', 'Sample answer') : null,
         a.sources ? h('span', { class: 'src' }, 'Source: ' + a.sources) : null,
         h('span', { class: 'lx-sp' }),
@@ -73,7 +73,7 @@ function draw(el, data, ctx) {
       r = hit ? { ...hit, sample: true } : { answer: 'In sample mode only the example questions answer. Signed in, this reads ' + (brandName || 'the brand') + "'s own numbers.", sample: true };
     } else {
       try { r = await ctx.api('/api/lookup', { worker: 'ah', method: 'POST', body: { question: q, act: ctx.brand ? ctx.brand.id : null } }); }
-      catch (e) { r = { error: e && e.status === 403 ? 'Free answers are not switched on yet. Ask ' + AI_NAME + ' instead.' : 'That one did not come back: ' + (e && e.message || 'no answer') + '.' }; }
+      catch (e) { r = { error: e && e.status === 403 ? 'Quick lookups are not switched on yet. Ask ' + AI_NAME + ' instead.' : 'That one did not come back: ' + (e && e.message || 'no answer') + '.' }; }
     }
     busy = false; send.disabled = false;
     show(q, r);
@@ -83,8 +83,8 @@ function draw(el, data, ctx) {
     h('label', { class: 'lx-cap', for: 'lxFlIn' }, brandName ? 'Pull a number for ' + brandName : 'Pull a number for a brand'),
     h('div', { class: 'lx-fl-row' }, input, send),
     d.on === false
-      ? h('p', { class: 'lx-fl-off', role: 'note' }, h('b', null, 'Free answers are switched off.'), ' There is no switch on this page yet: they are turned on in the server settings. Until then every question goes to ' + AI_NAME + '. The list below shows what will be free.')
-      : h('p', { class: 'lx-foot' }, 'One line, written from the numbers by code. It uses none of the AI allowance, and you can ask as often as you like.'),
+      ? h('p', { class: 'lx-fl-off', role: 'note' }, h('b', null, 'Quick lookups are switched off.'), ' There is no switch on this page yet: they are turned on in the server settings. Until then every question goes to ' + AI_NAME + '. The list below shows what you will be able to look up.')
+      : h('p', { class: 'lx-foot' }, 'Quick lookups: a number, date or status read straight from the data by code, in one line. No AI, so it uses none of the AI allowance and you can ask as often as you like.'),
     out);
 
   const rowsEl = list.length ? h('div', { class: 'lx-rows lx-fl-list' }, list.map(l => h('button', { type: 'button', onclick: () => { input.value = l.example; ask(l.example); } },
@@ -92,9 +92,9 @@ function draw(el, data, ctx) {
 
   const s = d.share;
   put(el, h('div', { class: 'lx-fl' }, box,
-    card({ title: 'What you can ask for free', note: list.length ? list.length + ' kinds of question' : '', flush: true }, rowsEl),
+    card({ title: 'What you can look up', note: list.length ? list.length + ' kinds of question' : '', flush: true }, rowsEl),
     h('p', { class: 'lx-foot' }, [d.revenue || '', 'Sales and ROAS for a platform are Triple Whale, last platform click.',
-      s && s.share_pct != null ? 'In the last ' + s.days + ' days ' + s.lookups + ' questions were answered free and ' + s.assistant + ' went to ' + AI_NAME + '.' : '',
+      s && s.share_pct != null ? 'In the last ' + s.days + ' days ' + s.lookups + ' questions were quick lookups and ' + s.assistant + ' went to ' + AI_NAME + '.' : '',
       'Anything that needs judgment, a plan or a change goes to ' + AI_NAME + '.'].filter(Boolean).join(' '))));
 }
 
@@ -137,7 +137,7 @@ const CSS = `
 `;
 
 export default {
-  title: ['Free ', em('answers')],
+  title: ['Quick ', em('lookups')],
   eyebrow: ctx => (ctx.brand ? ctx.brand.name : 'Every brand'),
   ranges: false,
   async load(ctx) {

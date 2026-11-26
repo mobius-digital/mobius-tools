@@ -74,10 +74,23 @@ export function mount(el, opts = {}) {
   for (const box of [rail, tabbar, tabsHost]) { box.addEventListener('mouseover', warm); box.addEventListener('focusin', warm); box.addEventListener('touchstart', warm, { passive: true }); }
   document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-      const a = top.querySelector('.lx-ask') || tabbar.querySelector('.ask');
-      if (a) { e.preventDefault(); a.focus(); location.hash = a.getAttribute('href'); }
+      if (S.role === 'client') return;
+      e.preventDefault(); askHere();
     }
   });
+}
+
+/* ---------- Ask in place: the top bar button, Ctrl K and the phone Ask tab ---------- */
+/** Opens the Ask panel (askpanel.js) over the page you are on, with that page's title, brand, route and dates.
+    On the Ask page itself it just puts the cursor in the page's own box. */
+function askHere() {
+  const route = currentRoute(); if (!route) return;
+  if (route.line === 'ask') { const f = document.getElementById('lxAskIn'); if (f) f.focus(); return; }
+  const brand = route.view === 'brand' ? brandBySlug(route.brand) : null;
+  import('./askpanel.js').then(m => m.openAskPanel({
+    route, brand, range: S.range, title: headTitle ? headTitle.textContent.trim() : '',
+    href: href(normalise({ ...route, line: 'ask', tab: 'index' })),
+  })).catch(() => { location.hash = href(normalise({ ...route, line: 'ask', tab: 'index' })); });
 }
 
 /* ---------- the page frame: called by the router on every route ---------- */
@@ -90,7 +103,7 @@ export function frame(route, line, tab) {
   drawAsBar();
   const tabsList = shownTabs(line, S.role);
   headEl.classList.toggle('has-tabs', tabsList.length > 1);
-  tabsHost.replaceChildren(tabsList.length > 1 ? tabsKit(tabsList.map(x => ({ id: x.id, label: x.label, href: href({ ...route, tab: x.id }), count: x.id === 'suggestions' && S.counts[line.id] ? S.counts[line.id] : null, lock: x.team && S.realRole !== 'client' && !(x.id === 'suggestions' && S.counts[line.id]) })), tab.id) : '');
+  tabsHost.replaceChildren(tabsList.length > 1 ? tabsKit(tabsList.map(x => ({ id: x.id, label: x.label, href: href({ ...route, tab: x.id }), count: x.id === 'suggestions' && S.counts[line.id] ? S.counts[line.id] : null, team: x.team && S.realRole !== 'client' && !S.asClient })), tab.id) : '');
   tabsHost.querySelectorAll('a[data-tab]').forEach(a => { a.dataset.line = line.id; });
   const on = tabsHost.querySelector('a.on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   const api = {
@@ -192,14 +205,14 @@ function drawTop(route) {
   kids.push(h('span', { class: 'lx-sp' }));
   if (SAMPLE) kids.push(h('span', { class: 'lx-chip', title: 'These are sample numbers, not a real brand' }, 'Sample numbers'));
   if (team) {
-    kids.push(h('a', { class: 'lx-ask', href: href(normalise({ ...route, line: 'ask', tab: 'index' })), dataset: { line: 'ask', tab: 'index' } }, svgNode(icon('sparkle')), 'Ask ' + AI_NAME, h('kbd', null, 'Ctrl K')));
+    kids.push(h('button', { class: 'lx-ask', type: 'button', 'aria-haspopup': 'dialog', title: 'Ask ' + AI_NAME + ' about this page (Ctrl K)', onclick: () => askHere() }, svgNode(icon('sparkle')), 'Ask ' + AI_NAME, h('kbd', null, 'Ctrl K')));
     kids.push(h('a', { class: 'lx-btn lx-myday', href: href(normalise({ ...route, line: 'my-day', tab: 'index' })), dataset: { line: 'my-day', tab: 'index' } }, 'My day', S.counts.myDay ? count(S.counts.myDay, 'ink sm') : null));
   }
   const bellN = S.asClient ? 0 : S.counts.bell;
-  kids.push(h('button', { class: 'lx-btn lx-bell', type: 'button', 'aria-haspopup': 'dialog', 'aria-label': bellN ? `Notifications, ${bellN} need you` : 'Notifications', onclick: e => bellPanel(e.currentTarget, route) },
+  kids.push(h('button', { class: 'lx-btn lx-bell', type: 'button', 'aria-haspopup': 'dialog', 'aria-label': bellN ? `Notifications, ${bellN} need you` : 'Notifications', title: bellN ? `Notifications: ${bellN} need you` : 'Notifications', onclick: e => bellPanel(e.currentTarget, route) },
     svgNode(icon('bell')), bellN ? count(bellN, 'ink') : null));
   const who = S.asClient ? { name: brand ? brand.name : 'Client' } : { ...S.me, name: S.me.name || nameFrom(S.me.email) };
-  const btn = h('button', { class: 'lx-avatar', type: 'button', 'aria-haspopup': 'menu', 'aria-label': 'Account menu for ' + who.name, onclick: e => accountMenu(e.currentTarget, route, who) });
+  const btn = h('button', { class: 'lx-avatar', type: 'button', 'aria-haspopup': 'menu', 'aria-label': 'Account menu for ' + who.name, title: 'Your account: profile, old ' + APP_NAME + ', sign out', onclick: e => accountMenu(e.currentTarget, route, who) });
   btn.append(...avatar(who).childNodes);
   kids.push(btn);
   top.replaceChildren(...kids);
@@ -327,6 +340,7 @@ function drawTabbar(route) {
   tabbar.replaceChildren(...set.map(t => {
     const kids = [h('span', { class: 'badge' }, svgNode(icon(t.icon)), t.id === 'my-day' && S.counts.myDay ? count(S.counts.myDay, 'ink') : null), t.label];
     if (t.more) return h('button', { type: 'button', 'aria-haspopup': 'dialog', onclick: () => moreSheet(currentRoute() || route) }, kids);
+    if (t.ask) return h('button', { type: 'button', class: 'ask', 'aria-haspopup': 'dialog', 'aria-label': 'Ask ' + AI_NAME + ' about this page', onclick: () => askHere() }, kids);
     return h('a', { class: (t.ask ? 'ask ' : '') + (t.id === active ? 'on' : ''), href: href(normalise({ view: route.view, brand: route.brand, line: t.line })), 'aria-current': t.id === active ? 'page' : null, dataset: { line: t.line } }, kids);
   }));
 }

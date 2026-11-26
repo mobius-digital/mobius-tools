@@ -125,13 +125,16 @@ export function delta(n, { bad = false, plain = false, text } = {}) {
   const dir = n >= 0 ? 'up' : 'down';
   return h('span', { class: 'lx-delta ' + dir + (plain ? ' plain' : bad ? ' is-bad' : ' is-good') }, text || pct(Math.abs(n)));
 }
-/** button('Review all 6', { primary, large, ghost, icon: 'arrow', iconLeft: 'month', href, onclick }) */
+/** button('Review all 6', { primary, large, ghost, icon: 'arrow', iconLeft: 'month', href, onclick, aria, title })
+    An icon-only button (no label) MUST pass aria: the same words become its hover tooltip (title), so no icon is
+    ever unexplained. title sets the tooltip for a labeled button. */
 export function button(label, o = {}) {
+  const tip = o.title || ((label == null || label === '') && o.aria ? o.aria : null);
   const cls = 'lx-btn' + (o.primary ? ' primary' : '') + (o.large ? ' lg' : '') + (o.ghost ? ' ghost' : '') + (o.class ? ' ' + o.class : '');
   const kids = [o.iconLeft && svgNode(icon(o.iconLeft)), label, o.icon && svgNode(icon(o.icon))];
   /* A link that opens a new tab never hands the new page a handle on this one (some hrefs are typed by clients). */
-  return o.href ? h('a', { class: cls, href: o.href, target: o.target, rel: o.target === '_blank' ? 'noopener noreferrer' : null, 'aria-label': o.aria }, kids)
-    : h('button', { class: cls, type: 'button', onclick: o.onclick, disabled: o.disabled, 'aria-label': o.aria }, kids);
+  return o.href ? h('a', { class: cls, href: o.href, target: o.target, rel: o.target === '_blank' ? 'noopener noreferrer' : null, 'aria-label': o.aria, title: tip }, kids)
+    : h('button', { class: cls, type: 'button', onclick: o.onclick, disabled: o.disabled, 'aria-label': o.aria, title: tip }, kids);
 }
 /** platformChip('meta') glyph and name in ink; { chip: true } on a pill; { dot: '#2F6FED' } a 6px dot; { label } own text */
 export function platformChip(id, { chip = false, dot, label } = {}) {
@@ -225,18 +228,48 @@ export function toast(text, { tone = '', ms = 2600 } = {}) {
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 220); }, ms);
   return el;
 }
-/** sheet({ title, body, side: 'right' | 'bottom' | 'center' }) : an overlay. Returns { el, close }.
-    On a phone every sheet rises from the bottom. Escape and a tap outside close it. */
+/** sheet({ title, body, side, onClose, class }) : THE detail pattern, one for the whole app. Returns { el, close }.
+    Desktop (760px and wider): a centered modal sheet, rounded, soft shadow, at most 720px wide, scrolling inside.
+    Phone (under 760px): a sheet that rises from the bottom.
+    side is kept for old callers and only picks the width on desktop:
+      'center'           a small dialog (560px): confirms, short forms
+      'right' | 'bottom' | nothing   a detail sheet (720px). There is no side panel any more.
+    A page that needs a wider detail sheet gives its own class a width (.lx-sheet.my-wide{width:min(900px,100%)}).
+    Escape closes the top sheet only, a click on the dimmed backdrop closes it, Tab stays inside it (focus trap),
+    and focus goes back to what had it when the sheet closes. The page under it does not scroll while one is open (app.css: html:has(body > .lx-overlay)). */
+const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 export function sheet({ title, body, side = 'right', onClose, class: cls } = {}) {
-  const panel = h('div', { class: 'lx-sheet ' + side + (cls ? ' ' + cls : ''), role: 'dialog', 'aria-modal': 'true', 'aria-label': title || 'Panel' },
-    h('div', { class: 'grab' }),
-    title ? h('div', { class: 'lx-sheet-h' }, h('h2', null, title), h('button', { class: 'lx-btn ghost icon', type: 'button', 'aria-label': 'Close', onclick: () => close() }, svgNode(icon('close')))) : null,
+  const size = side === 'center' ? 'center' : 'center wide';
+  const panel = h('div', { class: 'lx-sheet ' + size + (side !== 'center' ? ' ' + side : '') + (cls ? ' ' + cls : ''), role: 'dialog', 'aria-modal': 'true', 'aria-label': String(title || '').trim() || 'Details', tabindex: '-1' },
+    h('div', { class: 'grab', 'aria-hidden': 'true' }),
+    title ? h('div', { class: 'lx-sheet-h' }, h('h2', null, title), h('button', { class: 'lx-btn ghost icon', type: 'button', 'aria-label': 'Close', title: 'Close (Esc)', onclick: () => close() }, svgNode(icon('close')))) : null,
     h('div', { class: 'lx-sheet-b' }, body));
   const wrap = h('div', { class: 'lx-overlay', onmousedown: e => { if (e.target === wrap) close(); } }, panel);
-  const key = e => { if (e.key === 'Escape') close(); };
-  function close() { document.removeEventListener('keydown', key); wrap.remove(); onClose && onClose(); }
+  const back = document.activeElement;
+  const top = () => { const all = document.querySelectorAll('body > .lx-overlay'); return all[all.length - 1] === wrap; };
+  const key = e => {
+    if (!top()) return;
+    if (e.key === 'Escape') { close(); return; }
+    if (e.key !== 'Tab') return;
+    const f = [...panel.querySelectorAll(FOCUSABLE)].filter(n => n.offsetParent !== null || n === document.activeElement);
+    if (!f.length) { e.preventDefault(); panel.focus(); return; }
+    const first = f[0], last = f[f.length - 1];
+    if (!panel.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+    else if (e.shiftKey && (document.activeElement === first || document.activeElement === panel)) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  };
+  let shut = false;
+  function close() {
+    if (shut) return; shut = true;
+    document.removeEventListener('keydown', key); wrap.remove();
+    try { if (back && back.focus && document.contains(back)) back.focus({ preventScroll: true }); } catch {}
+    onClose && onClose();
+  }
   document.addEventListener('keydown', key);
   document.body.append(wrap);
+  /* desktop: focus the first field when the sheet is a form, else the sheet itself (so Escape and Tab work at once).
+     phone: the sheet itself, so the keyboard does not jump up over it */
+  requestAnimationFrame(() => { if (shut) return; const f = window.matchMedia && window.matchMedia('(max-width:759px)').matches ? null : panel.querySelector('.lx-sheet-b input:not([type=hidden]):not([disabled]),.lx-sheet-b textarea,.lx-sheet-b select'); try { (f || panel).focus({ preventScroll: true }); } catch {} });
   return { el: panel, close };
 }
 
@@ -266,13 +299,16 @@ export function segmented(items, active, onPick) {
 }
 
 /* ---------- tabs ---------- */
-/** tabs([{ id, label, href, count, lock }], activeId, onPick) : sub pages across the top of a page */
+/** tabs([{ id, label, href, count, team }], activeId, onPick) : sub pages across the top of a page.
+    team: true adds a small "Team only" tag (clients never see that tab). The old lock icon is gone: it read as
+    "locked" and nobody knew why. lock: true is still accepted and means the same as team. */
 export function tabs(items, active, onPick) {
   const el = h('nav', { class: 'lx-tabs', 'aria-label': 'Sections' });
   for (const it of items) {
     el.append(h('a', { href: it.href || '#', class: it.id === active ? 'on' : '', 'aria-current': it.id === active ? 'page' : null, dataset: { tab: it.id },
       onclick: onPick ? e => { e.preventDefault(); onPick(it.id); } : null },
-      it.label, it.count != null && h('span', { class: 'n' }, it.count), it.lock && svgNode(icon('lock', 'lock'))));
+      it.label, it.count != null && h('span', { class: 'n' }, it.count),
+      (it.team || it.lock) && h('span', { class: 'lx-team-tag', title: 'Team only: clients do not see this tab' }, 'Team only')));
   }
   return el;
 }
@@ -729,7 +765,7 @@ export function gauge({ value, max, goal, tone, thin = false, ticks } = {}) {
     scrolling box of `height` px. Sorting works on the data: click a sortable header.
     Returns the wrapper element; .setRows(rows) swaps the data in place. */
 export function table({ cols = [], rows = [], virtual, total, roomy = false, rowHeight, height = 560, sort, onRow, empty = 'Nothing here yet' } = {}) {
-  const rh = rowHeight || (roomy ? 56 : 40);
+  const rh = rowHeight || (roomy ? 48 : 36);   /* app.css --row-h-roomy / --row-h */
   let data = rows.slice(), state = sort ? { ...sort } : null;
   const isVirtual = () => virtual === true || (virtual !== false && data.length > 100);
   const thead = h('thead', null, h('tr', null, cols.map(c => h('th', { class: (c.num ? 'num' : '') + (c.sortable ? ' can-sort' : '') + (c.class ? ' ' + c.class : ''), style: c.width ? { width: typeof c.width === 'number' ? c.width + 'px' : c.width } : null, dataset: c.sortable ? { key: c.key } : null, scope: 'col' }, c.label || ''))));

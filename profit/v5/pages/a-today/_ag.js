@@ -102,7 +102,7 @@ const CSS = `
 .ag-bc-h b{font-size:16px;font-weight:600;letter-spacing:-.015em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ag-bc-h>:last-child{margin-left:auto;flex:none}
 .ag-bc-n{display:flex;align-items:baseline;gap:10px;min-height:38px;flex-wrap:wrap}
-.ag-bc-n .lx-big{font-size:34px}
+.ag-bc-n .lx-big{font-size:var(--num-l)}
 .ag-bc-n small{font-size:13px;color:var(--muted)}
 .ag-bc-n .w{font-size:15px;font-weight:550;color:var(--ink-2)}
 .ag-bc-g{min-height:25px}
@@ -137,7 +137,7 @@ const CSS = `
   .ag-chart{padding:18px 14px 12px}
   .ag-pad{padding:4px 18px 18px}
   .ag .lx-card.flush>.lx-sec{flex-wrap:wrap}
-  .ag-bc-n .lx-big{font-size:30px}
+  .ag-bc-n .lx-big{font-size:var(--num-l)}
 }`;
 export const style = () => addStyles('ag-css', CSS);
 

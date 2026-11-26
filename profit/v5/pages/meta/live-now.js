@@ -42,7 +42,7 @@ button.ml-r:hover .nm b{text-decoration:underline;text-decoration-color:var(--li
 .ml-lim .t b{margin-left:auto;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
 .ml-lim .t i{font-style:normal;color:var(--muted);font-size:13px}
 .ml-big{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:2px 0 10px}
-.ml-big b{font-size:clamp(34px,4vw,48px);font-weight:600;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}
+.ml-big b{font-size:var(--num-xl);font-weight:600;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}
 .ml-big span{color:var(--muted);font-size:13.5px}
 .ml-next>div{display:grid;grid-template-columns:92px minmax(0,1fr) auto;gap:14px;align-items:center;padding:0 28px;min-height:48px;border-top:1px solid var(--line);font-size:13.5px}
 .ml-next .d{color:var(--muted)}.ml-next b{font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

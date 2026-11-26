@@ -27,8 +27,8 @@ const CSS = `
 .cs-kpis .lx-kpi .s{flex-wrap:wrap}
 @media (max-width:759px){
   .cs-chart{padding:18px}
-  .cs-big b{font-size:36px}
-  .cs-kpis .lx-kpi.lg .v{font-size:34px}
+  .cs-big b{font-size:var(--num-xl)}
+  .cs-kpis .lx-kpi.lg .v{font-size:var(--num-l)}
   .cs-kpis .lx-kpi .l{white-space:normal}
   .cs-second .cs-big{padding:4px 18px 10px}
   .cs-second .cs-bar{display:none}

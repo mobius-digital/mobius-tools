@@ -34,7 +34,7 @@ const CSS = `
 .tt-body h4{margin:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:15.5px;font-weight:600;letter-spacing:-.015em}
 .tt-body .sub{font-size:12.5px;color:var(--muted);margin-top:3px}
 .tt-roas{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;padding-bottom:12px;border-bottom:1px solid var(--line)}
-.tt-roas .big{font-size:28px;font-weight:600;letter-spacing:-.035em;line-height:1.1;font-variant-numeric:tabular-nums}
+.tt-roas .big{font-size:var(--num-l);font-weight:600;letter-spacing:-.035em;line-height:1.1;font-variant-numeric:tabular-nums}
 .tt-roas .big.na{color:var(--faint)}
 .tt-roas .r{text-align:right;font-size:12px;color:var(--muted);line-height:1.3}
 .tt-roas .r b{display:block;font-size:17px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}

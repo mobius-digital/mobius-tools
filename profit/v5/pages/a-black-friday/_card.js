@@ -1,11 +1,12 @@
 /* The client update card for Black Friday weekend: one layout, drawn two ways.
      cardHtml(d)    HTML for the page preview and the public snapshot link (POST /api/snapshot, opened at s.html?t=)
-     cardCanvas(d)  Canvas 2D at 1200 wide, for Copy as PNG, Download PNG and Download PDF (no route, no library)
+     cardCanvas(d)  Canvas 2D laid out 1200 wide and drawn at 3.2x (3840 pixels wide, after the fonts load), for
+                    Copy as PNG, Download PNG and Download PDF (no route, no library)
    d = { brand, when, goal, tiles: [{ label, mer, sales, spend, readable }], changes: [{ line, why }], next }
    Nothing internal goes on it: no break-even, no budget room, no campaign returns. Sales are Triple Whale. */
 
 import { tierOf } from '../_warcall.js';
-import { copyCanvas, downloadCanvas, downloadPdf } from './_export.js';
+import { copyCanvas, downloadCanvas, downloadPdf, hiCanvas, fontsReady } from './_export.js';
 
 const C = { bg: '#FFFFFF', tile: '#F5F7FB', line: '#E3E8F0', text: '#0E1B2E', dim: '#66748C', blue: '#2A9FD8', blueBg: '#EAF6FC' };
 const FONT = "Inter, system-ui, -apple-system, 'Segoe UI', Arial, sans-serif";
@@ -74,9 +75,9 @@ function rr(ctx, x, y, w, h, r, fill) {
 }
 const spaced = (ctx, text, x, y, sp) => { let cx = x; for (const ch of String(text)) { ctx.fillText(ch, cx, y); cx += ctx.measureText(ch).width + sp; } return cx; };
 
-/** The card drawn on a canvas, 1200 wide (height follows the changes). Returns the canvas. */
+/** The card drawn on a canvas: laid out 1200 wide (height follows the changes), 3840 pixels wide. Returns the canvas. */
 export async function cardCanvas(d) {
-  try { if (document.fonts && document.fonts.load) await Promise.all([document.fonts.load(`700 30px Inter`), document.fonts.load(`400 20px Inter`)]); } catch {}
+  await fontsReady(['750 64px Inter', '700 18px Inter', '600 24px Inter', '500 22px Inter', '400 21px Inter']);
   const W = 1200, P = 56, inner = W - 2 * P;
   const meas = document.createElement('canvas').getContext('2d');
   meas.font = `400 22px ${FONT}`;
@@ -88,9 +89,7 @@ export async function cardCanvas(d) {
   });
   const chH = 70 + chLines.reduce((t, l) => t + l.a.length * 32 + l.b.length * 28 + 18, 0);
   const tileY = 170, tileH = 250, bandY = tileY + tileH + 32, H = bandY + chH + 110;
-  const cv = document.createElement('canvas');
-  cv.width = W; cv.height = H;
-  const ctx = cv.getContext('2d');
+  const { cv, ctx } = hiCanvas(W, H);          /* layout in 1200 wide pixels, drawn 3840 wide */
   ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = C.blue; ctx.fillRect(0, 0, W, 8);
   ctx.textBaseline = 'alphabetic';

@@ -65,6 +65,18 @@ export const GLOSSARY = {
   sale_dates: { name: 'Sale dates', definition: 'The first and last day of the Black Friday sale for this brand, Central time, from the season plan.' },
   sales_goal: { name: 'Sales goal', definition: 'The store sales the plan aims for over the whole sale, in dollars. Sales are Triple Whale: every store order, before refunds.' },
   plan_status: { name: 'Plan status', definition: 'Ready when the goals, the raise, hold and cut lines and the offers and dates are all set. Otherwise the first open step is named.' },
+  /* app-wide words (2026-11-26 all-pages pass): ad lists, the top bar, tabs */
+  cpa: { name: 'Cost per sale (CPA)', definition: 'What the ads spent for each sale Triple Whale credits to them (last platform click).', formula: 'Spend / Purchases', source: TW + ', last platform click' },
+  cpm: { name: 'CPM', definition: 'What 1,000 ad views cost on the platform.', formula: 'Spend / Impressions x 1,000', source: 'The ad platform' },
+  frequency: { name: 'Frequency', definition: 'How many times the same person saw the ad in the period, on average.', formula: 'Impressions / Reach', source: 'The ad platform' },
+  impressions: { name: 'Impressions', definition: 'How many times the ad was shown.', source: 'The ad platform' },
+  new_customer_roas: { name: 'New customer ROAS', definition: 'Sales from first-time customers that Triple Whale credits to the ad (last click), divided by its spend. Repeat buyers are left out.', formula: 'New customer sales / Spend', source: TW + ', last platform click' },
+  aov: { name: 'AOV', definition: 'Average order value: sales divided by orders in the period.', formula: 'Sales / Orders', source: TW },
+  orders: { name: 'Orders', definition: 'Store orders in the period, all channels.', source: TW },
+  new_customers: { name: 'New customers', definition: 'People whose first ever order with the store was in the period.', source: TW },
+  team_only: { name: 'Team only', definition: 'Only the agency team sees this. A client login never shows it.' },
+  quick_lookups: { name: 'Quick lookups', definition: 'A number, date or status read straight from the data by code, in one line. No AI, so it uses none of the AI allowance.' },
+  ask_ai: { name: 'Ask Locus AI', definition: 'Ask a question about the page you are on. The question goes with the page, the brand and the dates in the page head; past questions stay in your Ask history.' },
 };
 /* other spellings people and pages use for the same thing */
 const ALIAS = {
@@ -80,6 +92,8 @@ const ALIAS = {
   week: 'this_week', budget: 'budget_a_day', daily_budget: 'budget_a_day', budget_per_day: 'budget_a_day',
   call: 'calls', raise: 'call_raise', scale: 'call_raise', hold: 'call_hold', cut: 'call_cut', pull_back: 'call_cut',
   too_early: 'call_too_early', early: 'call_too_early', wait: 'call_too_early',
+  cost_per_sale: 'cpa', cost_per_purchase: 'cpa', ncroas: 'new_customer_roas', nc_roas: 'new_customer_roas', average_order_value: 'aov',
+  team: 'team_only', free_answers: 'quick_lookups', lookups: 'quick_lookups', ask: 'ask_ai', ask_locus_ai: 'ask_ai',
 };
 const norm = k => String(k == null ? '' : k).trim().toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 /** The local entry for a key, at once: { name, definition, formula?, source? } or null. */

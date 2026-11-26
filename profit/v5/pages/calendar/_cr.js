@@ -210,7 +210,7 @@ const CSS = `
 
 .cr-heroline{display:grid;gap:8px;min-width:0}
 .cr-heroline .lab{font-size:13px;color:var(--muted)}
-.cr-heroline .big{font-size:30px;font-weight:600;letter-spacing:-.035em;line-height:1.15;overflow-wrap:anywhere}
+.cr-heroline .big{font-size:var(--num-l);font-weight:600;letter-spacing:-.035em;line-height:1.15;overflow-wrap:anywhere}
 .cr-heroline .of{font-size:13.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 .cr-herogrid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.4fr);gap:44px;align-items:end}
 /* a row of big tiles wrapped in .cr-fit keeps its count on one row: when the figures at full size would need a

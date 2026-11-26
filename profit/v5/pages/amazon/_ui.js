@@ -16,7 +16,7 @@ const CSS = `
 .az-more{font-weight:400;color:var(--muted)}
 .az-flag-s{display:none}
 .az-lead{display:flex;gap:22px;align-items:center}
-.az-lead .lx-hero-num{font-size:72px;padding-bottom:10px;flex:none}
+.az-lead .lx-hero-num{font-size:var(--num-xl);padding-bottom:10px;flex:none}
 .az-lead b{display:block;font-size:24px;font-weight:600;letter-spacing:-.03em;line-height:1.2}
 .az-split{display:flex;gap:3px;height:56px}
 .az-split.thin{height:20px}
@@ -88,13 +88,13 @@ const CSS = `
 }
 @media (max-width:759px){
   .az-when{margin-left:0;width:100%}
-  .az-kpis .lx-kpi.lg .v{font-size:32px}
+  .az-kpis .lx-kpi.lg .v{font-size:var(--num-l)}
   .az-chart{padding:18px 12px 14px}
   .az-camps .lx-table th,.az-camps .lx-table td{padding:0 8px}
   .az-paused{display:block;margin:2px 0 0}
   .az-flag-s{display:block;margin-top:2px}
   .az-lead{flex-direction:column;align-items:flex-start;gap:12px}
-  .az-lead .lx-hero-num{font-size:56px}
+  .az-lead .lx-hero-num{font-size:var(--num-xl)}
   .az-lead b{font-size:19px}
   .az-split{height:40px}
   .az-keys{flex-direction:column;gap:10px}

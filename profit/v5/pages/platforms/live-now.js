@@ -30,7 +30,7 @@ const CSS = `
 .pl-list{display:none}
 .pl-chart{padding:28px 32px 20px}
 .pl-big{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:2px 0 10px}
-.pl-big b{font-size:clamp(34px,4vw,48px);font-weight:600;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}
+.pl-big b{font-size:var(--num-xl);font-weight:600;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}
 .pl-big span{color:var(--muted);font-size:13.5px}
 .pl-kv{display:grid}
 .pl-kv>div{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:12px 0;border-top:1px solid var(--line);font-size:14px}
