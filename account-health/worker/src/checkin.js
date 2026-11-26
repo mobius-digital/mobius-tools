@@ -585,7 +585,7 @@ export async function serveReviewPic(env, path) {
 const nameOfEmail = e => { const r = ROSTER.find(x => x.email && x.email.toLowerCase() === String(e || '').toLowerCase()); return r ? r.name : clean(String(e || '').split('@')[0], 30) || 'Someone'; };
 const fieldOf = (text, labels) => { for (const l of labels) { const m = text.match(new RegExp(`(?:^|\\n)\\s*${l}\\s*:?\\s*\\n?\\s*([^\\n]{3,})`, 'i')); if (m) return clean(m[1], 160); } return ''; };
 async function cardState(env, id) {
-  const r = await env.DB.prepare(`SELECT b.id, b.act_id, b.num, b.title, b.brief_json, b.brief_text, b.board_stage, b.assignee_name, a.name AS brand, a.slack_channel, a.brief_channel FROM p_br_batch b LEFT JOIN brand_accounts a ON a.act_id = b.act_id WHERE b.id = ?1`).bind(String(id)).first();
+  const r = await env.DB.prepare(`SELECT b.id, b.act_id, b.num, b.title, b.brief_json, b.brief_text, b.board_stage, b.assignee_name, b.needs_client, b.client_sent_at, a.name AS brand, a.slack_channel, a.brief_channel FROM p_br_batch b LEFT JOIN brand_accounts a ON a.act_id = b.act_id WHERE b.id = ?1`).bind(String(id)).first();
   if (!r) return null;
   const files = (await env.DB.prepare(`SELECT id, kind, version, ad, name, mime, created_at FROM p_work_file WHERE batch_id = ?1 AND deleted_at IS NULL`).bind(r.id).all()).results || [];
   const cs = (await env.DB.prepare(`SELECT * FROM p_work_comment WHERE batch_id = ?1 ORDER BY created_at, rowid`).bind(r.id).all()).results || [];
@@ -781,16 +781,21 @@ export async function checkinTick(env, d) {
   return out;
 }
 /* No answer in 24 hours = approved by the timer, unless settings.checkinAutoApprove is '0' (then nothing here runs and
-   the card waits for a person). Its own function so the switch can be tested without the rest of the tick. */
+   the card waits for a person). Its own function so the switch can be tested without the rest of the tick.
+   A card sent to the client (needs_client) is NEVER approved by the timer (journey audit 2026-11-26): it waits for the
+   client or a person, and it does not use up one of the ten cards judged per tick. */
 export async function autoApproveTick(env, d, out = {}) {
   if ((await d.getSetting(env, AUTO_APPROVE_KEY)) === '0') { out.autoApprove = 'off'; return out; }
   const open = safe(await d.getSetting(env, 'rvOpen'), []);
-  let approved = 0;
-  for (const id of open.slice(0, 10)) {
+  let approved = 0, judged = 0;
+  for (const id of open.slice(0, 60)) {
+    if (judged >= 10) break;
     const rec = safe(await d.getSetting(env, `rvPost:${id}`), null);
     if (!rec || rec.done) continue;
     if (Date.now() - Date.parse(rec.at) < AUTO_APPROVE_HOURS * 3600e3) continue;
     const st = await cardState(env, id);
+    if (st && st.r && st.r.needs_client) { out.heldForClient = (out.heldForClient || 0) + 1; continue; }
+    judged++;
     const waiting = st?.ads.filter(a => a.status === 'review') || [];
     if (!waiting.length) { await redrawReview(env, d, id, '✅ Every ad has its call.'); continue; }
     try {

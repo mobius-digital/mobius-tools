@@ -638,7 +638,7 @@ function passesIf(a, ev, now) {
 }
 
 /* ---------------- actions ---------------- */
-async function addNotice(env, n) {
+export async function addNotice(env, n) {
   const id = rid('nt_');
   await env.DB.prepare(`INSERT INTO p_notice (id, org_id, person_id, brand_id, run_id, automation_id, kind, title, body, button_json, state, home, due_at, hold_until, sent_json, created_at)
     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?16, ?11, ?12, ?13, ?14, ?15)`)

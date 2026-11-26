@@ -105,7 +105,7 @@ export async function clientOf(env, email) {
   if (hq && c.hq_until && !(Number(c.hq_until) > Date.now())) return null;
   const brands = hq ? [HQ_BRAND] : (Array.isArray(c.brands) ? c.brands : []).map(String).filter(b => /^brand_[a-z0-9_]+$/.test(b));
   const access = Object.fromEntries(brands.map(b => [b, { ...CLIENT_SWITCHES }]));
-  return { email: e, name: c.name || null, brands, access, ...(hq ? { hq: true } : {}), ...(hq && c.readOnly === true ? { readOnly: true } : {}) };
+  return { email: e, name: c.name || null, brands, access, ...(hq ? { hq: true } : {}), ...(c.readOnly === true ? { readOnly: true } : {}) };
 }
 
 /** True when this email may sign in as a client (googleLogin uses it next to emailAllowed). */
@@ -620,6 +620,15 @@ const UPLOAD_ROUTES = new Set(['/api/studio/upload', '/api/studio-ai/upload', '/
 
 const CLIENT_NO = 'Your Locus login has everything about your own brand. That part runs the agency itself, so it is for the Mobius team; ask us in Slack if you need it.';
 
+/* What a read-only client login (not Lucky HQ) may still send: approve or ask for changes, comment,
+   its own requests, its own prefs and bell, and reading. Every other write is refused. */
+const READONLY_CLIENT_MAY = new Set([
+  'POST /api/production/decide', 'POST /api/production/comment', 'POST /api/production/comment/delete',
+  'POST /api/requests', 'POST /api/requests/reply', 'POST /api/requests/decide', 'POST /api/requests/done',
+  'PUT /api/me/prefs', 'POST /api/me/morning', 'PUT /api/me/delivery', 'POST /api/notices/done', 'PUT /api/clients/me',
+  'POST /api/read', 'POST /api/daycheck', 'POST /api/summarise',
+]);
+
 async function guardClient(request, env, client, handle, CORS) {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/+$/, '') || '/';
@@ -628,7 +637,11 @@ async function guardClient(request, env, client, handle, CORS) {
   let match = null;
   const rule = CLIENT_RULES.find(r => r.m === m && (!r.hq || client.hq === true) && (r.p ? r.p === path : (match = path.match(r.re))));
   if (!rule) return out(403, CLIENT_NO);
-  if (client.readOnly === true && m !== 'GET' && m !== 'HEAD') return out(403, 'You can read Ads here. Pressing calls, launching and changing ads is switched off for you in Lucky HQ (Settings, People).');
+  if (client.readOnly === true && m !== 'GET' && m !== 'HEAD') {
+    if (client.hq === true) return out(403, 'You can read Ads here. Pressing calls, launching and changing ads is switched off for you in Lucky HQ (Settings, People).');
+    /* A read-only client login (clients.js, users[e].readOnly): it may look and approve, nothing else. */
+    if (!READONLY_CLIENT_MAY.has(m + ' ' + path)) return out(403, 'Your login can look and approve. Changing ads, costs or goals is switched off for it. Ask your team.');
+  }
   if (rule.p) match = null;
   /* A login with no brand left (Cole removed the last one) opens nothing at all. */
   if (!client.brands.length) return out(401, 'unauthorized');

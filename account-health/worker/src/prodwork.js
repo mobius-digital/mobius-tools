@@ -34,6 +34,7 @@ import { slackIdOf } from './morningcard.js';
 import { frameLater } from './framesync.js';
 import { laneBlocks, laneWho, fyi } from './lane.js';
 import { cardDelivery } from './boardauto.js';
+import { tellHandoff, clearClientHandoff } from './handoff.js';
 
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const AI_MODEL = 'claude-sonnet-5-5';
@@ -858,6 +859,9 @@ export async function sendToClient(env, d, body, who) {
     .bind(r.id, what || null, what ? new Date().toISOString() : null, dueBy).run();
   if (what) await addComment(env, d, { id: r.id, body: what === 'idea' ? 'Sent the idea to the client for their OK.' : 'Sent the ad to the client for their OK.', kind: 'system' }, who, null, { quiet: true });
   if (what === 'ad' && (r.board_stage || boardOf(r.asana_section, r.stage)) !== 'review' && d.moveCard) await d.moveCard(env, d, { id: r.id, to: 'review' }, who).catch(() => {});
+  /* Hand off (journey audit 2026-11-26): the client's bell says something waits for their OK. Taken back = closed. */
+  if (what) await tellHandoff(env, { brand_id: r.act_id, to: 'clients', card_id: r.id, title: what === 'idea' ? 'A new ad idea waits for your OK' : 'New ads wait for your OK', body: `Please look by ${dueBy}.` }).catch(() => {});
+  else await clearClientHandoff(env, r.act_id, r.id, who);
   return { ok: true, needs_client: what || '', client_due: dueBy };
 }
 function addBusinessDays(ymd, n) {
@@ -1057,12 +1061,21 @@ export async function decide(env, d, body, who, scope, opts = {}) {
   } else if (ok) {
     if (idea || all) {
       await env.DB.prepare(`UPDATE p_br_batch SET approved_by = ?2, approved_at = ?3, needs_client = NULL, updated_at = datetime('now') WHERE id = ?1`).bind(r.id, who && /@/.test(who) ? String(who).toLowerCase() : name, new Date().toISOString()).run();
-      if (!idea) moved = await move('ready');
+      if (!idea) {
+        moved = await move('ready');
+        /* Hand off: the last approval tells the buyer the card is ready to load. */
+        tell.push(tellHandoff(env, { brand_id: r.act_id, to: 'buyer', card_id: r.id, title: `Card ${r.num} "${clean(r.title, 60)}" is approved and ready to load`, body: `Last approval by ${name}.` }));
+      }
     } else if (!waiting) await env.DB.prepare(`UPDATE p_br_batch SET needs_client = NULL, updated_at = datetime('now') WHERE id = ?1`).bind(r.id).run();
   } else {
     if (idea || !waiting) await env.DB.prepare(`UPDATE p_br_batch SET needs_client = NULL, updated_at = datetime('now') WHERE id = ?1`).bind(r.id).run();
     if (!idea) moved = await move('making');
     if (r.assignee_name) tell.push(dm(env, d, r.assignee_name, `${name} asked for changes on ${what} of #${r.num} "${clean(r.title, 60)}": "${clean(text, 300)}" <${cardUrl(r.id)}|Open the card>`));
+  }
+  /* The client's bell row for this card is done once the card no longer waits on them. */
+  if (!reset) {
+    const now = await env.DB.prepare(`SELECT needs_client FROM p_br_batch WHERE id = ?1`).bind(r.id).first().catch(() => null);
+    if (now && !now.needs_client) await clearClientHandoff(env, r.act_id, r.id, name);
   }
   const after = later(Promise.all(tell));
   if (after) await after;
@@ -1113,6 +1126,11 @@ async function fileRow(env, d, origin, r, { id, key, kind, name, mime, size }, w
   if (kind === 'version') {
     const board = r.board_stage || boardOf(r.asana_section, r.stage);
     if ((board === 'brief' || board === 'making') && d.moveCard) moved = (await d.moveCard(env, d, { id: r.id, to: 'review' }, who).catch(() => null))?.to || null;
+    /* Hand off (journey audit 2026-11-26): an upload that moves the card to Review asks the reviewer. */
+    if (moved === 'review') {
+      const p = tellHandoff(env, { brand_id: r.act_id, to: 'reviewer', card_id: r.id, title: `Card ${r.num} "${clean(r.title, 60)}" has new ads to review`, body: name });
+      if (d.waitUntil) d.waitUntil(p); else await p;
+    }
     await convert(env, origin, id, mime, name).catch(e => console.log('convert: ' + e.message));
     /* Frame in step (framesync.js): the older version of this ad leaves the concept folder, the new one is there */
     if (ad) { const fp = frameLater(env, d, r.id, [ad], { origin }); if (fp) await fp; }

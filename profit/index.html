@@ -12532,9 +12532,17 @@ async function renderSettings() {
     const paint = d => {
       /* Who has access is the owner's to change (the server refuses anyone else). */
       const ownerOnly = d.can_set_brands ? '' : ' disabled title="Only Cole can change this"';
-      const rows = d.members.map(mm => `<tr data-e="${esc(mm.email)}">
+      const brandNames = mm => esc((mm.brands || []).map(id => (S.accounts.find(a => a.act_id === id) || {}).name || id).join(', '));
+      /* A removed person stays on the list, marked, so Remove visibly did something. Their role and brands
+         are kept for if they come back; nothing on the row can change them except Let back in. */
+      const rows = d.members.map(mm => mm.removed ? `<tr data-e="${esc(mm.email)}">
+        <td><b>${esc(mm.email)}</b><br><span class="tiny" style="color:var(--bad)">Removed, cannot sign in</span></td>
+        <td><span class="tiny">${mm.role === 'viewer' ? 'Was a viewer' : 'Was an admin'}</span></td>
+        <td><span class="tiny">${mm.brands && mm.brands.length ? brandNames(mm) : (mm.email.endsWith('@' + d.domain) ? 'Every brand' : 'No brands')}</span></td>
+        <td><button class="btn" data-k="restore" style="font-size:11.5px;padding:4px 8px"${ownerOnly}>Let back in</button>
+          <span class="tiny" data-msg></span></td></tr>` : `<tr data-e="${esc(mm.email)}">
         <td><b>${esc(mm.email)}</b>${mm.email === d.you ? ' <span class="tiny">(you)</span>' : ''}<br><span class="tiny">${mm.guest ? 'Invited guest' : 'On your domain'}</span></td>
-        <td><select data-k="role" style="max-width:230px"${ownerOnly}>
+        <td><select data-k="role" style="max-width:230px"${mm.email === d.owner ? ' disabled title="The owner can always change things"' : ownerOnly}>
           <option value="admin"${mm.role === 'admin' ? ' selected' : ''}>Admin - can change things</option>
           <option value="viewer"${mm.role === 'viewer' ? ' selected' : ''}>Viewer - read only</option></select></td>
         <td>${mm.email === d.owner ? '<span class="tiny">Every brand, always</span>' : `<button class="btn" data-k="brands" ${d.can_set_brands ? '' : 'disabled title="Only Cole can change this"'} style="font-size:11.5px;padding:4px 8px">${mm.brands && mm.brands.length ? `${mm.brands.length} brand${mm.brands.length === 1 ? '' : 's'}: ${esc(mm.brands.map(id => (S.accounts.find(a => a.act_id === id) || {}).name || id).join(', '))}` : 'Every brand'}</button>`}</td>
@@ -12559,6 +12567,30 @@ async function renderSettings() {
         catch (e) { noteModal('Could not save', `<p>${esc(e.message)}</p>`); if (el) el.textContent = ''; return false; }
       };
       const reload = async () => { try { paint(await mApi('/api/team')); } catch { /* keep what is on screen */ } };
+      /* The brand ticks for an invite or a return. `need`: an outside guest sees NO brand until one is ticked, so
+         at least one must be (the server refuses a new guest without brands). Resolves to the ticked ids, or null. */
+      const pickBrands = (email, need) => new Promise(res => {
+        const w = document.createElement('div'); w.className = 'modal-wrap';
+        w.innerHTML = `<div class="modal" style="max-width:460px;width:100%"><h3>Brands ${esc(email)} sees</h3><p class="hint">Tick the brands this person may see. They see nothing else.</p>
+          <div style="display:grid;gap:6px;margin:10px 0">${S.accounts.map(a => `<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" value="${esc(a.act_id)}"> ${esc(a.name)}</label>`).join('')}</div>
+          <p class="tiny" data-err style="color:var(--bad);margin:0 0 8px"></p>
+          <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" data-x>Cancel</button><button class="btn primary" data-ok>Save</button></div></div>`;
+        document.body.appendChild(w);
+        w.querySelector('[data-x]').onclick = () => { w.remove(); res(null); };
+        w.querySelector('[data-ok]').onclick = () => {
+          const brands = [...w.querySelectorAll('input:checked')].map(x => x.value);
+          if (need && !brands.length) { w.querySelector('[data-err]').textContent = 'Tick at least one brand.'; return; }
+          w.remove(); res(brands);
+        };
+      });
+      const onDomain = em => String(em).toLowerCase().endsWith('@' + String(d.domain).toLowerCase());
+      host.querySelectorAll('[data-k="restore"]').forEach(b => b.onclick = async () => {
+        const tr = b.closest('tr'), mm = d.members.find(x => x.email === tr.dataset.e);
+        const body = { role: mm.role };
+        if (mm.brands && mm.brands.length) body.brands = mm.brands;
+        else if (!onDomain(mm.email)) { const brands = await pickBrands(mm.email, true); if (!brands) return; body.brands = brands; }
+        if (await save(mm.email, body, tr.querySelector('[data-msg]'))) reload();
+      });
       host.querySelectorAll('[data-k="role"]').forEach(sel => sel.onchange = async () => {
         const tr = sel.closest('tr');
         if (await save(tr.dataset.e, { role: sel.value }, tr.querySelector('[data-msg]'))) reload();
@@ -12580,7 +12612,10 @@ async function renderSettings() {
       });
       $('#tmAdd').onclick = async () => {
         const em = $('#tmEmail').value.trim(); if (!em) return;
-        if (await save(em, { role: $('#tmRole').value }, $('#tmMsg'))) { $('#tmEmail').value = ''; reload(); }
+        const body = { role: $('#tmRole').value };
+        /* Someone off the domain starts with no brands: pick theirs before the invite goes in. */
+        if (!onDomain(em)) { const brands = await pickBrands(em, true); if (!brands) return; body.brands = brands; }
+        if (await save(em, body, $('#tmMsg'))) { $('#tmEmail').value = ''; reload(); }
       };
     };
     try { paint(await mApi('/api/team')); }
