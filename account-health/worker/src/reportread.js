@@ -139,18 +139,24 @@ export function readFacts(data) {
       spend: r0(a.spend), share_of_meta: a.share != null ? `${Math.round(a.share * 100)}%` : null,
       roas_tw: t && a.spend ? r2(t.revenue / a.spend) : null, orders_tw: t ? r2(t.orders) : null };
   });
+  /* NO GOAL TYPED, NO GOAL SHOWN (2026-11-26): a month with no goal typed (reportData planned false) hands the model no
+     goal, plan or projection, only no_goal_set, so the client read never states an inherited goal or "behind goal". */
+  const unset = [...new Set([...Object.entries(data.forecast?.months || {}).filter(([, m]) => m && m.planned === false).map(([ym]) => ym),
+    ...(data.pacing?.planned === false && data.pacing.month ? [data.pacing.month] : [])])].sort();
   return {
     brand: data.account?.name || null, currency: data.account?.currency || 'USD', period: data.period, from: data.start, to: data.end,
     period_before: { from: data.prev_start, to: data.prev_end },
     totals: tot(data.totals), totals_before: tot(data.previous),
     platforms, other_channels: other, top_meta_ads: ads,
-    month_pacing: data.pacing ? { month: data.pacing.month, sales_to_date: r0(data.pacing.mtd_sales), plan_to_date: r0(data.pacing.plan_to_date), month_goal: r0(data.pacing.goal_sales), projected: r0(data.pacing.projected) } : null,
-    plan_for_period: data.forecast ? { sales: r0(data.forecast.sales), ad_spend: r0(data.forecast.spend) } : null,
+    month_pacing: !data.pacing ? null : data.pacing.planned === false ? { month: data.pacing.month, sales_to_date: r0(data.pacing.mtd_sales) }
+      : { month: data.pacing.month, sales_to_date: r0(data.pacing.mtd_sales), plan_to_date: r0(data.pacing.plan_to_date), month_goal: r0(data.pacing.goal_sales), projected: r0(data.pacing.projected) },
+    plan_for_period: data.forecast && !unset.length ? { sales: r0(data.forecast.sales), ad_spend: r0(data.forecast.spend) } : null,
+    ...(unset.length ? { no_goal_set: unset } : {}),
     missing_days: data.missing_days || 0,
   };
 }
 
-const RULES_NUMBERS = `MER is the whole store: all store sales over all ad spend on every platform. Never compare MER with a platform ROAS or a platform ROAS goal; MER is always higher because it counts every channel. Platform sales and ROAS are Triple Whale attributed (last platform click) and overlap across platforms. Use ONLY the numbers given; never invent or extrapolate one. A platform marked too_few_orders has no readable ROAS: say its orders have not landed, do not quote the ratio.`;
+const RULES_NUMBERS = `MER is the whole store: all store sales over all ad spend on every platform. Never compare MER with a platform ROAS or a platform ROAS goal; MER is always higher because it counts every channel. Platform sales and ROAS are Triple Whale attributed (last platform click) and overlap across platforms. Use ONLY the numbers given; never invent or extrapolate one. A platform marked too_few_orders has no readable ROAS: say its orders have not landed, do not quote the ratio. A month listed in no_goal_set has no goal: never mention a goal, plan, target or being ahead or behind for it.`;
 
 const POINTS_SYSTEM = `You prepare the Mobius Digital team (an ads agency) for its weekly call about one client brand. You get the period's frozen numbers as JSON. Write TALKING POINTS for the team. These are team-only: the client never sees them.
 Return ONLY a JSON object, no prose around it:

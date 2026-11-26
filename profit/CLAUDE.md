@@ -429,8 +429,12 @@ profit/
   `goal_set: false`, from briefData goals_planned), the report archive (`hideUnsetGoals` in report-view drops the
   forecast and pacing, sets `no_goal`) and the profit share page (`no_goal`). Internal screens may show it as a gray
   "Last set goal (<Month>): $X" hint (Brief tab flag). The strategist (mywork.js STRAT, else OWNER_EMAIL) gets "Set
-  <Month>'s goal for <Brand>" in My day from the 25th of the month before until it is typed. Tests: test-nogoal.mjs in
-  both workers.
+  <Month>'s goal for <Brand>" in My day from the 25th of the month before until it is typed (never in the 5am DM).
+  "Typed" = the month's OWN key carries a sales goal (`goals_json[ym].sales != null`), never just that the key exists:
+  a margin save (PUT /api/margin), a spend-only save or the strategist's goals tool can make an empty or cm_pct-only
+  key. Same test in briefData, reportData (forecast.months, pacing.planned), the profit share and My day. The weekly
+  and monthly "How we read it" draft (reportread.js readFacts) gets no goal, plan or projection for such a month, only
+  `no_goal_set`. Tests: test-nogoal.mjs in both workers.
 - **`GET /api/profit/:token` is client-facing: everything about THEIR business, none
   of our workings.** It carries the month-to-date headline numbers against the
   pro-rated plan, the full revenue-to-CM waterfall, the daily revenue-vs-spend series,

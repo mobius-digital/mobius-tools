@@ -157,13 +157,14 @@ function slackTitle(text, name) {
 }
 
 /** The months a brand still needs a goal typed for, on `today`: this month when it has none, and next month from the
- *  25th. `goalsJson` = the brand's accounts.goals_json (an explicit "YYYY-MM" key with a sales or spend goal). Pure. */
+ *  25th. `goalsJson` = the brand's accounts.goals_json (an explicit "YYYY-MM" key with a sales goal, the same test as
+ *  briefData's goals_planned; a margin or spend save can leave a key with no sales goal). Pure. */
 export function goalMonthsDue(goalsJson, today) {
   const g = (typeof goalsJson === 'string' ? safe(goalsJson, {}) : goalsJson) || {};
   const ym = today.slice(0, 7), d = new Date(ym + '-15T12:00:00Z');
   d.setUTCMonth(d.getUTCMonth() + 1);
   const months = [ym, ...(+today.slice(8, 10) >= 25 ? [d.toISOString().slice(0, 7)] : [])];
-  return months.filter(m => !(g[m] && typeof g[m] === 'object' && (g[m].sales != null || g[m].spend != null)));
+  return months.filter(m => !(g[m] && typeof g[m] === 'object' && g[m].sales != null));
 }
 /** "Set December's goal for Sample Golf" lines, each for the brand's strategist, else the owner (OWNER_EMAIL). Pure. */
 export function goalItems(g, person) {
@@ -255,7 +256,7 @@ export function forPerson(g, person) {
 const tagOf = it => it.source === 'card' ? `card ${it.num}` : it.source === 'slack' ? 'Slack' : it.source === 'call' ? 'Monday plan' : 'task';
 /** The DM text, or null when nothing is open. Pure. */
 export function dmText(r, person, today, link = MYWORK_LINK) {
-  const open = (r.items || []).filter(i => !i.done);
+  const open = (r.items || []).filter(i => !i.done && i.source !== 'goal'); // goal lines are My work only, never the DM
   const T = open.filter(i => i.bucket === 'today'), L = open.filter(i => i.bucket === 'late'), W = open.filter(i => i.bucket === 'week' && i.due);
   if (!T.length && !L.length && !W.length) return null;
   const when = it => it.due === today ? ', due today' : it.due === addDays(today, 1) ? ', due tomorrow' : '';
@@ -279,7 +280,7 @@ export function dmText(r, person, today, link = MYWORK_LINK) {
  *  the tasks as lines (today first, then late, then coming up; 5 shown), "Locus · 5:00am CT", one Open button.
  *  null when nothing is open. Pure. */
 export function dmMessage(r, person, today, link = MYWORK_LINK, at = new Date()) {
-  const open = (r.items || []).filter(i => !i.done);
+  const open = (r.items || []).filter(i => !i.done && i.source !== 'goal'); // goal lines are My work only, never the DM
   const T = open.filter(i => i.bucket === 'today'), L = open.filter(i => i.bucket === 'late'), W = open.filter(i => i.bucket === 'week' && i.due);
   if (!T.length && !L.length && !W.length) return null;
   const when = it => it.due === today ? ', due today' : it.due === addDays(today, 1) ? ', due tomorrow' : '';

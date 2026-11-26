@@ -2362,7 +2362,7 @@ async function briefData(env, acct, upTo) {
   // gets numbers, and reporting them as "the plan" is how a goal silently carries
   // from one month to the next. Say which it is, and name where it came from.
   const gjson = safeJson(acct.goals_json, {});
-  const planned = !!gjson[ym];
+  const planned = gjson[ym]?.sales != null; // the month's OWN key has a sales goal (a margin or spend save leaves a key without one)
   let inheritedFrom = null;
   if (!planned && goals) {
     const months = Object.keys(gjson).filter(k => /^\d{4}-\d{2}$/.test(k)).sort();
@@ -4678,7 +4678,7 @@ async function reportData(env, acct, period, start, end) {
   for (const d of curDates) {
     const ym = monthOf(d);
     const g = goalsFor(acct, ym);
-    monthsSeen[ym] ??= { planned: !!gjson[ym], has_goals: !!g };
+    monthsSeen[ym] ??= { planned: gjson[ym]?.sales != null, has_goals: !!g };
     if (!g) continue;
     const dim = daysInMonth(d);
     if (g.sales != null) fSales = (fSales ?? 0) + g.sales / dim;
@@ -4713,7 +4713,7 @@ async function reportData(env, acct, period, start, end) {
         // plain run-rate otherwise.
         projected: mtd.sales != null && planToDate > 0 ? mtd.sales / planToDate * gEnd.sales
           : mtd.sales != null && elapsed > 0 ? mtd.sales / elapsed * dim : null,
-        planned: !!gjson[ymEnd],
+        planned: gjson[ymEnd]?.sales != null,
       };
       // Saying a month is behind is half the job. The other half is the ask: what
       // it takes from here. Returning revenue arrives on its own, so the shortfall

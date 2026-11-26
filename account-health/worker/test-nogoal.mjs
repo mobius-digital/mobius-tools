@@ -2,7 +2,8 @@
 // the My day line for the brand's owner (mywork.js goalItems). Run: node test-nogoal.mjs
 import { dailyPost, noGoalLine } from './src/clientpost.js';
 import { _test } from './src/mywork.js';
-const { goalMonthsDue, goalItems, forPerson } = _test;
+import { readFacts } from './src/reportread.js';
+const { goalMonthsDue, goalItems, forPerson, dmText, dmMessage } = _test;
 let n = 0, bad = 0;
 const ok = (c, m) => { n++; if (!c) { bad++; console.log('FAIL', m); } };
 
@@ -61,6 +62,33 @@ ok(goalItems(g, ahsan).length === 0, 'December typed: no line');
 ok(goalItems({ ...g, today: '2026-11-24' }, noma).length === 0, 'before the 25th: nothing');
 const fp = forPerson({ today: '2026-11-26', brands: [], goals: g.goals, ownerEmail: OWNER }, noma);
 ok(fp.items.some(i => i.id === 'goal:brand_dartee_golf:2026-12'), 'reaches the My day feed');
+
+// 5. A month key with no sales goal (a margin save or a spend-only save makes one) is still not a goal.
+ok(goalMonthsDue({ '2026-11': { sales: 1 }, '2026-12': { cm_pct: 0.4 } }, '2026-11-28').join() === '2026-12', 'margin-only key: still due');
+ok(goalMonthsDue({ '2026-11': { sales: 1 }, '2026-12': {} }, '2026-11-28').join() === '2026-12', 'empty key: still due');
+ok(goalMonthsDue({ '2026-11': { sales: 1 }, '2026-12': { spend: 500 } }, '2026-11-28').join() === '2026-12', 'spend-only key: still due');
+
+// 6. Goal lines stay in My work and never reach the 5am DM.
+const onlyGoal = { items: [{ id: 'goal:x:2026-12', source: 'goal', bucket: 'today', text: "Set December's goal for Brand A", brand: 'Brand A', done: false }], counts: {} };
+ok(dmText(onlyGoal, noma, '2026-11-26') === null, 'DM text: a goal line alone sends nothing');
+ok(dmMessage(onlyGoal, noma, '2026-11-26') === null, 'DM message: a goal line alone sends nothing');
+const mixed = { items: [...onlyGoal.items, { id: 'task:1', source: 'task', bucket: 'today', text: 'Write the brief', brand: 'Brand A', due: '', done: false }], counts: {} };
+const mt = dmText(mixed, noma, '2026-11-26');
+ok(mt && mt.includes('Write the brief') && !mt.includes("December's goal") && mt.includes('1 for today'), 'DM lists the task, not the goal line');
+
+// 7. The weekly/monthly read: an unplanned month gives the model no goal, plan or projection.
+const pl = { account: { name: 'Sample Golf' }, totals: { sales: 1000, spend: 400 },
+  forecast: { sales: 1200, spend: 450, months: { '2026-11': { planned: true } } },
+  pacing: { month: '2026-11', mtd_sales: 3000, plan_to_date: 2800, goal_sales: 9000, projected: 9500, planned: true } };
+const fPl = readFacts(pl);
+ok(fPl.month_pacing.month_goal === 9000 && fPl.plan_for_period.sales === 1200 && !('no_goal_set' in fPl), 'planned month: facts unchanged');
+const un = { ...pl, forecast: { ...pl.forecast, months: { '2026-12': { planned: false } } }, pacing: { ...pl.pacing, month: '2026-12', planned: false } };
+const fUn = readFacts(un);
+ok(fUn.plan_for_period === null, 'unplanned: no plan for the period');
+ok(fUn.month_pacing.sales_to_date === 3000 && !('month_goal' in fUn.month_pacing) && !('plan_to_date' in fUn.month_pacing) && !('projected' in fUn.month_pacing), 'unplanned: pacing is sales to date only');
+ok(fUn.no_goal_set.join() === '2026-12' && !JSON.stringify(fUn).includes('9000') && !JSON.stringify(fUn).includes('2800'), 'unplanned: month named, no goal number');
+const wk = readFacts({ ...pl, forecast: { ...pl.forecast, months: { '2026-11': { planned: true }, '2026-12': { planned: false } } }, pacing: undefined });
+ok(wk.plan_for_period === null && wk.no_goal_set.join() === '2026-12', 'week across a planned and an unplanned month: no plan');
 
 console.log(`${n - bad}/${n} passed`);
 if (bad) process.exit(1);

@@ -1914,7 +1914,7 @@ export default {
         const { rows, margin_pct, exp, rules } = await seriesFor(env, acct, from, to);
         const t = totals(rows);
         const g = goalsFor(acct, ym);
-        const planned = !!safeJson(acct.goals_json, {})[ym];
+        const planned = safeJson(acct.goals_json, {})[ym]?.sales != null; // own sales goal, not a key a margin save made
         // Profit is shown only when we would trust it internally. A client should
         // never be the first person to see a number the Costs page calls broken.
         const snap = await env.DB.prepare(`SELECT verdict FROM p_cost_health WHERE act_id = ?1`).bind(acct.act_id).first().catch(() => null);
