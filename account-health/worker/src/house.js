@@ -18,7 +18,7 @@
  * context, actions. With a status, everything after the header goes inside one attachment of that color. */
 
 export const STATUS_COLOR = { good: '#2EB67D', warn: '#ECB22E', bad: '#E01E5A' };
-export const LIMITS = { header: 150, summary: 200, section: 3000, button: 75, buttons: 5, numbers: 3, lines: 5 };
+export const LIMITS = { header: 150, summary: 200, section: 3000, button: 75, buttons: 5, numbers: 4, lines: 5 };
 
 /** Tests set this to make a broken input throw; in the worker a broken input is repaired instead. */
 export const HOUSE = { strict: false };
@@ -101,7 +101,7 @@ export function houseMessage({ title, summary, tag, numbers, lines, image, sourc
   if (sumLine) after.push({ type: 'section', text: { type: 'mrkdwn', text: sumLine } });
 
   const nums = (numbers || []).filter(n => n && (n.label || n.value != null));
-  if (nums.length > LIMITS.numbers) broken('more than 3 numbers');
+  if (nums.length > LIMITS.numbers) broken('more than 4 numbers');
   const cells = nums.slice(0, LIMITS.numbers).map(n => ({ type: 'mrkdwn',
     text: clip(noDash(`*${squash(n.label)}*\n${String(n.value ?? '').trim()}${n.note ? ` · ${squash(n.note)}` : ''}`), 2000) }));
   if (cells.length) after.push({ type: 'section', fields: cells });

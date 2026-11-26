@@ -2,7 +2,7 @@
 
 Made by `node engine/worker/tools/gen-lists.mjs`. Do not edit by hand.
 
-Every statement the engine can run. 175 in all, 12 of them writes.
+Every statement the engine can run. 177 in all, 12 of them writes.
 
 | Name | Scope | Write | Why no brand | SQL |
 |---|---|---|---|---|
@@ -162,8 +162,10 @@ Every statement the engine can run. 175 in all, 12 of them writes.
 | reports.meetingOne | none |  | the table has no brand column. The route is team only | `SELECT * FROM p_meeting WHERE id = :id` |
 | reports.openActions | brands |  |  | `SELECT * FROM p_action WHERE status = 'open' AND ({{brands:act_id}} OR act_id = '') ORDER BY CASE WHEN due = '' THEN 1 ELSE 0 END, due, created_at` |
 | reports.reportOne | brand |  |  | `SELECT * FROM reports WHERE act_id = {{brand_id}} AND period = :period AND period_start = :start` |
-| reports.reportsAll | brands |  |  | `SELECT r.act_id, r.period, r.period_start, r.period_end, r.status, r.generated_at, r.sent_at, acc.name AS account_name, acc.currency FROM reports r JOIN brand_accounts acc ON acc.act_id = r.act_id WHERE {{brands:r.act_id}} ORDER BY r.period_start DESC, r.period LIMIT 80` |
-| reports.reportsOne | brand |  |  | `SELECT r.act_id, r.period, r.period_start, r.period_end, r.status, r.generated_at, r.sent_at, acc.name AS account_name, acc.currency FROM reports r JOIN brand_accounts acc ON acc.act_id = r.act_id WHERE r.act_id = {{brand_id}} ORDER BY r.period_start DESC, r.period LIMIT 80` |
+| reports.reportsAll | brands |  |  | `SELECT r.act_id, r.period, r.period_start, r.period_end, r.status, r.generated_at, r.sent_at, acc.name AS account_name, acc.currency, rr.status AS read_status FROM reports r JOIN brand_accounts acc ON acc.act_id = r.act_id LEFT JOIN p_report_read rr ON rr.act_id = r.act_id AND rr.period = r.period AND rr.period_start = r.period_start WHERE {{brands:r.act_id}} ORDER BY r.period_start DESC, r.period LIMIT 80` |
+| reports.reportsAllPlain | brands |  |  | `SELECT r.act_id, r.period, r.period_start, r.period_end, r.status, r.generated_at, r.sent_at, acc.name AS account_name, acc.currency FROM reports r JOIN brand_accounts acc ON acc.act_id = r.act_id WHERE {{brands:r.act_id}} ORDER BY r.period_start DESC, r.period LIMIT 80` |
+| reports.reportsOne | brand |  |  | `SELECT r.act_id, r.period, r.period_start, r.period_end, r.status, r.generated_at, r.sent_at, acc.name AS account_name, acc.currency, rr.status AS read_status FROM reports r JOIN brand_accounts acc ON acc.act_id = r.act_id LEFT JOIN p_report_read rr ON rr.act_id = r.act_id AND rr.period = r.period AND rr.period_start = r.period_start WHERE r.act_id = {{brand_id}} ORDER BY r.period_start DESC, r.period LIMIT 80` |
+| reports.reportsOnePlain | brand |  |  | `SELECT r.act_id, r.period, r.period_start, r.period_end, r.status, r.generated_at, r.sent_at, acc.name AS account_name, acc.currency FROM reports r JOIN brand_accounts acc ON acc.act_id = r.act_id WHERE r.act_id = {{brand_id}} ORDER BY r.period_start DESC, r.period LIMIT 80` |
 | reports.settingsMany | none |  | settings rows have no brand column. The keys are built from the caller's own brands | `SELECT key, value FROM settings WHERE key IN (:keys)` |
 | reports.snapshots | brands |  |  | `SELECT s.token, s.act_id, s.kind, s.title, s.page, s.created_by, s.created_at, s.expires_at, s.revoked, s.views, s.last_view, a.name AS brand FROM p_snapshot s LEFT JOIN brand_accounts a ON a.act_id = s.act_id WHERE {{brands:s.act_id}} ORDER BY s.created_at DESC LIMIT 300` |
 | reports.weeklyLatest | brands |  |  | `SELECT r.act_id, r.period, r.period_start, r.period_end, r.status, r.summary, r.data_json, r.slack_ts, r.slack_channel, r.sent_at FROM reports r WHERE {{brands:r.act_id}} AND r.period = 'weekly' AND r.period_start = (SELECT MAX(x.period_start) FROM reports x WHERE x.act_id = r.act_id AND x.period = 'weekly')` |

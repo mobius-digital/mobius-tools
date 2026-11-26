@@ -17,16 +17,27 @@
  "brief_default": "*Yesterday*\nSales $1,200, ad spend $450, MER 2.67x. On plan.\nMore numbers in the thread.",
  "reports": {
   "brand_northlake_golf|weekly|2026-11-16": {
-   "post": "*Northlake Golf, week of Nov 16 to 22*\nA steady week before the sale.\nSales $14,820 (up 6% on last week)\nAd spend $5,410\nMER 2.74x (was 2.61x)\n\n*Our work this week*\n6 new ads launched. 9 changes to your ads <https://example.com/updates|see each one and why>\n\n*This week*\nBlack Friday ads go live Wednesday night.\n\n*We need from you*\nThe gift guide photos by Friday.\n\n<https://example.com/report|Open the full report>",
-   "summary": "What we saw\n- Sales held up in a quiet week before the sale.\n- The belt bundle ads did most of the work.\n\nWhat it means\nThe account is ready to spend more on Black Friday.\n\nWhat we're doing\n- Black Friday ads are loaded and switch on Wednesday night."
+   "post": "*Northlake Golf · Weekly report, Nov 16 to 22*\n*How we read it*\nA quiet week, as planned. Sales came down with spend while MER held near 2.8x.\nShoppers are waiting for Black Friday.\nNext: Black Friday ads go live Thursday at 6pm.\n\n*The numbers* (compared with the week before)\nSales $12,380 (was $17,940)\nAd spend $4,410 (was $6,120)\nMER (whole store) 2.81x (was 2.93x)\n\n*By platform* (Triple Whale attributed)\n• Meta: $3,484 spent, 2.38x ROAS\n• Google: $838 spent, 3.05x ROAS\n\n*This week*\nBlack Friday ads go live Thursday at 6pm.\n\n*We need from you*\nThe gift guide photos by Friday.\n\n<https://example.com/report|Open the full report>",
+   "summary": "A quiet week, as planned. Sales came down with spend while MER held near 2.8x.\nShoppers are waiting for Black Friday.\nNext: Black Friday ads go live Thursday at 6pm."
   },
   "brand_fairway_supply|weekly|2026-11-16": {
    "post": "*Fairway Supply, week of Nov 16 to 22*\nSales $6,240 (down 4% on last week)\nAd spend $2,980\nMER 2.09x (was 2.20x)\n\n<https://example.com/report|Open the full report>",
-   "summary": "What we saw\n- A softer week as shoppers waited for the sale.\n\nWhat it means\nNothing to fix. The sale week will tell us more.\n\nWhat we're doing\n- New club photos go live on Monday."
+   "summary": ""
   }
  },
  "report_default": {
   "post": null,
   "summary": "What we saw\n- A steady period.\n\nWhat it means\nOn plan.\n\nWhat we're doing\n- More of what works."
+ },
+ "reads": {
+  "brand_northlake_golf|weekly|2026-11-16": {
+   "status": "approved",
+   "read_text": "A quiet week, as planned. Sales came down with spend while MER held near 2.8x.\nShoppers are waiting for Black Friday.\nNext: Black Friday ads go live Thursday at 6pm.",
+   "approved_by": "sam.rivera@example.com",
+   "approved_at": "2026-11-24T15:10:00Z"
+  },
+  "brand_fairway_supply|weekly|2026-11-16": {
+   "status": "points"
+  }
  }
 }

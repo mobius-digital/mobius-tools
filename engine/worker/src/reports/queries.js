@@ -13,13 +13,28 @@ export const queries = {
     sql: `SELECT b.*, acc.name AS account_name FROM briefs b JOIN brand_accounts acc ON acc.act_id = b.act_id
           WHERE {{brands:b.act_id}} ORDER BY b.date DESC LIMIT 60` },
 
-  /* Weekly and monthly reports: the list (no numbers) and one report with its frozen numbers. */
+  /* Weekly and monthly reports: the list (no numbers) and one report with its frozen numbers. read_status is the
+     How we read it status (account-health reportread.js p_report_read: none | points | drafted | approved), so the
+     To send page needs no read per draft. p_report_read is made on first use by the old side: until it exists the
+     service falls back to the Plain forms (read_status left out). */
   reportsOne: { scope: 'brand',
+    sql: `SELECT r.act_id, r.period, r.period_start, r.period_end, r.status, r.generated_at, r.sent_at,
+                 acc.name AS account_name, acc.currency, rr.status AS read_status
+          FROM reports r JOIN brand_accounts acc ON acc.act_id = r.act_id
+          LEFT JOIN p_report_read rr ON rr.act_id = r.act_id AND rr.period = r.period AND rr.period_start = r.period_start
+          WHERE r.act_id = {{brand_id}} ORDER BY r.period_start DESC, r.period LIMIT 80` },
+  reportsAll: { scope: 'brands',
+    sql: `SELECT r.act_id, r.period, r.period_start, r.period_end, r.status, r.generated_at, r.sent_at,
+                 acc.name AS account_name, acc.currency, rr.status AS read_status
+          FROM reports r JOIN brand_accounts acc ON acc.act_id = r.act_id
+          LEFT JOIN p_report_read rr ON rr.act_id = r.act_id AND rr.period = r.period AND rr.period_start = r.period_start
+          WHERE {{brands:r.act_id}} ORDER BY r.period_start DESC, r.period LIMIT 80` },
+  reportsOnePlain: { scope: 'brand',
     sql: `SELECT r.act_id, r.period, r.period_start, r.period_end, r.status, r.generated_at, r.sent_at,
                  acc.name AS account_name, acc.currency
           FROM reports r JOIN brand_accounts acc ON acc.act_id = r.act_id
           WHERE r.act_id = {{brand_id}} ORDER BY r.period_start DESC, r.period LIMIT 80` },
-  reportsAll: { scope: 'brands',
+  reportsAllPlain: { scope: 'brands',
     sql: `SELECT r.act_id, r.period, r.period_start, r.period_end, r.status, r.generated_at, r.sent_at,
                  acc.name AS account_name, acc.currency
           FROM reports r JOIN brand_accounts acc ON acc.act_id = r.act_id

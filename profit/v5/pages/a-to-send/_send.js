@@ -8,10 +8,11 @@
      POST /api/brief-send { act, date }               Send: posts in the client channel, as the owner
      POST /api/brief-send { act, date, to: 'team' }   a brand with no client channel: post in its team channel
      POST /api/brief-skip { act, date }               Do not send
-   Weekly or monthly report:
-     GET  /api/report?act=&period=&start=             the report, for its summary
+   Weekly or monthly report (2026-11-26: a report sends only once "How we read it" is approved; the server refuses
+   otherwise, and here Send on an unapproved report opens the brand's Reports page instead):
+     GET  /api/report-read?act=&period=&start=        { status: none|points|drafted|approved, read_text, ... } (team only)
+     GET  /api/report?act=&period=&start=             the report, for its summary (= the approved read)
      GET  /api/client-post/preview?act=               the weekly post as the client sees it (latest weekly only)
-     PUT  /api/report-summary { act, period, start, summary }   Edit (the summary on the full report page)
      POST /api/report-send { act, period, start }     Send: posts in the client channel and freezes the report
      POST /api/report-send { act, period, start, to: 'team' }   no client channel: post in the team channel
      POST /api/report-skip { act, period, start }     Do not send
@@ -91,6 +92,39 @@ export function noChannel(i, ctx, sampleChannels) {
 }
 export async function sampleChannels() { return (await sampleData()).channels || {}; }
 
+/* ---------- How we read it ---------- */
+/** The report's read: GET /api/report-read. Sample mode reads the fixture. Throws when the server does not answer. */
+export async function readStatusOf(i, ctx, signal) {
+  if (ctx.sample) {
+    const d = await sampleData();
+    return (d.reads || {})[sampleKey(i)] || { status: 'none' };
+  }
+  const q = `act=${encodeURIComponent(i.act_id)}&period=${encodeURIComponent(i.period)}&start=${encodeURIComponent(i.day)}`;
+  const r = await ctx.api('/api/report-read?' + q, { worker: 'ah', signal });
+  if (r && r.error) throw new Error(r.error);
+  return r || { status: 'none' };
+}
+/** True when a report may be offered Send: its read is approved and has words. */
+export const readApproved = read => !!read && read.status === 'approved' && !!String(read.read_text || '').trim();
+/** Open the brand's Reports page, where the read is written and approved. */
+export function openReports(i, ctx) {
+  const b = (ctx.brands || []).find(x => x.id === i.act_id);
+  const r = { view: 'brand', brand: b ? b.slug : undefined, line: 'reports', tab: 'index' };
+  if (ctx.go) ctx.go(r); else location.hash = '#/brand/' + encodeURIComponent(r.brand || '') + '/reports/index';
+}
+/** The sheet for a report whose read is not approved yet: say so and go to the Reports page. */
+function needsRead(i, ctx, sh, body, read) {
+  const what = read && read.status === 'drafted' ? 'How we read it is written but not approved yet.'
+    : read && read.status === 'points' ? 'The talking points are ready. How we read it is written after the call.'
+      : 'How we read it is not written yet.';
+  put(body,
+    h('p', { class: 'sd-where' }, h('b', null, (i.brand || 'This brand') + '. '), what),
+    h('p', { class: 'sd-note' }, 'A report goes to the client only with an approved read at the top. Write it and approve it on the Reports page of the brand.'),
+    h('div', { class: 'sd-acts' },
+      button('Open Reports', { primary: true, large: true, onclick: () => { sh.close(); openReports(i, ctx); } }),
+      button('Not now', { ghost: true, large: true, onclick: () => sh.close() })));
+}
+
 /* ---------- reading the text ---------- */
 async function readBrief(i, ctx) {
   if (ctx.sample) {
@@ -146,6 +180,11 @@ export async function sendSheet(i, ctx, done) {
   const body = h('div', { class: 'sd' }, loading());
   const sh = sheet({ title: 'Send the ' + nameOf(i) + '?', side: 'center', body });
   let ch, txt;
+  if (i.kind === 'report') {
+    let read = null;
+    try { read = await readStatusOf(i, ctx); } catch { read = null; }
+    if (!readApproved(read)) return needsRead(i, ctx, sh, body, read);
+  }
   try {
     ch = await channelOf(i, ctx);
     txt = i.kind === 'brief' ? await readBrief(i, ctx) : await readReport(i, ctx);
@@ -166,13 +205,13 @@ export async function sendSheet(i, ctx, done) {
     lines.push(h('p', { class: 'sd-lab' }, 'What the client gets'), slackText(txt.text || ''), h('p', { class: 'sd-note' }, 'The full numbers go in one reply under it.' + (txt.edited ? ' This post was edited by hand.' : '')));
   } else {
     if (txt.post) lines.push(h('p', { class: 'sd-lab' }, 'What the client gets'), slackText(txt.post));
-    else lines.push(h('p', { class: 'sd-note' }, 'The post has the four numbers, one line on the ' + (i.period === 'monthly' ? 'month' : 'week') + ' and a link to the full report. It is built from the numbers when it sends.'));
-    if (txt.summary) lines.push(h('p', { class: 'sd-lab' }, 'Summary on the full report'), slackText(txt.summary));
+    else lines.push(h('p', { class: 'sd-note' }, 'The post opens with how we read it, then the numbers, the platforms and a link to the full report. It is built when it sends.'));
+    if (txt.summary && !txt.post) lines.push(h('p', { class: 'sd-lab' }, 'How we read it'), slackText(txt.summary));
     lines.push(h('p', { class: 'sd-note' }, 'Once sent, the report is frozen for good.'));
   }
   const err = h('div');
   const go = button('Send it now', { primary: true, large: true });
-  const edit = button('Edit first', { large: true, onclick: () => { sh.close(); editSheet(i, ctx, done); } });
+  const edit = button('Edit first', { large: true, onclick: () => { sh.close(); if (i.kind === 'report') openReports(i, ctx); else editSheet(i, ctx, done); } });
   const back = button('Not now', { ghost: true, large: true, onclick: () => sh.close() });
   if (i.kind === 'brief' && !String(txt.text || '').trim()) go.disabled = true;
   go.addEventListener('click', async () => {
@@ -226,6 +265,8 @@ function teamOnly(i, ctx, sh, body, txt, done) {
 /** Edit: the words in a box. Save writes them through the old app's route, then the Send sheet opens. */
 export async function editSheet(i, ctx, done) {
   style();
+  /* A report's words are "How we read it", written and approved on the brand's Reports page. */
+  if (i.kind === 'report') return openReports(i, ctx);
   const body = h('div', { class: 'sd' }, loading());
   const sh = sheet({ title: (i.kind === 'brief' ? 'Edit the client post, ' : 'Edit the summary, ') + (i.brand || ''), side: 'center', body });
   let txt;
@@ -308,11 +349,17 @@ export function skipSheet(i, ctx, done) {
 
 /* ---------- the three buttons on a row ---------- */
 /** Send, Edit, Do not send for one waiting item. Team only: a client or "See as client" gets nothing.
-    opts: { canSkip, noChannel } */
-export function actions(i, ctx, done, { canSkip = true, noChannel: none = false } = {}) {
+    opts: { canSkip, noChannel, read }. read: a report's read ({ status, read_text } from /api/report-read, or null
+    when it was not read). A report whose read is not approved offers "Needs how we read it", which opens the
+    brand's Reports page, instead of Send and Edit. */
+export function actions(i, ctx, done, { canSkip = true, noChannel: none = false, read } = {}) {
   if (!canWrite(ctx)) return null;
   style();
   const stop = fn => e => { if (e) e.stopPropagation(); fn(); };
+  if (i.kind === 'report' && !readApproved(read)) return h('span', { class: 'sd-row' },
+    statusDot('warn', read && read.status === 'drafted' ? 'Read needs approval' : 'Needs how we read it'),
+    button('Open Reports', { primary: true, onclick: stop(() => openReports(i, ctx)) }),
+    canSkip ? button('Do not send', { ghost: true, onclick: stop(() => skipSheet(i, ctx, done)) }) : null);
   return h('span', { class: 'sd-row' },
     none ? statusDot('off', 'No client channel') : null,
     button(none ? 'Team post' : 'Send', { primary: !none, onclick: stop(() => sendSheet(i, ctx, done)) }),

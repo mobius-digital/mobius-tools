@@ -34,17 +34,17 @@ await check('1. a full input: blocks in the fixed order, one divider, one action
   assert.ok(!noDiv.blocks.some(b => b.type === 'divider'), 'numbers alone: no divider');
 });
 
-await check('2. caps: 3 numbers, 5 lines then "and N more in Locus", 5 buttons; strict mode throws on more', () => {
-  const m = houseMessage({ title: 't', numbers: [1, 2, 3, 4].map(i => ({ label: 'N' + i, value: String(i) })), lines: ['a', 'b', 'c', 'd', 'e', 'f', 'g'],
+await check('2. caps: 4 numbers (a 2x2 grid in Slack), 5 lines then "and N more in Locus", 5 buttons; strict mode throws on more', () => {
+  const m = houseMessage({ title: 't', numbers: [1, 2, 3, 4, 5].map(i => ({ label: 'N' + i, value: String(i) })), lines: ['a', 'b', 'c', 'd', 'e', 'f', 'g'],
     buttons: [1, 2, 3, 4, 5, 6].map(i => ({ label: 'B' + i, url: 'https://example.test/' + i })) });
-  const f = m.blocks.find(b => b.fields); assert.equal(f.fields.length, 3);
+  const f = m.blocks.find(b => b.fields); assert.equal(f.fields.length, 4);
   const l = m.blocks.find(b => b.type === 'section' && /• a/.test(b.text?.text || ''));
   assert.equal(l.text.text, '• a\n• b\n• c\n• d\n• e\n_and 2 more in Locus_');
   const a = m.blocks.find(b => b.type === 'actions'); assert.equal(a.elements.length, 5);
   assert.deepEqual(a.elements.map(e => e.action_id), ['noop_open', 'noop_open_2', 'noop_open_3', 'noop_open_4', 'noop_open_5'], 'link buttons get unique ids');
   HOUSE.strict = true;
   try {
-    assert.throws(() => houseMessage({ title: 't', numbers: [1, 2, 3, 4].map(i => ({ label: 'x', value: 'y' })) }), /more than 3 numbers/);
+    assert.throws(() => houseMessage({ title: 't', numbers: [1, 2, 3, 4, 5].map(i => ({ label: 'x', value: 'y' })) }), /more than 4 numbers/);
     assert.throws(() => houseMessage({ title: 't', buttons: [1, 2, 3, 4, 5, 6].map(() => ({ label: 'x', url: 'https://example.test' })) }), /more than 5 buttons/);
     assert.throws(() => houseMessage({}), /a title is required/);
     assert.throws(() => houseMessage({ title: 't', buttons: [{ action_id: 'a', label: 'One' }, { action_id: 'a', label: 'Two' }] }), /duplicate action_id a/, 'a repeated id is never dropped quietly in tests');

@@ -29,6 +29,8 @@ const msg = (ts, thread_ts, text, more = {}) => ({ channel: 'C0NORTH0001', ts, t
 const ROWS = {
   reports: [report(NORTH, '2026-01-05', '2026-01-11', 'sent'), report(NORTH, '2025-12-29', '2026-01-04', 'draft'),
     report(RIVER, '2026-01-05', '2026-01-11', 'sent', { slack_channel: 'C0RIVER0001' })],
+  p_report_read: [{ act_id: NORTH, period: 'weekly', period_start: '2025-12-29', status: 'drafted', draft: 'A draft read.', updated_at: '2026-01-05' },
+    { act_id: NORTH, period: 'weekly', period_start: '2026-01-05', status: 'approved', read_text: 'The read.', updated_at: '2026-01-12' }],
   briefs: [brief(NORTH, '2026-01-11', 'sent'), brief(NORTH, '2026-01-10', 'draft'), brief(RIVER, '2026-01-11', 'sent')],
   p_snapshot: [snap('0123456789abcdef0123456789abcdef', NORTH), snap('1123456789abcdef0123456789abcdef', NORTH, { expires_at: '2020-01-01 00:00:00' }),
     snap('2123456789abcdef0123456789abcdef', RIVER)],
@@ -76,6 +78,8 @@ test('reports and briefs: one brand, every brand, and what the old route answere
   const one = await get(`/ah/api/reports?act=${NORTH}`);
   assert.deepEqual(one.json.rows.map(r => [r.act_id, r.period_start, r.status]), [[NORTH, '2026-01-05', 'sent'], [NORTH, '2025-12-29', 'draft']]);
   assert.deepEqual(one.json.lastRun, { at: '2026-01-12T12:00:00.000Z', made: 1 });
+  assert.deepEqual(one.json.rows.map(r => r.read_status), ['approved', 'drafted'], 'How we read it status per row');
+  assert.equal((await get('/ah/api/reports?act=all')).json.rows.find(r => r.act_id === RIVER).read_status, null, 'none started = null');
   assert.equal((await get('/ah/api/reports?act=all')).json.rows.length, 3);
   assert.equal((await get('/ah/api/briefs')).json.rows.length, 3);
   assert.equal((await get(`/ah/api/briefs?act=${NORTH}`)).json.rows[0].account_name, 'North Kites');
@@ -93,6 +97,7 @@ test('a client gets sent reports and briefs only, never the last run, a draft or
   const list = await get(`/ah/api/reports?act=${NORTH}`, 'client');
   assert.deepEqual(list.json.rows.map(r => r.status), ['sent']);
   assert.ok(!('lastRun' in list.json));
+  assert.ok(!('read_status' in list.json.rows[0]), 'the read status is team only');
   const briefs = await get(`/pw/api/briefs?act=${NORTH}`, 'client');
   assert.deepEqual(briefs.json.rows.map(r => r.status), ['sent']);
   for (const k of ['slack_ts', 'slack_channel', 'steer', 'channel']) assert.ok(!(k in briefs.json.rows[0]), k);
@@ -206,4 +211,13 @@ test('the ported reads stay inside the statement budget and make no call they do
   const e2 = env();
   await call(e2, 'GET', `/ah/api/reports?act=${NORTH}`, { token: asCaller('owner') });
   assert.deepEqual(e2.calls.filter(c => c.path !== '/api/me'), []);
+});
+
+test('reports list before p_report_read exists: the plain list, no read_status', async () => {
+  const e = env();
+  e.DB.exec('DROP TABLE p_report_read');
+  const r = await call(e, 'GET', `/ah/api/reports?act=${NORTH}`, { token: asCaller('owner') });
+  assert.equal(r.status, 200, r.text);
+  assert.equal(r.json.rows.length, 2);
+  assert.ok(!('read_status' in r.json.rows[0]));
 });
