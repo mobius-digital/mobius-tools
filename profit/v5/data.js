@@ -12,7 +12,8 @@ export { SAMPLE };
 
 /* ---------- api ---------- */
 export class ApiError extends Error {
-  constructor(message, status) { super(message); this.status = status; }
+  /** body: the JSON the server answered with ({} when it sent none), so a page can read a reply code. */
+  constructor(message, status, body = null) { super(message); this.status = status; this.body = body; }
 }
 
 /** api('/api/overview?days=7')            profit worker (the default)
@@ -43,7 +44,7 @@ export async function api(path, opts = {}) {
   else if (res.ok) shadow(which, path, init, j);
   if (!res.ok) {
     if (res.status === 401) window.dispatchEvent(new CustomEvent('lx:unauthorized'));
-    throw new ApiError(j.error || 'HTTP ' + res.status, res.status);
+    throw new ApiError(j.error || 'HTTP ' + res.status, res.status, j);
   }
   return j;
 }
@@ -136,9 +137,10 @@ function same(a, b) { try { return JSON.stringify(a) === JSON.stringify(b); } ca
 
 /** The saved copy key for a page: brand, page and dates (the user is added by the store).
     The dates are in the key, so each range keeps its own saved copy and never shows another's numbers. */
-export function pageKey({ view, brandId, line, tab, range }) {
+export function pageKey({ view, brandId, line, tab, range, client = false }) {
   const r = range ? (range.from || '') + ':' + (range.to || '') : '';
-  return ['page', view, brandId || 'all', line, tab, r].join('|');
+  /* a client's copy (and the team's "See as client") is kept apart, so a team copy is never painted for a client */
+  return ['page', view, brandId || 'all', line, tab, r].join('|') + (client ? '|client' : '');
 }
 
 /* ---------- sample mode ---------- */

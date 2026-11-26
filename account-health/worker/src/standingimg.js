@@ -15,6 +15,8 @@ async function boot(fetcher = fetch) {
   if (!ready) ready = initWasm(resvgWasm).catch(e => { ready = null; throw e; });
   if (!fonts) fonts = Promise.all(FONTS.map(u => fetcher(u).then(r => { if (!r.ok) throw new Error(`font ${r.status}`); return r.arrayBuffer(); })))
     .then(a => a.map(b => new Uint8Array(b))).catch(e => { fonts = null; throw e; });
+  /* When the wasm fails first, the fonts promise is never awaited here: mark it handled (the caller still sees the error). */
+  fonts.catch(() => {});
   await ready; return fonts;
 }
 export async function toPng(svg, fetcher, width = 3200) {
@@ -259,4 +261,53 @@ export function brandSvg(rec, act, prev, did = null) {
   }
   o += T(pad, H - 22, 'Sales from Triple Whale · MER = store sales ÷ ad spend', { size: 13, fill: C.dim });
   return svgWrap(W, H, o);
+}
+
+/** The first window of a client update (War Room 2.9 W2): "Since <last check-in>" when the brand carries `prev` from a
+ *  check-in earlier the same day (per-brand cadence), today minus what that check-in saw. Null otherwise, and the
+ *  update keeps its Last 6 hours window exactly as before. */
+export function sinceWin(rec, b) {
+  const p = b && b.prev, t = b && b.today;
+  if (!p || !p.today || !t || String(p.slot || '').split('T')[0] !== String(rec.slot || '').split('T')[0]) return null;
+  const d = k => t[k] == null || p.today[k] == null ? null : Math.max(0, t[k] - p.today[k]);
+  const sales = d('sales'), spend = d('spend');
+  return { label: `Since ${hourOf(p.slot)}`, p: { sales, spend, mer: sales != null && spend > 0 ? sales / spend : null } };
+}
+/* Client card colors (War Room 2.7): the Slack update's TIER green, gray and yellow, three words, no break-even. */
+const CT = { up: ['#2EB67D', '#1E8A5C', 'Above goal'], near: ['#A3ADBF', C.dim, 'Around goal'], down: ['#ECB22E', C.yellow, 'Under goal'] };
+const ctier = (mer, kpi) => mer == null || !kpi ? null : mer >= kpi ? CT.up : mer >= kpi * 0.9 ? CT.near : CT.down;
+/** The client update as one picture (War Room 2.7): name and time, the goal, three windows (MER big in its color, sales
+ *  and ad spend under it), what we changed since the last update with its reason, the footer. Nothing internal: no
+ *  break-even, no budgets room, no campaign returns. did = [{line, why}]. */
+export function clientCardSvg(rec, act, did = []) {
+  const b = (rec.brands || []).find(z => z.act_id === act); if (!b) return null;
+  const W = 1200, pad = 40, since = sinceWin(rec, b), items = (did || []).slice(0, 6);
+  const next = 'next' in b ? b.next : rec.next;
+  const bandH = 64 + (items.length ? items.reduce((t, i) => t + (i.why ? 62 : 38), 0) : 38), H = 330 + bandH + 70;
+  let o = R(0, 0, W, H, C.card) + R(0, 0, W, 8, C.blue);
+  o += T(pad, 58, `${String(b.name || '').toUpperCase()} · BLACK FRIDAY`, { size: 16, bold: true, fill: C.dim, ls: 2 })
+    + T(W - pad, 58, `${dayOf(rec.slot)} · ${hourOf(rec.slot)} CT`, { size: 16, fill: C.dim, anchor: 'end' })
+    + T(pad, 92, `Goal ${x(b.kpi)} MER`, { size: 20, bold: true });
+  const wins = [[since ? since.label.toUpperCase() : 'LAST 6 HOURS', since ? since.p : b.last6], ['TODAY', b.today], ['THIS WEEK', b.week]];
+  const tw = (W - 2 * pad - 2 * 20) / 3;
+  wins.forEach(([l, p], j) => {
+    const px = pad + j * (tw + 20), py = 120, tr = p && p.sales != null ? ctier(p.mer, b.kpi) : null;
+    o += R(px, py, tw, 186, C.bg, 14) + R(px, py, tw, 6, tr ? tr[0] : C.line, 3) + T(px + 22, py + 40, l, { size: 14, bold: true, fill: C.dim, ls: 1.5 });
+    if (!p || p.sales == null) { o += T(px + 22, py + 104, 'no data yet', { size: 24, fill: C.dim }); return; }
+    o += T(px + 22, py + 104, x(p.mer), { size: 54, bold: true, fill: tr ? tr[1] : C.text });
+    if (tr) o += T(px + tw - 22, py + 40, tr[2], { size: 14, bold: true, fill: tr[1], anchor: 'end' });
+    o += T(px + 22, py + 140, `${money(p.sales)} sales`, { size: 19 }) + T(px + 22, py + 168, `${money(p.spend)} ad spend`, { size: 19, fill: C.dim });
+  });
+  let y = 330;
+  o += R(pad, y, W - 2 * pad, bandH, C.bg, 14) + R(pad, y, 8, bandH, C.blue, 4) + T(pad + 28, y + 36, 'WHAT WE CHANGED', { size: 14, bold: true, fill: C.dim, ls: 1.5 });
+  y += 36;
+  if (!items.length) o += T(pad + 28, y + 32, 'No changes since the last update', { size: 21, bold: true });
+  for (const i of items) {
+    const ln = String(i.line || ''), wy = String(i.why || '');
+    o += T(pad + 28, y + 32, ln.length > 80 ? ln.slice(0, 79) + '…' : ln, { size: 21, bold: true });
+    if (wy) o += T(pad + 28, y + 56, wy.length > 110 ? wy.slice(0, 109) + '…' : wy, { size: 16, fill: C.dim });
+    y += wy ? 62 : 38;
+  }
+  o += T(pad, H - 30, `${next ? `Next update around ${next} CT · ` : ''}Sales from Triple Whale · MER = store sales / ad spend`, { size: 15, fill: C.dim });
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${o}</svg>`;
 }

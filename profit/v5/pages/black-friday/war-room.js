@@ -1,12 +1,13 @@
-/* Brand > Black Friday > War Room (v2, team only): this brand in the latest check-in, a call per live campaign,
-   today by the hour on a tap, and the client update card (preview, Download image, Copy image, Copy link).
+/* Brand > Black Friday > War Room: the one Black Friday page for one brand. The team sees the pace hero, Needs your
+   yes, the brand's card with its campaign calls and client update, and the plan. A client sees the pace and the plan
+   only (one read: GET /api/season/war?act=<id>&live=1). The old Pace and Plan addresses open this page too.
    The work is in ../a-black-friday/live.js and the math in ../_warcall.js. */
 
 import { em } from '../../kit.js';
 import { readStanding, renderWarRoom } from '../a-black-friday/live.js';
 
 export default {
-  title: ['Where does this brand ', em('stand right now?')],
+  title: ctx => (ctx.isClient ? ['Is the sale on pace ', em('today?')] : ['Where does this brand ', em('stand right now?')]),
   eyebrow: 'Black Friday War Room',
   ranges: false,
   asOf: d => (d && d.standing && Date.parse(d.standing.at)) || (d && d.fetched_at) || null,

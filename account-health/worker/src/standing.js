@@ -20,7 +20,7 @@ import { dmPerson } from './morning.js';
 import { adNumbers, metaActsOf, sumAds, withCovers } from './buyerai.js';
 import { buildBuyerList } from './buyerlist.js';
 import { standingCard, clientCard } from './standingdm.js';
-import { boardSvg, brandSvg, opsBrandSvg, callWarn, toPng } from './standingimg.js';
+import { boardSvg, brandSvg, opsBrandSvg, callWarn, toPng, clientCardSvg, sinceWin } from './standingimg.js';
 
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
@@ -30,6 +30,17 @@ export const STAND_DAYS = { from: '2026-11-23', to: '2026-12-04' };
 /* Central hours. 9am to 9pm every 3 hours, and 11pm to close the day (a midnight read would be an empty new day). */
 /* Every 6 hours since Cole 2026-11-24 ("can Meta even optimize after every 3 hours?"): 9am, 3pm, 9pm Central; moved to 8am, 2pm, 8pm the same day (Cole). */
 export const STAND_HOURS = [8, 14, 20];
+/* PER-BRAND CADENCE (War Room 2.6 / 2.9 W1): p_season_answer key `checkin_hours` (2 to 12) = 8am CT, then every N
+   hours while <= 10pm. A brand without one keeps STAND_HOURS; with no brand set at all the tick runs exactly as before. */
+export const hoursFor = n => { const out = []; for (let h = 8; h <= 22; h += n) out.push(h); return out; };
+/* Read only while the team switch `checkinSchedule` = 'on' (POST /api/standing/schedule, owner only): a client login
+   may write its own brand's season answers, so one stray value must never move every brand's tick. */
+export async function checkinHours(env, deps) {
+  if (!env.DB || !deps || (await deps.getSetting(env, 'checkinSchedule').catch(() => null)) !== 'on') return null;
+  const rows = ((await env.DB.prepare(`SELECT act_id, value FROM p_season_answer WHERE season = ?1 AND key = 'checkin_hours'`).bind('2026').all().catch(() => ({ results: [] }))).results) || [];
+  const m = new Map(rows.filter(r => Number.isInteger(+r.value) && +r.value >= 2 && +r.value <= 12).map(r => [r.act_id, hoursFor(+r.value)]));
+  return m.size ? m : null;
+}
 const KNOWN_LIMITS = { brand_lucky_golf: 6637, brand_dartee_golf: 13806, brand_bonk_golf: 5000, brand_grunk_dolfer: 2583, brand_yak_sports: 841, brand_vetripaws: 3428 };
 const SALE_RE =/bfcm|black friday|\bbf\b|cyber|holiday 20\d\d/i;
 
@@ -218,11 +229,13 @@ function opsImgMsg(rec, imgs) {
   return { text: `Where we stand, ${rec.label}. ${N.length ? `${N.length} to approve.` : 'Nothing to approve.'}`, blocks };
 }
 /** Build one check-in (reads only). */
-export async function buildStanding(env, deps, slot = slotOf()) {
+export async function buildStanding(env, deps, slot = slotOf(), only = null) {
   const md = { xfetch: deps.xfetch, listAccounts: deps.listAccounts, getSetting: deps.getSetting, putSetting: deps.putSetting, twAttr: deps.twAttr };
-  const tw = await readProfit(env, deps, '/api/season/standing');
+  /* only = {acts, skip} (per-brand cadence): read just the due brands; null = every brand, as before. */
+  const tw = await readProfit(env, deps, '/api/season/standing' + (only && only.acts ? `?acts=${encodeURIComponent(only.acts.join(','))}` : ''));
   const brands = [];
   for (const b of tw.brands || []) {
+    if (only && only.skip && only.skip.has(b.act_id)) continue;
     let m; try { m = await metaSide(env, md, b.act_id, tw.today); } catch (e) { m = { error: e.message }; }
     const sug = { ...b.suggest }, from = m.camp && m.camp.daily;
     /* A brand whose sale has ended gets no call. Before its BF sale starts it still gets the ladder on today's numbers
@@ -246,14 +259,14 @@ export async function buildStanding(env, deps, slot = slotOf()) {
 }
 
 /** The next check-in after this slot, in words ("6pm", "9am Fri"), or null after the last one. */
-export function nextLabel(slot) {
-  const [d, h] = slot.split('T'), hr = +h, i = STAND_HOURS.findIndex(x => x > hr);
+export function nextLabel(slot, hours = STAND_HOURS) {
+  const [d, h] = slot.split('T'), hr = +h, i = hours.findIndex(x => x > hr);
   const fmt = x => x === 12 ? '12pm' : x < 12 ? `${x}am` : `${x - 12}pm`;
-  if (i >= 0) return fmt(STAND_HOURS[i]);
+  if (i >= 0) return fmt(hours[i]);
   const nd = new Date(d + 'T12:00:00Z'); nd.setUTCDate(nd.getUTCDate() + 1);
   const ymd = nd.toISOString().slice(0, 10);
   if (ymd > STAND_DAYS.to) return null;
-  return `${fmt(STAND_HOURS[0])} ${nd.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' })}`;
+  return `${fmt(hours[0])} ${nd.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' })}`;
 }
 export const dayShort = ymd => ymd ? new Date(ymd + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
 const W = { scale: 'Raise 50%', raise: 'Raise 25%', hold: 'Hold', cut: 'Cut 25%' };
@@ -376,6 +389,9 @@ async function sendSample(env, deps, rec, prev, { style, act, label }) {
 export async function standingTick(env, deps, now = new Date()) {
   const c = central(now);
   if (c.date < STAND_DAYS.from || c.date > STAND_DAYS.to) return { skipped: 'outside Nov 23 to Dec 4' };
+  /* Any brand with its own check-in hours: the per-brand tick. None set: everything below runs exactly as before. */
+  const sched = await checkinHours(env, deps).catch(() => null);
+  if (sched) return scheduledTick(env, deps, now, c, sched);
   /* At or up to 2 hours after a check-in hour, never only ON it (Cole 2026-11-25: the 8am check-in never came). An
      exact-hour match cannot recover from one missed or late hourly tick; the standingSent flag stops a double send. */
   const h = [...STAND_HOURS].reverse().find(x => x <= c.hour && c.hour - x <= 2);
@@ -396,6 +412,56 @@ export async function standingTick(env, deps, now = new Date()) {
   return { slot, brands: rec.brands.length, sent: rec.sent };
 }
 
+/* What a checked brand carries from its last check-in (War Room 2.9 W1), so the page and the client update can say
+   "since 2pm" without probing older records. Revenue = the stored return times the spend it was earned on. */
+const prevOf = (r, b) => ({ slot: b.checked_slot || r.slot, at: b.checked_at || r.at, today: b.today || null, week: b.week || null, so_far: b.so_far || null,
+  camps: ((b.meta || {}).camps || []).map(z => ({ id: z.id, spent: z.spent, t_rev: z.t_roas != null ? z.t_roas * (z.spent || 0) : null,
+    w_spend: z.w_spend ?? null, w_rev: z.w_roas != null && z.w_spend ? z.w_roas * z.w_spend : null, daily: z.daily ?? null })) });
+/** The tick with per-brand cadence: a brand is due at or up to 2 hours after one of its own hours, once (the same
+ *  standingSent:<slot> flags, one per due hour). Only due brands are read, DMed and drafted for their client; every
+ *  other brand rides along from the previous record with its own checked_at. */
+async function scheduledTick(env, deps, now, c, sched) {
+  const dueOf = hrs => [...hrs].reverse().find(x => x <= c.hour && c.hour - x <= 2);
+  const slotAt = h => `${c.date}T${String(h).padStart(2, '0')}`;
+  const sentAt = async h => !!(await deps.getSetting(env, `standingSent:${slotAt(h)}`));
+  const hDef = dueOf(STAND_HOURS), defDue = hDef != null && !(await sentAt(hDef));
+  const due = new Map(), skip = new Set();
+  for (const [act, hrs] of sched) { const h = dueOf(hrs); if (h != null && !(await sentAt(h))) due.set(act, h); else skip.add(act); }
+  if (!defDue && !due.size) { await deps.putSetting(env, 'standingLastSkip', JSON.stringify({ at: now.toISOString(), why: 'no brand is due', hour: c.hour })).catch(() => {}); return { skipped: 'no brand is due' }; }
+  const hours = [...due.values(), ...(defDue ? [hDef] : [])], slot = slotAt(Math.max(...hours));
+  const prevRec = await load(env, deps).catch(() => null);
+  /* "Since <time>" follows the brand's last TICKED check-in (what the client last heard about), never a page Check now
+     saved in between; standingTickLatest is written only here. The first scheduled tick falls back to the latest. */
+  const tickSlot = await deps.getSetting(env, 'standingTickLatest').catch(() => null);
+  const prevTick = (tickSlot && await load(env, deps, tickSlot).catch(() => null)) || prevRec;
+  /* Default brands due = read every brand and drop the scheduled ones not due; else only the due ones. */
+  const rec = await buildStanding(env, deps, slot, { acts: defDue ? null : [...due.keys()], skip });
+  /* Live is judged across every brand (due and carried), as the old tick did: a due brand whose own sale is not live
+     still gets its check-in while another brand's sale runs. */
+  if (![...rec.brands, ...((prevRec && prevRec.brands) || [])].some(b => b.mode === 'live')) return { skipped: 'no brand sale is live' };
+  const all = [...new Set([...STAND_HOURS, ...[...sched.values()].flat()])].sort((p, q) => p - q);
+  rec.next = nextLabel(slot, all);
+  for (const b of rec.brands) {
+    b.checked_at = rec.at; b.checked_slot = slot; b.next = nextLabel(slot, sched.get(b.act_id) || STAND_HOURS);
+    const pb = prevTick && (prevTick.brands || []).find(z => z.act_id === b.act_id);
+    if (pb) b.prev = prevOf(prevTick, pb);
+  }
+  const checked = new Set(rec.brands.map(b => b.act_id));
+  for (const z of (prevRec && prevRec.brands) || []) {
+    if (checked.has(z.act_id)) continue;
+    rec.brands.push({ ...z, carried: 1, checked_at: z.checked_at || prevRec.at, checked_slot: z.checked_slot || prevRec.slot });
+    if ((prevRec.approved || {})[z.act_id]) rec.approved[z.act_id] = prevRec.approved[z.act_id];
+  }
+  const view = { ...rec, brands: rec.brands.filter(b => !b.carried) };
+  await sendDm(env, deps, view, { prev: prevRec });
+  rec.sent = view.sent; if (view.img_error) rec.img_error = view.img_error;
+  await save(env, deps, rec);
+  await deps.putSetting(env, 'standingTickLatest', rec.slot);
+  if (rec.sent && !rec.sent.error) for (const h of new Set(hours)) await deps.putSetting(env, `standingSent:${slotAt(h)}`, rec.sent.at);
+  await postBatch(env, deps, rec).catch(e => console.log('client batch: ' + e.message));
+  return { slot, brands: checked.size, carried: rec.brands.length - checked.size, sent: rec.sent };
+}
+
 /** Apply one brand's suggestion: only the budget the check-in saw, only on the person's tap. */
 async function approve(env, deps, rec, act, who) {
   const b = rec.brands.find(x => x.act_id === act);
@@ -403,7 +469,7 @@ async function approve(env, deps, rec, act, who) {
   if (rec.approved && rec.approved[act]) return { error: `Already approved by ${rec.approved[act].by}.`, done: rec.approved[act] };
   const g = b.suggest || {}, camp = b.meta && b.meta.camp;
   if (!g.to || !camp || !camp.daily) return { error: 'Nothing to approve on this brand.' };
-  if (Date.now() - Date.parse(rec.at) > 6 * 3600e3) return { error: 'This check-in is over 6 hours old. Wait for the next one or change it on the War Room.' };
+  if (Date.now() - Date.parse(b.checked_at || rec.at) > 6 * 3600e3) return { error: 'This check-in is over 6 hours old. Wait for the next one or change it on the War Room.' };
   const md = { xfetch: deps.xfetch, listAccounts: deps.listAccounts, getSetting: deps.getSetting, putSetting: deps.putSetting };
   const up = g.to > camp.daily;
   const body = { act, kind: 'budget', level: 'campaign', object: camp.id, amount: g.to, reason: `Where we stand ${rec.label}: ${g.why}`,
@@ -454,15 +520,50 @@ function changeLine(r) {
   if (/resum|turned on|activ/i.test(sum + ' ' + (r.category || ''))) return `Turned on the ${name || ''} ${kind}`.replace(/\s+/g, ' ');
   return firstUp(String(r.client_why || sum).trim().replace(/\.$/, ''));
 }
-async function didSince(env, deps, act) {
+/** The changes since the last client update, one per line ({line, why}: why = the client_why when the line is not it). */
+async function didItems(env, deps, act) {
   const last = await deps.getSetting(env, `wsLastSent:${act}`);
   const since = last || `${central().date}T06:00:00Z`;   // never sent: since midnight Central
   const acts = (await metaActs(env, act)).map(m => m.act);
   if (!acts.length) return [];
   const rows = ((await env.DB.prepare(`SELECT summary, category, object_type, object_name, client_why, event_time FROM activities WHERE act_id IN (${acts.map((_, i) => `?${i + 2}`).join(', ')})
     AND client_why IS NOT NULL AND client_why != '' AND event_time >= ?1 ORDER BY event_time`).bind(since, ...acts).all().catch(() => ({ results: [] }))).results) || [];
-  return [...new Set(rows.map(changeLine).filter(Boolean))].slice(0, 10);
+  const out = [], seen = new Set();
+  for (const r of rows) {
+    const line = changeLine(r);
+    if (!line || seen.has(line)) continue;
+    seen.add(line);
+    const why = String(r.client_why || '').trim();
+    out.push({ line, why: why && firstUp(why.replace(/\.$/, '')) !== line ? why : '' });
+  }
+  return out.slice(0, 10);
 }
+const didSince = async (env, deps, act) => (await didItems(env, deps, act)).map(i => i.line);
+/* THE CARD SWITCH: the client picture card stays OFF until it has been tried in a real Slack test channel (Black
+   Friday weekend is live). Settings `standingClientCard` = 'on' turns every card path on (the draft, the thread
+   preview, the single DM, the client copy at Send and Send all). Off = the text update exactly as before. */
+const cardOn = async (env, deps) => !!(deps && deps.getSetting) && (await deps.getSetting(env, 'standingClientCard').catch(() => null)) === 'on';
+/** The client card's SVG (War Room 2.9 W2), or null. Kept on the draft so the client copy is drawn again at send time. */
+async function cardSvgFor(env, deps, rec, act) {
+  if (!(await cardOn(env, deps))) return null;
+  const b = (rec.brands || []).find(x => x.act_id === act);
+  if (!b || b.no_sales) return null;
+  try { return clientCardSvg(rec, act, await didItems(env, deps, act)) || null; } catch { return null; }
+}
+/** The client card uploaded as the Locus bot for Cole's preview: {id, svg}, or null when anything fails (the update
+ *  then goes as text only). */
+async function cardFor(env, deps, rec, act) {
+  const svg = await cardSvgFor(env, deps, rec, act);
+  if (!svg) return null;
+  try {
+    const up = await slackPng(env, deps, await toPng(svg, deps.xfetch, 1600), `update-${act.replace('brand_', '')}-${rec.slot}.png`);
+    return up.id ? { id: up.id, svg } : null;
+  } catch { return null; }
+}
+const CARD_ID = 'ws_card';
+const isCard = x => !!(x && x.block_id === CARD_ID);
+const cardBlock = (id, name) => ({ type: 'image', block_id: CARD_ID, slack_file: { id }, alt_text: `${name}: sales, ad spend and MER against the goal, and what we changed` });
+const slackWait = deps => (deps && Number.isFinite(deps.slackWait) ? deps.slackWait : 1500);
 const hourOfSlot = slot => { const [d, h] = String(slot).split('T'), hr = +h; const day = new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' }); return { day, hour: hr === 12 ? '12pm' : hr === 0 ? '12am' : hr < 12 ? `${hr}am` : `${hr - 12}pm` }; };
 /* THE CLIENT UPDATE (Cole 2026-11-24, final brief). One shape, three moments: 9am Morning Update (adds the top 3 ads from
    yesterday with their pictures), 3pm Midday Update, 9pm End of Day. Title = header block (Slack's largest type), a
@@ -504,9 +605,11 @@ async function topAds(env, act, day, kpi, line) {
 const cleanName = s => String(s || '').replace(/\s*\|\s*(Still|UGC|Video|Static|Carousel)\s*$/i, '').trim();
 /** The client message: {text, blocks, attachments}. images=false leaves the ad pictures out (a retry when Slack
  *  refuses an image). */
-export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name = null, { images = true, layout = 'table', mdIn = true } = {}) {
+export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name = null, { images = true, layout = 'table', mdIn = true, card = null } = {}) {
   const b = (rec.brands || []).find(x => x.act_id === act);
   if (!b || b.no_sales) return null;
+  /* Per-brand cadence: "Since 2pm" replaces Last 6 hours when the brand carries its last check-in; its own next time. */
+  const since = sinceWin(rec, b), L6 = since ? since.label : 'Last 6 hours', next = 'next' in b ? b.next : rec.next;
   const did = await didSince(env, deps, act), line = b.hold ?? (b.kpi ? b.kpi * 0.8 : null), t = longDay(rec.slot), m = moment(rec.slot);
   const H = s => ({ type: 'header', text: { type: 'plain_text', text: s } });
   const md = s => ({ type: 'section', text: { type: 'mrkdwn', text: s } });
@@ -524,7 +627,9 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
   const tEm = b.today && b.kpi && b.today.mer >= b.kpi ? '📈' : '📊';
   const title = NEW ? `${tEm} ${name || b.name} · BFCM Week · ${m}` : `${name || b.name} · ${m}`;
   const blocks = [(layout === 'spaced' || NEW ? MDH : H)(title), ctx(`${t.day}  ·  ${t.hour} CT   |   Goal: *${nx(b.kpi)} MER*`), { type: 'divider' }];
-  const wins = (m === 'End of Day' ? [['Today', b.today], ['This week', b.week]] : [['Last 6 hours', b.last6], ['Today', b.today], ['This week', b.week]]).filter(([, p]) => p && p.sales != null);
+  /* The picture card on top (War Room 2.7), when one was made; the text below stays the whole update. */
+  if (card && images) blocks.unshift(cardBlock(card, name || b.name));
+  const wins = (m === 'End of Day' ? [['Today', b.today], ['This week', b.week]] : [[L6, since ? since.p : b.last6], ['Today', b.today], ['This week', b.week]]).filter(([, p]) => p && p.sales != null);
   let attachments;
   /* Cole 2026-11-24: the grid without the code-block names. 'clean' = no colored bars at all (bold names, grey lines,
      dividers); 'blue' = the same grid in one Mobius-blue bar (brand color, not a score). Slack's grey quote lines
@@ -540,7 +645,7 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
     const SQ = { great: '🟩', good: '🟩', near: '⬜', under: '🟨', bad: '🟥' };
     const f = (l, p) => ({ type: 'mrkdwn', text: `${SQ[tierOf(p.mer, b.kpi, line).key]}  *${l.toUpperCase()}*\n\n> *Sales:* ${usd(p.sales)}\n\n> *Ad spend:* ${usd(p.spend)}\n\n> *MER:* ${nx(p.mer)}` });
     const get = k => wins.find(([l]) => l === k);
-    const row1 = [get('Last 6 hours'), get('Today')].filter(Boolean), wk = get('This week');
+    const row1 = [get(L6), get('Today')].filter(Boolean), wk = get('This week');
     if (row1.length) blocks.push({ type: 'section', fields: row1.map(([l, p]) => f(l, p)) });
     if (wk) blocks.push({ type: 'divider' }, { type: 'section', fields: [f(wk[0], wk[1])] });
     attachments = [];
@@ -561,7 +666,7 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
     } else if (layout === 'winbars') {
       for (const [l, p] of wins) attachments.push({ color: col(p), blocks: [md(txt(l, p))] });
     } else {
-      const row1 = [get('Last 6 hours'), get('Today')].filter(Boolean), wk = get('This week');
+      const row1 = [get(L6), get('Today')].filter(Boolean), wk = get('This week');
       /* One bar per row is all Slack allows (Cole asked for a bar per window): the day row takes the WORSE of Last 6
          hours and Today, so a bad stretch never hides behind a good one. */
       const worst = row1.map(([, p]) => tierOf(p && p.mer, b.kpi, line)).sort((x, y) => TIER.indexOf(y) - TIER.indexOf(x))[0];
@@ -617,7 +722,7 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
     }
   }
   const upd = [T1('Updates'), md((did.length ? did : ['No changes since the last update']).map(d => `•  ${d}`).join('\n')),
-    ctx(rec.next ? `Next update at ${rec.next} CT` : 'Next update tomorrow at 8am CT')];
+    ctx(next ? `Next update at ${next} CT` : 'Next update tomorrow at 8am CT')];
   /* The client decides (client_approve, Yak): our suggestion with an Approve button the client taps; Locus makes the
      change only on that tap and confirms only once Meta took it (handleClientUpdateButton ws_capprove). */
   const sg = b.suggest || {}, camp = b.meta && b.meta.camp;
@@ -653,16 +758,18 @@ export async function offerClientUpdate(env, deps, { act, rec = null, style = nu
      falls to the next. Whatever reached Cole is what Send posts. */
   /* Cole 2026-11-24: the separate colored bars, stacked (Slack cannot put colored bars side by side). */
   const pick = ['clean', 'blue', 'bars', 'wc', 'spaced', 'lines', 'rowbars', 'rowbullets', 'winbars', 'wincompact'].includes(style) ? style : (['clean', 'blue', 'bars', 'spaced', 'lines', 'rowbars', 'winbars', 'wincompact'].includes(await deps.getSetting(env, 'clientUpdateLayout')) ? await deps.getSetting(env, 'clientUpdateLayout') : 'wincompact');
-  const tries = [[pick, true, true], [pick, true, false], [pick, false, false], ['bars', false, false]];
+  /* The picture card goes first; Slack refusing it falls back to exactly the tries before it. */
+  const cardUp = await cardFor(env, deps, rec, act), card = cardUp && cardUp.id;
+  const tries = [...(card ? [[pick, true, true, card]] : []), [pick, true, true], [pick, true, false], [pick, false, false], ['bars', false, false]];
   let r = { ok: false, error: 'nothing tried' }, used = null;
-  for (const [layout, images, mdIn] of tries) {
-    const m = await clientUpdateMsg(env, deps, rec, act, st, b.name, { layout, images, mdIn });
+  for (const [layout, images, mdIn, cd = null] of tries) {
+    const m = await clientUpdateMsg(env, deps, rec, act, st, b.name, { layout, images, mdIn, card: cd });
     if (!m) return { ok: false, error: 'No sales numbers for this brand.' };
     const tail = forCole ? [] : [btns];
     const msg = m.attachments && m.attachments.length ? { text: m.text, blocks: [top, ...m.blocks], attachments: [...m.attachments, ...(tail.length ? [{ blocks: tail }] : [])] }
       : { text: m.text, blocks: [top, ...m.blocks, ...tail] };
     r = await dmPerson(env, deps, env.OWNER_EMAIL || 'cole@go-mobius-digital.com', msg);
-    if (r.ok) { used = layout + (images ? '' : ' (no pictures)') + (mdIn ? '' : ' (header titles in bars)'); await deps.putSetting(env, `wsDraft:${id}`, JSON.stringify({ v: 3, act, ch: b.brief_channel, msg: m, name: b.name, at: new Date().toISOString() })); break; }
+    if (r.ok) { used = layout + (cd ? ' (picture card)' : '') + (images ? '' : ' (no pictures)') + (mdIn ? '' : ' (header titles in bars)'); await deps.putSetting(env, `wsDraft:${id}`, JSON.stringify({ v: 3, act, ch: b.brief_channel, msg: m, name: b.name, at: new Date().toISOString(), ...(cd ? { card_svg: cardUp.svg } : {}) })); break; }
     if (!/invalid_blocks|invalid_attachments|image|table/i.test(String(r.error || ''))) break;
     r.tried = `${r.tried || ''}${layout}: ${String(r.error).slice(0, 120)}; `;
   }
@@ -675,17 +782,34 @@ export async function offerClientUpdate(env, deps, { act, rec = null, style = nu
    State: settings wsBatch:<slot> = {slot, channel, ts, items: [{act, name, id, status}]}; status ready | forme |
    waiting | sent | skipped. */
 const OWNER = env => env.OWNER_EMAIL || 'cole@go-mobius-digital.com';
-async function draftFor(env, deps, rec, act, batchSlot = null) {
+/* card: 'upload' = the bot's picture in Cole's preview (and the SVG kept for the client copy); 'svg' = only the SVG
+   kept (nobody previews this draft, the client copy is drawn at send time); 'none' = text only (postBatch adds the
+   picture after the batch message is out, so a card can never cost the batch). */
+async function draftFor(env, deps, rec, act, batchSlot = null, { card = 'upload' } = {}) {
   const b = await env.DB.prepare(`SELECT name, brief_channel, slack_channel FROM brand_accounts WHERE act_id = ?1`).bind(act).first().catch(() => null);
   if (!b) return null;
   const forCole = !b.brief_channel || b.brief_channel === b.slack_channel;
   const saved = await deps.getSetting(env, 'clientUpdateLayout');
   const layout = ['clean', 'blue', 'bars', 'spaced', 'rowbars', 'winbars', 'wincompact'].includes(saved) ? saved : 'wincompact';
-  const m = await clientUpdateMsg(env, deps, rec, act, 'plain', b.name, { layout, images: true, mdIn: true });
+  const up = card === 'upload' ? await cardFor(env, deps, rec, act) : null;
+  const svg = up ? up.svg : card === 'svg' ? await cardSvgFor(env, deps, rec, act) : null;
+  const m = await clientUpdateMsg(env, deps, rec, act, 'plain', b.name, { layout, images: true, mdIn: true, card: up && up.id });
   if (!m) return null;
   const id = Math.random().toString(16).slice(2, 12);
-  await deps.putSetting(env, `wsDraft:${id}`, JSON.stringify({ v: 3, act, ch: forCole ? null : b.brief_channel, msg: m, name: b.name, forCole, batch: batchSlot, at: new Date().toISOString() }));
-  return { id, name: b.name, forCole, m };
+  const dr = { v: 3, act, ch: forCole ? null : b.brief_channel, msg: m, name: b.name, forCole, batch: batchSlot, at: new Date().toISOString(), ...(svg ? { card_svg: svg } : {}) };
+  await deps.putSetting(env, `wsDraft:${id}`, JSON.stringify(dr));
+  return { id, name: b.name, forCole, m, dr };
+}
+/** The picture added to a text draft already saved (postBatch, after the batch message). Any failure leaves the text. */
+async function addCard(env, deps, rec, d) {
+  try {
+    if (!d || !d.dr || (d.m.blocks || []).some(isCard) || !(await cardOn(env, deps))) return;
+    const up = await cardFor(env, deps, rec, d.dr.act);
+    if (!up) return;
+    d.m.blocks = [cardBlock(up.id, d.name), ...(d.m.blocks || [])];
+    d.dr = { ...d.dr, msg: d.m, card_svg: up.svg };
+    await deps.putSetting(env, `wsDraft:${d.id}`, JSON.stringify(d.dr));
+  } catch (e) { console.log('client card: ' + e.message); }
 }
 const STATUS = { ready: 'Ready to send', forme: 'For you (no client channel)', waiting: 'Waiting on your Approve above', sent: 'Sent ✓', skipped: 'Not sent' };
 function batchBlocks(rec, bt) {
@@ -702,8 +826,19 @@ function batchBlocks(rec, bt) {
   if (nReady) blocks.splice(2, 0, { type: 'actions', elements: [{ type: 'button', action_id: 'ws_sendall', style: 'primary', text: { type: 'plain_text', text: nReady > 1 ? `Send all ${nReady} to clients` : 'Send to client' }, value: rec.slot }] });
   return blocks;
 }
+/* A preview carrying the picture: Slack can refuse a fresh upload for a moment, so retry a few times (as postRetry),
+   then post the same preview without the picture. Without a picture it is the one post it always was. */
 async function threadPreview(env, deps, bt, d) {
-  await deps.slackApi(env, 'chat.postMessage', { channel: bt.channel, thread_ts: bt.ts, text: d.m.text, blocks: d.m.blocks, attachments: d.m.attachments, unfurl_links: false, username: 'Locus', icon_url: 'https://tools.go-mobius-digital.com/favicon.png' }).catch(() => null);
+  const post = blocks => deps.slackApi(env, 'chat.postMessage', { channel: bt.channel, thread_ts: bt.ts, text: d.m.text, blocks, attachments: d.m.attachments, unfurl_links: false, username: 'Locus', icon_url: 'https://tools.go-mobius-digital.com/favicon.png' }).catch(e => ({ ok: false, error: e.message }));
+  const bl = d.m.blocks;
+  let r = await post(bl);
+  if (!(bl || []).some(isCard)) return r;
+  for (let i = 0; i < 3 && !(r && r.ok) && /invalid_blocks/.test(String((r && r.error) || '')); i++) {
+    await new Promise(z => setTimeout(z, slackWait(deps)));
+    r = await post(bl);
+  }
+  if (r && r.ok) return r;
+  return post(bl.filter(x => !isCard(x)));
 }
 async function saveBatch(env, deps, rec, bt, update = true) {
   await deps.putSetting(env, `wsBatch:${bt.slot}`, JSON.stringify(bt));
@@ -716,10 +851,10 @@ export async function postBatch(env, deps, rec) {
   if (!uid) return { ok: false, error: 'no slack user' };
   const bt = { slot: rec.slot, channel: null, ts: null, items: [] }, drafts = [];
   for (const b of rec.brands) {
-    if (b.no_sales) continue;
+    if (b.no_sales || b.carried) continue;   // carried = not checked this time (per-brand cadence)
     /* Every brand's update is ready to send now (2026-11-25: the 2pm round never went out because three brands sat
        "waiting on your Approve" with no draft). An Approve later rebuilds that brand's draft with the change in it. */
-    const d = await draftFor(env, deps, rec, b.act_id, rec.slot).catch(() => null);
+    const d = await draftFor(env, deps, rec, b.act_id, rec.slot, { card: 'none' }).catch(() => null);
     if (!d) continue;
     bt.items.push({ act: b.act_id, name: d.name, id: d.id, status: d.forCole ? 'forme' : 'ready' });
     drafts.push(d);
@@ -729,14 +864,17 @@ export async function postBatch(env, deps, rec) {
   if (!r || !r.ok) return { ok: false, error: (r && r.error) || 'slack' };
   bt.channel = r.channel; bt.ts = r.ts;
   await saveBatch(env, deps, rec, bt, false);
-  for (const d of drafts) await threadPreview(env, deps, bt, d);
+  /* The batch and its text drafts are saved before any picture is drawn: if the run dies drawing one, Send still works. */
+  for (const d of drafts) { if (!d.forCole) await addCard(env, deps, rec, d); await threadPreview(env, deps, bt, d); }
   return { ok: true, items: bt.items.length };
 }
 /** After an Approve: that brand's update joins the check-in's message (or comes alone when there is none). */
 export async function batchApproved(env, deps, rec, act) {
   const raw = await deps.getSetting(env, `wsBatch:${rec.slot}`), bt = raw ? JSON.parse(raw) : null;
   const it = bt && bt.items.find(i => i.act === act);
-  if (!bt || !it) return offerClientUpdate(env, deps, { act, rec });
+  /* A batch with no Slack message (a page Send on a Check now slot saves one) has no thread to preview in: the single
+     Send to client DM, as with no batch at all. */
+  if (!bt || !it || !bt.channel || !bt.ts) return offerClientUpdate(env, deps, { act, rec });
   const d = await draftFor(env, deps, rec, act, rec.slot);
   if (!d) return null;
   it.id = d.id; it.status = d.forCole ? 'forme' : 'ready';
@@ -744,11 +882,76 @@ export async function batchApproved(env, deps, rec, act) {
   await saveBatch(env, deps, rec, bt);
   return { ok: true };
 }
-async function sendDraft(env, xfetch, dr) {
+/** The card uploaded as Cole (the user token), shared nowhere, so the copy the client sees belongs to the person who
+ *  posts it; the bot's preview file is never put in front of a client. {id} or {error}. */
+async function userPng(env, xfetch, svg, name) {
+  try {
+    const bytes = await toPng(svg, xfetch, 1600);
+    const form = o => ({ method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(Object.entries(o).map(([k, v]) => [k, typeof v === 'object' ? JSON.stringify(v) : String(v)])).toString() });
+    const a = await xfetch('https://slack.com/api/files.getUploadURLExternal', form({ filename: name, length: bytes.length })).then(r => r.json());
+    if (!a || !a.ok) return { error: (a && a.error) || 'upload url' };
+    const up = await xfetch(a.upload_url, { method: 'POST', body: bytes });
+    if (!up.ok) return { error: `upload ${up.status}` };
+    const c = await xfetch('https://slack.com/api/files.completeUploadExternal', form({ files: [{ id: a.file_id, title: name }] })).then(r => r.json());
+    return c && c.ok ? { id: a.file_id } : { error: (c && c.error) || 'complete upload' };
+  } catch (e) { return { error: e.message }; }
+}
+/* card = the standingClientCard switch (cardOn); off = the text update only, whatever the draft carries. wait = the
+   pause between card retries (Send all passes 0: its loop runs after the ACK and must never sit waiting). */
+async function sendDraft(env, xfetch, dr, { wait = 1500, card = false } = {}) {
   if (!env.SLACK_USER_TOKEN) return { ok: false, error: 'no Slack user token on Locus' };
   if (!dr.ch) return { ok: false, error: 'no client channel' };
-  return xfetch('https://slack.com/api/chat.postMessage', { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
-    body: JSON.stringify({ channel: dr.ch, ...dr.msg, unfurl_links: false }) }).then(r => r.json()).catch(e => ({ ok: false, error: e.message }));
+  const post = msg => xfetch('https://slack.com/api/chat.postMessage', { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
+    body: JSON.stringify({ channel: dr.ch, ...msg, unfurl_links: false }) }).then(r => r.json()).catch(e => ({ ok: false, error: e.message }));
+  const bl = (dr.msg && dr.msg.blocks) || [], hadCard = bl.some(isCard);
+  /* The text update exactly as it went out before the picture card existed. */
+  const plain = hadCard ? { ...dr.msg, blocks: bl.filter(x => !isCard(x)) } : dr.msg;
+  if (!card || !dr.card_svg) {
+    const r = await post(plain);
+    return r.ok && hadCard ? { ...r, card_dropped: card ? 'no card to draw' : 'card off' } : r;
+  }
+  /* The client's copy of the picture, drawn and uploaded as Cole now; refused or failed = the text update. */
+  const up = await userPng(env, xfetch, dr.card_svg, `update-${String(dr.act || '').replace('brand_', '')}.png`);
+  if (!up.id) { const r = await post(plain); return r.ok ? { ...r, card_dropped: up.error } : r; }
+  const withCard = { ...plain, blocks: [cardBlock(up.id, dr.name || 'Update'), ...(plain.blocks || [])] };
+  let r = await post(withCard);
+  for (let i = 0; i < 3 && !r.ok && /invalid_blocks/.test(String(r.error || '')); i++) { await new Promise(z => setTimeout(z, wait)); r = await post(withCard); }
+  if (r.ok || !/invalid_blocks|invalid_attachments|image|file/i.test(String(r.error || ''))) return r;
+  const r2 = await post(plain);
+  return r2.ok ? { ...r2, card_dropped: String(r.error || '') } : r2;
+}
+/** One brand's update out of a check-in's batch: the send_batch loop's own steps (War Room 2.9 W3). Returns a result
+ *  row; marks the batch item and wsLastSent. The caller saves the batch. */
+async function sendItem(env, deps, rec, it, slot) {
+  if (it.status === 'forme' || it.status === 'sent' || it.status === 'skipped') return { name: it.name, skipped: it.status };
+  /* One send per brand at a time: a double tap (two requests at once) must not post twice. The claim is one atomic D1
+     row; the second request finds it taken and skips. wsLastSent is read AFTER the claim, so a request that waited
+     for the first one sees its send. Cleared after the post either way (wsLastSent then guards). */
+  const claim = await claimSend(env, it.act);
+  if (!claim) return { name: it.name, skipped: 'sending' };
+  try {
+    const last = await deps.getSetting(env, `wsLastSent:${it.act}`);
+    if (last && Date.now() - Date.parse(last) < 2 * 3600e3) { it.status = 'sent'; return { name: it.name, skipped: 'sent in the last 2 hours' }; }
+    if (!it.id) { const d = await draftFor(env, deps, rec, it.act, slot, { card: 'svg' }); if (!d) return { name: it.name, error: 'no draft' }; it.id = d.id; if (d.forCole) { it.status = 'forme'; return { name: it.name, skipped: 'forme' }; } }
+    const dr = JSON.parse((await deps.getSetting(env, `wsDraft:${it.id}`)) || 'null');
+    const res = dr ? await sendDraft(env, deps.xfetch, dr, { wait: slackWait(deps), card: await cardOn(env, deps) }) : { ok: false, error: 'draft gone' };
+    if (res.ok) { const now = new Date().toISOString(); it.status = 'sent'; dr.done = `sent ${now}`; await deps.putSetting(env, `wsDraft:${it.id}`, JSON.stringify(dr)); await deps.putSetting(env, `wsLastSent:${it.act}`, now); return { name: it.name, sent: true }; }
+    return { name: it.name, error: res.error };
+  } finally { await releaseSend(env, it.act, claim); }
+}
+/* The send claim: settings row `wsSending:<act>` = "<iso time> <token>", taken with one INSERT that only wins when no
+   claim exists or the one there is over 2 minutes old (a run that died mid send). Returns the value, or null. */
+async function claimSend(env, act) {
+  if (!env.DB) return 'nodb';
+  const val = `${new Date().toISOString()} ${crypto.randomUUID().slice(0, 8)}`, stale = new Date(Date.now() - 120e3).toISOString();
+  const r = await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value WHERE settings.value < ?3`)
+    .bind(`wsSending:${act}`, val, stale).run().catch(() => null);
+  return r && r.meta && r.meta.changes === 1 ? val : null;
+}
+async function releaseSend(env, act, val) {
+  if (!env.DB || val === 'nodb') return;
+  await env.DB.prepare(`DELETE FROM settings WHERE key = ?1 AND value = ?2`).bind(`wsSending:${act}`, val).run().catch(() => null);
 }
 /** The buttons: Approve on the scoreboard, Send / Send all on the batch, Send / Don't send on a single update. Cole only. */
 export async function handleClientUpdateButton(env, ctx, payload, deps, { ACK, xfetch }) {
@@ -787,10 +990,10 @@ export async function handleClientUpdateButton(env, ctx, payload, deps, { ACK, x
     if (a.action_id === 'ws_sendall') {
       const bt = await batchOf(a.value), rec = await load(env, deps, a.value).catch(() => null);
       if (!bt || !rec) return inThread('That batch is gone.');
-      const done = [], failed = [];
+      const done = [], failed = [], card = await cardOn(env, deps);
       for (const it of bt.items.filter(i => i.status === 'ready')) {
         const dr = JSON.parse((await deps.getSetting(env, `wsDraft:${it.id}`)) || 'null');
-        const res = dr ? await sendDraft(env, xfetch, dr) : { ok: false, error: 'gone' };
+        const res = dr ? await sendDraft(env, xfetch, dr, { wait: 0, card }) : { ok: false, error: 'gone' };
         if (res.ok) { it.status = 'sent'; dr.done = `sent ${new Date().toISOString()}`; await deps.putSetting(env, `wsDraft:${it.id}`, JSON.stringify(dr)); await deps.putSetting(env, `wsLastSent:${it.act}`, new Date().toISOString()); done.push(it.name); }
         else failed.push(`${it.name} (${res.error})`);
       }
@@ -809,7 +1012,7 @@ export async function handleClientUpdateButton(env, ctx, payload, deps, { ACK, x
       return reply(`Not sent to ${dr.name}.`);
     }
     if (dr.v !== 3 || !dr.msg) return inThread('That is an older draft. Nothing was sent.');
-    const res = await sendDraft(env, xfetch, dr);
+    const res = await sendDraft(env, xfetch, dr, { card: await cardOn(env, deps) });
     if (!res.ok) return inThread(`${dr.name}: Slack refused it (${res.error}). Nothing was sent.`);
     const now = new Date().toISOString();
     dr.done = `sent ${now}`; await deps.putSetting(env, `wsDraft:${a.value}`, JSON.stringify(dr));
@@ -957,18 +1160,50 @@ export async function handleStanding(request, env, url, path, json, deps) {
       const rec = await load(env, deps, slot).catch(() => null);
       if (!bt || !rec) return json({ error: 'No batch for that check-in.' }, 404);
       const out = [];
-      for (const it of bt.items) {
-        if (it.status === 'forme' || it.status === 'sent' || it.status === 'skipped') { out.push({ name: it.name, skipped: it.status }); continue; }
-        const last = await deps.getSetting(env, `wsLastSent:${it.act}`);
-        if (last && Date.now() - Date.parse(last) < 2 * 3600e3) { it.status = 'sent'; out.push({ name: it.name, skipped: 'sent in the last 2 hours' }); continue; }
-        if (!it.id) { const d = await draftFor(env, deps, rec, it.act, slot); if (!d) { out.push({ name: it.name, error: 'no draft' }); continue; } it.id = d.id; }
-        const dr = JSON.parse((await deps.getSetting(env, `wsDraft:${it.id}`)) || 'null');
-        const res = dr ? await sendDraft(env, deps.xfetch, dr) : { ok: false, error: 'draft gone' };
-        if (res.ok) { const now = new Date().toISOString(); it.status = 'sent'; dr.done = `sent ${now}`; await deps.putSetting(env, `wsDraft:${it.id}`, JSON.stringify(dr)); await deps.putSetting(env, `wsLastSent:${it.act}`, now); out.push({ name: it.name, sent: true }); }
-        else out.push({ name: it.name, error: res.error });
-      }
+      for (const it of bt.items) out.push(await sendItem(env, deps, rec, it, slot));
       await saveBatch(env, deps, rec, bt);
       return json({ ok: true, results: out });
+    }
+    /* One brand's client update now (War Room 2.9 W3, the page's "Send to client"): the send_batch steps for that
+       brand's item in the check-in's batch. Owner only; posts as Cole in the client's channel. */
+    if (path === '/api/standing/send' && request.method === 'POST') {
+      if (String(email || '').toLowerCase() !== OWNER(env).toLowerCase()) return json({ error: 'Only the owner can send to a client.' }, 403);
+      const act = String(body.act || ''), slot = String(body.slot || '');
+      if (!/^brand_[a-z0-9_]+$/.test(act) || !/^\d{4}-\d{2}-\d{2}T\d{2}$/.test(slot)) return json({ error: 'act and slot (YYYY-MM-DDTHH)' }, 400);
+      let rec = await load(env, deps, slot).catch(() => null), b = rec && rec.brands.find(x => x.act_id === act);
+      /* A brand carried into this record was checked earlier: its own check-in holds its numbers and batch. */
+      const at = b && b.carried && b.checked_slot ? b.checked_slot : slot;
+      if (at !== slot) { rec = await load(env, deps, at).catch(() => null); b = rec && rec.brands.find(x => x.act_id === act); }
+      if (!rec || !b) return json({ error: 'That brand is not in that check-in.' }, 404);
+      if (b.no_sales) return json({ error: 'No sales numbers for this brand.' }, 404);
+      /* No batch for that check-in (a page "Check now" saves a record with none) or no item for the brand: draft it now
+         from that record and send it with the same guards (sendItem drafts an item with no id; no client channel is
+         refused; the 2 hour rule and the send claim hold). The new item joins that check-in's batch. */
+      const raw = await deps.getSetting(env, `wsBatch:${at}`), bt = raw ? JSON.parse(raw) : { slot: at, channel: null, ts: null, items: [] };
+      let it = bt.items.find(i => i.act === act);
+      if (!it) { it = { act, name: b.name, id: null, status: 'ready' }; bt.items.push(it); }
+      const res = await sendItem(env, deps, rec, it, at);
+      if (res.skipped !== 'sending') await saveBatch(env, deps, rec, bt);
+      return json({ ok: !!res.sent, slot: at, ...res }, res.error ? 502 : 200);
+    }
+    /* The per-brand cadence switch (War Room 2.9 W1): off (the default) = every brand on 8am, 2pm, 8pm whatever the
+       season answers say; on = each brand's checkin_hours answer counts. Owner only. GET shows the switch and the
+       answers stored. */
+    if (path === '/api/standing/schedule') {
+      if (String(email || '').toLowerCase() !== OWNER(env).toLowerCase()) return json({ error: 'Only the owner can change the check-in schedule.' }, 403);
+      if (request.method === 'POST') await deps.putSetting(env, 'checkinSchedule', body.on ? 'on' : 'off');
+      const on = (await deps.getSetting(env, 'checkinSchedule')) === 'on';
+      const rows = env.DB ? (((await env.DB.prepare(`SELECT act_id, value FROM p_season_answer WHERE season = ?1 AND key = 'checkin_hours'`).bind('2026').all().catch(() => ({ results: [] }))).results) || []) : [];
+      return json({ ok: true, on, answers: rows.map(r => ({ act: r.act_id, value: r.value })) });
+    }
+    /* The client card as a PNG (War Room 2.9 W4): the same picture Slack gets, for Download image. Team only. */
+    if (path === '/api/standing/card.png' && request.method === 'GET') {
+      const act = String(url.searchParams.get('act') || '');
+      const only = await deps.brandsFor(env, email).catch(() => null);
+      if (only && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
+      const rec = await load(env, deps, url.searchParams.get('slot')), svg = rec && clientCardSvg(rec, act, await didItems(env, deps, act));
+      if (!svg) return json({ error: 'That brand is not in that check-in.' }, 404);
+      return new Response(await toPng(svg, deps.xfetch, 1600), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'private, no-store' } });
     }
     /* Take a message back (Cole only, through the admin gate): {delete: {channel, ts, as_cole}}. as_cole = a message
        Locus sent under Cole's name; otherwise the bot's own. */

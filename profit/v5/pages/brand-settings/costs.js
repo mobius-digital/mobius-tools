@@ -119,7 +119,7 @@ async function reread(sayOk) {
   try {
     const fresh = await fetchPage(ctx);
     P.d = fresh;
-    putSaved(pageKey({ view: ctx.view, brandId: ctx.brand.id, line: ctx.line.id, tab: ctx.tab.id, range: null }), fresh).catch(() => {});
+    putSaved(pageKey({ view: ctx.view, brandId: ctx.brand.id, line: ctx.line.id, tab: ctx.tab.id, range: null, client: ctx.isClient }), fresh).catch(() => {});
   } catch { toast('Saved. The page could not be read again, so open it again to see the change.', { tone: 'bad', ms: 5000 }); }
   announce('costs:' + ctx.brand.id);
   draw();

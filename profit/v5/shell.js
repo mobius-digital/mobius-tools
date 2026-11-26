@@ -4,7 +4,7 @@
 
 import { APP_NAME, APP_WORD, AI_NAME, ORG_NAME, OLD_LOCUS, OLD_UNTIL, LS5, SAMPLE, QS, legacyUrl } from './config.js';
 import { mark, icon } from './icons.js';
-import { menuFor, lineOf, PHONE_TABS } from './menu.js';
+import { menuFor, lineOf, PHONE_TABS, shownTabs } from './menu.js';
 import { h, svgNode, tabs as tabsKit, avatar, count, asOf as asOfChip, sheet, empty, button, toast } from './kit.js';
 import { href, normalise, prefetch, currentRoute, refresh } from './router.js';
 import { heldHere } from './gate.js';
@@ -88,7 +88,7 @@ export function frame(route, line, tab) {
   drawTop(route);
   drawTabbar(route);
   drawAsBar();
-  const tabsList = line.tabs.filter(x => S.role !== 'client' || !x.team);
+  const tabsList = shownTabs(line, S.role);
   headEl.classList.toggle('has-tabs', tabsList.length > 1);
   tabsHost.replaceChildren(tabsList.length > 1 ? tabsKit(tabsList.map(x => ({ id: x.id, label: x.label, href: href({ ...route, tab: x.id }), count: x.id === 'suggestions' && S.counts[line.id] ? S.counts[line.id] : null, lock: x.team && S.realRole !== 'client' && !(x.id === 'suggestions' && S.counts[line.id]) })), tab.id) : '');
   tabsHost.querySelectorAll('a[data-tab]').forEach(a => { a.dataset.line = line.id; });

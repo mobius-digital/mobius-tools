@@ -17,6 +17,9 @@
  *            photos link, Shopify collaborator request, agreement or invoice waiting, a signer to approve...), worked out
  *            live. The owner sees every line; the client's team (p_newclient team) sees the team lines; money and signing
  *            lines are the owner's only. Ticked with PUT /api/mywork/done like a Slack ask (keys onb:...).
+ *   Goals   (2026-11-26) "Set <Month>'s goal for <Brand>" for a month with no goal typed (accounts.goals_json[ym]), from the
+ *            25th of the month before until someone types it, to the brand's strategist (STRAT), else the owner
+ *            (OWNER_EMAIL). Active brands that send a client daily or have ever had a goal. Links to the v5 Plan page.
  *   One line said twice (a plan line that became a card, a task with the same words) shows once.
  * Buckets: Late (past due), Today (Slack asks, tasks due today or with no date, cards due today or tomorrow), This week
  * (everything else, Monday plan lines included).
@@ -47,6 +50,8 @@ import { onboardLines, lineFor, myWorkItem } from './onboard.js';
 import { allSavedNotify, cleanNotify, catalogTypes, wants } from './notify.js';
 
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
+const LOCUS_V5 = `${LOCUS}v5/`;
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 export const MYWORK_LINK = `${LOCUS}?open=mywork`;
 const COLE_UID = 'U06C37MDWD7';
 const DM_PEOPLE = ['Noma', 'Ahsan'];
@@ -138,7 +143,8 @@ export async function gather(env, d, people) {
   const dismissed = ((await env.DB.prepare(`SELECT who, key FROM p_mywork_done WHERE at >= ?1`).bind(addDays(today, -60)).all().catch(() => ({ results: [] }))).results) || [];
   const domain = (await d.getSetting(env, 'slackDomain').catch(() => null)) || 'mobiusdigitalhq';
   const onboard = await (d.onboardLines || onboardLines)(env).catch(() => []);
-  return { today, brands, tasks, cards, call, mentions, own, dismissed, domain, onboard, ownerEmail: env.OWNER_EMAIL || 'cole@go-mobius-digital.com', names: Object.fromEntries(people.filter(p => p.slack).map(p => [p.slack, p.name])) };
+  const goals = ((await env.DB.prepare(`SELECT act_id, name, goals_json, brief_enabled FROM brand_accounts WHERE active = 1`).all().catch(() => ({ results: [] }))).results) || [];
+  return { today, brands, tasks, cards, call, mentions, own, dismissed, domain, onboard, goals, ownerEmail: env.OWNER_EMAIL || 'cole@go-mobius-digital.com', names: Object.fromEntries(people.filter(p => p.slack).map(p => [p.slack, p.name])) };
 }
 
 /* A Slack line, readable: @U123 becomes @Name, links and spaces tidied. */
@@ -149,6 +155,35 @@ function slackTitle(text, name) {
   const t = text.replace(new RegExp(`^(@${name}[\\s,:]*)+`, 'i'), '').trim();
   const s = (t.match(/^.{20,}?[.?!](\s|$)/) || [t])[0].trim();
   return s.length > 140 ? s.slice(0, 137).replace(/\s+\S*$/, '') + '...' : s;
+}
+
+/** The months a brand still needs a goal typed for, on `today`: this month when it has none, and next month from the
+ *  25th. `goalsJson` = the brand's accounts.goals_json (an explicit "YYYY-MM" key with a sales goal, the same test as
+ *  briefData's goals_planned; a margin or spend save can leave a key with no sales goal). Pure. */
+export function goalMonthsDue(goalsJson, today) {
+  const g = (typeof goalsJson === 'string' ? safe(goalsJson, {}) : goalsJson) || {};
+  const ym = today.slice(0, 7), d = new Date(ym + '-15T12:00:00Z');
+  d.setUTCMonth(d.getUTCMonth() + 1);
+  const months = [ym, ...(+today.slice(8, 10) >= 25 ? [d.toISOString().slice(0, 7)] : [])];
+  return months.filter(m => !(g[m] && typeof g[m] === 'object' && g[m].sales != null));
+}
+/** "Set December's goal for Sample Golf" lines, each for the brand's strategist, else the owner (OWNER_EMAIL). Pure. */
+export function goalItems(g, person) {
+  const out = [];
+  for (const b of g.goals || []) {
+    const gj = safe(b.goals_json, {}) || {};
+    if (!b.brief_enabled && !Object.keys(gj).some(k => /^\d{4}-\d{2}$/.test(k))) continue;
+    const who = STRAT[b.act_id];
+    if (who ? !isPerson(who, person.name) : !(person.email && person.email === String(g.ownerEmail || '').toLowerCase())) continue;
+    const slug = String(b.act_id || '').replace(/^brand_/, '').replace(/_/g, '-');
+    for (const ym of goalMonthsDue(gj, g.today)) {
+      const mon = MONTHS[+ym.slice(5, 7) - 1];
+      out.push({ id: `goal:${b.act_id}:${ym}`, source: 'goal', bucket: 'today', text: `Set ${mon}'s goal for ${noDash(b.name || b.act_id)}`,
+        detail: `No goal is typed for ${mon}, so the client daily and reports say "No goal set for ${mon}" until one is.`,
+        from: 'Goal', brand: b.name || b.act_id, act_id: b.act_id, due: '', link: `${LOCUS_V5}#/brand/${encodeURIComponent(slug)}/month/plan`, done: false });
+    }
+  }
+  return out;
 }
 
 /** One person's lists from what gather read. Pure. */
@@ -203,6 +238,7 @@ export function forPerson(g, person) {
   }
   /* A new client's onboarding lines for this person (onboard.js lineFor: the owner sees all of them). */
   for (const l of g.onboard || []) if (lineFor(l, person, g.ownerEmail)) items.push(myWorkItem(l, done.has(l.id)));
+  items.push(...goalItems(g, person));
   /* One line said twice shows once: tasks, then cards, then Slack, then the plan. */
   const seen = new Set(), ids = new Set(), out = [];
   for (const it of items) { const n = norm(it.text); if (ids.has(it.id) || (n && seen.has(n))) continue; ids.add(it.id); if (n) seen.add(n); out.push(it); }
@@ -221,7 +257,7 @@ export function forPerson(g, person) {
 const tagOf = it => it.source === 'card' ? `card ${it.num}` : it.source === 'slack' ? 'Slack' : it.source === 'call' ? 'Monday plan' : 'task';
 /** The DM text, or null when nothing is open. Pure. */
 export function dmText(r, person, today, link = MYWORK_LINK) {
-  const open = (r.items || []).filter(i => !i.done);
+  const open = (r.items || []).filter(i => !i.done && i.source !== 'goal'); // goal lines are My work only, never the DM
   const T = open.filter(i => i.bucket === 'today'), L = open.filter(i => i.bucket === 'late'), W = open.filter(i => i.bucket === 'week' && i.due);
   if (!T.length && !L.length && !W.length) return null;
   const when = it => it.due === today ? ', due today' : it.due === addDays(today, 1) ? ', due tomorrow' : '';
@@ -245,7 +281,7 @@ export function dmText(r, person, today, link = MYWORK_LINK) {
  *  the tasks as lines (today first, then late, then coming up; 5 shown), "Locus · 5:00am CT", one Open button.
  *  null when nothing is open. Pure. */
 export function dmMessage(r, person, today, link = MYWORK_LINK, at = new Date()) {
-  const open = (r.items || []).filter(i => !i.done);
+  const open = (r.items || []).filter(i => !i.done && i.source !== 'goal'); // goal lines are My work only, never the DM
   const T = open.filter(i => i.bucket === 'today'), L = open.filter(i => i.bucket === 'late'), W = open.filter(i => i.bucket === 'week' && i.due);
   if (!T.length && !L.length && !W.length) return null;
   const when = it => it.due === today ? ', due today' : it.due === addDays(today, 1) ? ', due tomorrow' : '';
@@ -376,4 +412,4 @@ export async function handleMyWork(request, env, url, path, json, d) {
   } catch (e) { return json({ error: e.message }, e.status || 500); }
 }
 
-export const _test = { peopleFrom, access, forPerson, dmText, dmMessage, dmWindow, isPerson, myWorkDmTick, handleMyWork, slackTitle, dmRecipients };
+export const _test = { goalMonthsDue, goalItems, peopleFrom, access, forPerson, dmText, dmMessage, dmWindow, isPerson, myWorkDmTick, handleMyWork, slackTitle, dmRecipients };

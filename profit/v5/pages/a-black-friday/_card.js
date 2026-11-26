@@ -14,8 +14,10 @@ const usd = v => ok(v) ? '$' + Math.round(v).toLocaleString('en-US') : 'n/a';
 const xx = v => ok(v) ? v.toFixed(2) + 'x' : 'n/a';
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-export const FOOT = d => `Next update around ${d.next || 'the next check-in'} · Sales from Triple Whale · MER = store sales / ad spend`;
-const NONE = 'No changes, the ads are on track.';
+/* The card is a picture the client cannot hover, so its one line keeps a short source note (the page itself has no footers). */
+export const FOOT = d => `Next update around ${d.next || 'the next check-in'} · Sales from Triple Whale · Store MER = all store sales / all ad spend`;
+/** The one sentence for "nothing changed", on the card and in the text that goes with it. */
+export const NONE = 'No budget changes since the last update.';
 
 /** The CSS the HTML card needs (also sent with the snapshot). Tiles stack on a phone. */
 export const CARD_CSS = `
@@ -49,7 +51,7 @@ export function cardHtml(d) {
     ? d.changes.map(c => `<p>${esc(c.line)}${c.why ? `<small>${esc(c.why)}</small>` : ''}</p>`).join('')
     : `<p>${esc(NONE)}</p>`;
   return `<div class="wcc"><div class="wcc-top"><b>${esc(d.brand)} · Black Friday</b><span>${esc(d.when)}</span></div>`
-    + (ok(d.goal) ? `<div class="wcc-goal">Goal ${esc(xx(d.goal))} MER</div>` : '')
+    + (ok(d.goal) ? `<div class="wcc-goal">Target store MER ${esc(xx(d.goal))}</div>` : '')
     + `<div class="wcc-tiles">${(d.tiles || []).map(tile).join('')}</div>`
     + `<div class="wcc-ch"><span class="h">What we changed</span>${ch}</div>`
     + `<div class="wcc-foot">${esc(FOOT(d))}</div></div>`;
@@ -97,7 +99,7 @@ export async function cardCanvas(d) {
   spaced(ctx, `${String(d.brand || '').toUpperCase()} · BLACK FRIDAY`, P, 84, 2.2);
   ctx.font = `500 24px ${FONT}`; ctx.fillStyle = C.dim;
   const wt = ctx.measureText(d.when || '').width; ctx.fillText(d.when || '', W - P - wt, 84);
-  if (ok(d.goal)) { ctx.font = `500 22px ${FONT}`; ctx.fillText(`Goal ${xx(d.goal)} MER`, P, 124); }
+  if (ok(d.goal)) { ctx.font = `500 22px ${FONT}`; ctx.fillText(`Target store MER ${xx(d.goal)}`, P, 124); }
   /* tiles */
   const gap = 24, tw = (inner - 2 * gap) / 3;
   (d.tiles || []).slice(0, 3).forEach((t, i) => {

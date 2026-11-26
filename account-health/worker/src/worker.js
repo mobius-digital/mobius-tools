@@ -122,6 +122,7 @@ import { jobOn, featureOn, jobsView, cleanJobs, cleanFeatures, featureSaved } fr
 import { alarmsPass, alarmCfg, cleanAlarmCfg } from './alarms.js';
 import { markHold, recheckHolds, listHolds, holdFor } from './drafthold.js';
 import { supplyBrandOf, supplyFetch } from './stock.js';
+import { catalogPayload } from './catalog.js';
 /* /api/tw-day's 60-second memo (2026-10-26, Locus speed): key = brand | shop | day -> { at, p }. */
 const TW_DAY_MEMO = new Map();
 
@@ -2375,7 +2376,7 @@ async function briefData(env, acct, upTo) {
   // gets numbers, and reporting them as "the plan" is how a goal silently carries
   // from one month to the next. Say which it is, and name where it came from.
   const gjson = safeJson(acct.goals_json, {});
-  const planned = !!gjson[ym];
+  const planned = gjson[ym]?.sales != null; // the month's OWN key has a sales goal (a margin or spend save leaves a key without one)
   let inheritedFrom = null;
   if (!planned && goals) {
     const months = Object.keys(gjson).filter(k => /^\d{4}-\d{2}$/.test(k)).sort();
@@ -3494,12 +3495,14 @@ async function clientDailyFor(env, acct, date, text, data, { next = true } = {})
     amazon: amzMonth && amzMonth.orders > 0 ? { day: amzDay, month: amzMonth } : null,
     brand: acct.name, date, currency: acct.currency,
     day: { sales: day?.a?.sales ?? null, spend: day?.a?.spend ?? null, mer: day?.a?.mer ?? null, amer: day?.a?.amer ?? null, plan: day?.f?.sales ?? null },
-    /* "of $27K planned" = the plan TO DATE (the forecast days so far), not the whole month's goal. */
+    /* "of $27K goal" = the goal TO DATE (the month's sales goal split evenly, the days so far), not the whole month's. */
     month: { ym: monthOf(date), sales: days.length ? mtd : (data?.mtd?.sales ?? null),
       plan: days.some(x => x.f?.sales != null) ? days.reduce((n, x) => n + (x.f?.sales || 0), 0) : (data?.mtd?.sales_f ?? null),
       spend: days.length ? days.reduce((n, x) => n + (x.a.spend || 0), 0) : (data?.mtd?.spend ?? null),
       day_of_month: +date.slice(8, 10), days_in_month: daysInMonth(date) },
     others: days.filter(x => x.date !== date).map(x => x.a.sales), next: nextLine,
+    /* No goal typed for the month: no inherited number reaches the client, "No goal set for <Month>" instead. */
+    goal_set: data?.goals_planned !== false,
   });
 }
 
@@ -4713,7 +4716,7 @@ async function reportData(env, acct, period, start, end) {
   for (const d of curDates) {
     const ym = monthOf(d);
     const g = goalsFor(acct, ym);
-    monthsSeen[ym] ??= { planned: !!gjson[ym], has_goals: !!g };
+    monthsSeen[ym] ??= { planned: gjson[ym]?.sales != null, has_goals: !!g };
     if (!g) continue;
     const dim = daysInMonth(d);
     if (g.sales != null) fSales = (fSales ?? 0) + g.sales / dim;
@@ -4748,7 +4751,7 @@ async function reportData(env, acct, period, start, end) {
         // plain run-rate otherwise.
         projected: mtd.sales != null && planToDate > 0 ? mtd.sales / planToDate * gEnd.sales
           : mtd.sales != null && elapsed > 0 ? mtd.sales / elapsed * dim : null,
-        planned: !!gjson[ymEnd],
+        planned: gjson[ymEnd]?.sales != null,
       };
       // Saying a month is behind is half the job. The other half is the ask: what
       // it takes from here. Returning revenue arrives on its own, so the shortfall
@@ -10726,6 +10729,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
          Nothing mints new ones, no page renders them, and its route is gone. */
       /* Example Slack messages to the owner's own DM only (exampledm.js): owner only, no recipient in the body. */
       if (path === '/api/slack/example-dm' && request.method === 'POST') return handleExampleDm(request, env, { isOwner, slackPost, json });
+      /* The message catalog (catalog.js): every message Locus sends, with who, when, why, sender and a house style
+         example drawn from made up numbers. Owner only, the same check as PUT /api/settings senders. Read only. */
+      if (path === '/api/messages/catalog' && request.method === 'GET') {
+        if (!isOwner) return json({ error: 'Only the owner can see the message catalog.' }, 403);
+        return json(catalogPayload({ stored: await getSetting(env, 'senders'), env,
+          person: await senderPerson(env, { F: xfetch, getSetting, putSetting }).catch(() => null) }));
+      }
       if (path === '/api/settings' && request.method === 'GET') {
         return json({
           slackChannel: await getSetting(env, 'slackChannel'),

@@ -2,7 +2,7 @@
    The side menu shows only the main lines. A line's sub pages are tabs across the top of its page.
 
    line  = { id, label, icon, who, tabs, note?, count?, foot?, top?, gap? }
-   tab   = { id, label, team?, legacy }
+   tab   = { id, label, team?, legacy, hidden? }   hidden: a working route that is not drawn as a tab
    who   = 'all' (team and client), 'team', or 'owner' (the owner alone)
    legacy = the old Locus page id (opens ../?open=<legacy>&act=<brand>), or null when there is none.
    A line with no sub pages has one tab with id 'index'.
@@ -12,6 +12,10 @@ import { AI_NAME, ORG_SHORT } from './config.js';
 
 const t = (id, label, legacy = null, team = false) => ({ id, label, legacy, team });
 const one = (legacy = null) => [t('index', '', legacy)];
+/** A route that works but is not drawn as a tab (reached from a link on another page). */
+const hide = tab => ({ ...tab, hidden: true });
+/** The tabs drawn across the top of a line's page. */
+export const shownTabs = (line, role) => line.tabs.filter(x => !x.hidden && (role !== 'client' || !x.team));
 
 /* Automations is one line in BOTH side menus (team only). In a brand view its pages show that brand's rows,
    in the agency view every brand's. viewOf() answers null for a line that sits in both, so the view you are in is kept. */
@@ -72,8 +76,11 @@ export const BRAND_MENU = [
   { group: 'Calendar', lines: [
     { id: 'calendar', label: 'Calendar', icon: 'calendar', who: 'all', tabs: one('calendar') },
     { id: 'offers', label: 'Offers', icon: 'offers', who: 'all', tabs: one('season') },
+    /* one page: the War Room. A client sees the pace and the plan on it, never the calls. The brand plan (the day by
+       day goal and budget, the ladder, the offers) stays a route but not a tab: the War Room's plan table opens it.
+       The old Pace address is not listed at all, so the router sends it to the War Room. */
     { id: 'black-friday', label: 'Black Friday', icon: 'star', who: 'all', note: 'in season', tabs: [
-      t('pace', 'Pace', 'warlive'), t('plan', 'Plan', 'warplan'), t('war-room', 'War Room', 'warlive', true)] },
+      t('war-room', 'War Room', 'warlive'), hide(t('plan', 'Plan', 'warplan'))] },
   ] },
   { group: 'Reports', lines: [
     { id: 'reports', label: 'Reports', icon: 'report', who: 'all', tabs: one('reports') },
@@ -105,7 +112,7 @@ export const AGENCY_MENU = [
   ] },
   { group: 'Calendar', lines: [
     { id: 'a-calendar', label: 'Calendar', icon: 'calendar', who: 'team', tabs: one('calendar') },
-    { id: 'a-black-friday', label: 'Black Friday', icon: 'star', who: 'team', note: 'in season', tabs: [t('war-room', 'War Room', 'warlive'), t('pace', 'Pace', 'warlive'), t('plan', 'Plan', 'warplan')] },
+    { id: 'a-black-friday', label: 'Black Friday', icon: 'star', who: 'team', note: 'in season', tabs: [t('war-room', 'War Room', 'warlive')] },
   ] },
   { group: 'Reports', lines: [
     { id: 'a-to-send', label: 'To send', icon: 'send', who: 'team', tabs: one('reports') },
@@ -126,7 +133,7 @@ export const AGENCY_MENU = [
   { group: null, foot: true, lines: [
     { id: 'a-settings', label: 'Agency settings', icon: 'gear', who: 'team', foot: true, tabs: [
       t('clients', 'Clients', 'settings'), t('team', 'Team', 'settings'), t('integrations', 'Integrations', 'settings'), t('ask', AI_NAME, 'settings'),
-      t('how-we-run-ads', 'How we run ads', 'settings'), t('sending', 'Sending and notifications', 'settings')] },
+      t('how-we-run-ads', 'How we run ads', 'settings'), t('sending', 'Sending and notifications', 'settings'), t('messages', 'Messages')] },
     { id: 'a-engine', label: 'Engine', icon: 'pulse', who: 'owner', foot: true, tabs: [t('compare', 'Compare'), t('switch', 'Switch')] },
   ] },
 ];
@@ -187,12 +194,12 @@ export function viewOf(lineId) {
   return null;
 }
 
-/** Every route id as { view, line, tab, label, file, legacy, team }. The README list is made from this. */
+/** Every route id as { view, line, tab, label, file, legacy, team, hidden }. The README list is made from this. */
 export function allRoutes() {
   const out = [];
   const add = (view, l) => l.tabs.forEach(x => out.push({
     view, line: l.id, tab: x.id, label: x.label ? l.label + ' > ' + x.label : l.label,
-    file: `pages/${l.id}/${x.id}.js`, legacy: x.legacy, team: l.who === 'team' || !!x.team,
+    file: `pages/${l.id}/${x.id}.js`, legacy: x.legacy, team: l.who === 'team' || !!x.team, hidden: !!x.hidden,
   }));
   BRAND_MENU.forEach(g => g.lines.forEach(l => add('brand', l)));
   AGENCY_MENU.forEach(g => g.lines.forEach(l => add('agency', l)));

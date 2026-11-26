@@ -9,12 +9,12 @@
  *   The daily (sendBrief, worker.js), posted the morning after the day it covers:
  *     *Dartee Golf · Daily update*
  *     *Yesterday, Thursday Oct 15*
- *     • Sales: *$1,458* (plan $1,800, under plan)      one verdict: on plan / under plan / best day this month
+ *     • Sales: *$1,458* (goal $1,800, under goal)      one verdict: on goal / under goal / best day this month
  *     • Ad spend: *$519*
  *     • MER: *2.81x*
  *     • aMER (new customers): *1.95x*
  *     *October so far* (15 of 31 days)
- *     • Sales: *$17.8K* of $27K planned  • Ad spend  • MER
+ *     • Sales: *$17.8K* of $27K goal  • Ad spend  • MER
  *     *Next:* ...                                         only when a person wrote one
  *     _More numbers in the thread._
  *   The thread reply (dailyThread) is numbers only: orders, new vs returning, each ad channel that spent (Meta, Google)
@@ -34,7 +34,7 @@
  *     *We need from you* = the call's asks + the calendar's asks + open Requests, each with when it was asked and when it is needed
  *     <link|Open the full report>
  *
- * Rules: one comparison per number (vs the prior period; plan lives on the page), no "Hey Team" opener, no em dashes,
+ * Rules: one comparison per number (vs the prior period; the goal lives on the page), no "Hey Team" opener, no em dashes,
  * no channel named in the top post, nothing invented. */
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -66,21 +66,31 @@ export function pctChange(now, before) {
   return `${p > 0 ? '▲' : '▼'}${Math.abs(p)}%`;
 }
 
-/** One word on the day. Best day beats the plan read; no plan and not the best = no word. */
+/** One word on the day. Best day beats the goal read; no goal and not the best = no word.
+ *  CLIENT WORDING (2026-11-26, Cole): a client reads "goal", never "plan". The number is the month's sales goal the team
+ *  typed on the Plan page (accounts.goals_json[month]), split evenly over the days of the month (briefData). It is a
+ *  target, not a forecast: no model or day of week curve shapes it. A month with no goal typed inherits the last
+ *  month's (or the default) in briefData; the client daily drops it (dailyPost goal_set false). Code keys stay plan. */
 export function dailyVerdict({ sales, plan, others = [] }) {
   if (sales == null) return null;
   const rest = others.filter(v => v != null);
   if (rest.length >= 2 && sales > 0 && sales >= Math.max(...rest)) return 'best day this month';
   if (plan == null || !(plan > 0)) return null;
-  return sales >= plan ? 'on plan' : 'under plan';
+  return sales >= plan ? 'on goal' : 'under goal';
 }
 
 /** The client daily. `day` = {sales, spend, mer, amer, plan}; `month` = {ym, sales, plan, spend, day_of_month,
  *  days_in_month}; `others` = the month's other finished days' sales (for "best day"); `next` = the human line. */
-export function dailyPost({ brand, date, currency = 'USD', day = {}, month = {}, others = [], next = null, amazon = null }) {
+/* NO GOAL TYPED, NO GOAL SHOWN (2026-11-26, Cole's team): a month with no goal typed for it must never reuse an earlier
+   month's goal in front of a client. `goal_set: false` (briefData goals_planned false) drops the day's goal, the on or
+   under goal word and the month's "of $X goal", and says "No goal set for <Month>" instead. Best day this month stays.
+   Left out or true = every line exactly as before. */
+export const noGoalLine = ym => `No goal set for ${MONTHS[+String(ym).slice(5, 7) - 1]}`;
+export function dailyPost({ brand, date, currency = 'USD', day = {}, month = {}, others = [], next = null, amazon = null, goal_set = true }) {
   const L = [`*${noDash(brand)} · Daily update*`];
+  if (goal_set === false) { day = { ...day, plan: null }; month = { ...month, plan: null }; }
   const verdict = dailyVerdict({ sales: day.sales, plan: day.plan, others });
-  const plan = day.plan > 0 ? `plan ${money(day.plan, currency)}` : '';
+  const plan = day.plan > 0 ? `goal ${money(day.plan, currency)}` : '';
   const note = [plan, verdict].filter(Boolean).join(', ');
   L.push(`*Yesterday, ${dayLabel(date)}*`, `• Sales: *${money(day.sales, currency)}*${note ? ` (${note})` : ''}`, `• Ad spend: *${money(day.spend, currency)}*`);
   if (x(day.mer)) L.push(`• MER: *${x(day.mer)}*`);
@@ -91,11 +101,12 @@ export function dailyPost({ brand, date, currency = 'USD', day = {}, month = {},
     const mName = month.ym ? MONTHS[+String(month.ym).slice(5, 7) - 1] : MONTHS[at(date).getUTCMonth()];
     const dom = month.day_of_month || +date.slice(8, 10);
     L.push('', `*${mName} so far* (${dom}${month.days_in_month ? ` of ${month.days_in_month}` : ''} days)`,
-      `• Sales: *${shortMoney(month.sales, currency)}*${month.plan > 0 ? ` of ${shortMoney(month.plan, currency)} planned` : ''}`);
+      `• Sales: *${shortMoney(month.sales, currency)}*${month.plan > 0 ? ` of ${shortMoney(month.plan, currency)} goal` : ''}`);
     if (month.spend != null) L.push(`• Ad spend: *${shortMoney(month.spend, currency)}*`);
     if (month.spend > 0) L.push(`• MER: *${x(month.sales / month.spend)}*`);
     if (amazon?.month?.orders > 0) L.push(`• Amazon: *${shortMoney(amazon.month.sales, currency)}* (${amazon.month.orders} orders)`);
   }
+  if (goal_set === false) L.push(`• ${noGoalLine(month.ym || date.slice(0, 7))}`);
   const n = noDash(next);
   if (n) L.push('', `*Next:* ${n.replace(/^next:\s*/i, '').slice(0, 240)}`);
   L.push('', '_More numbers in the thread._');

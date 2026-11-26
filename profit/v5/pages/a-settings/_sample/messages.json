@@ -1,0 +1,5705 @@
+{
+ "groups": [
+  "Client reports and updates",
+  "Alerts when something breaks",
+  "Ad calls and the War Room",
+  "Team day (plans, check-ins, tasks, meetings)",
+  "Creator program (Mobius only)",
+  "Social posting and site reviews",
+  "Old features we no longer run",
+  "Answers and tools on request"
+ ],
+ "statuses": [
+  "keep",
+  "move",
+  "off after Dec 2",
+  "parked"
+ ],
+ "counts": {
+  "total": 101,
+  "notOnRenderer": 70,
+  "keep": 55,
+  "move": 25,
+  "off after Dec 2": 20,
+  "parked": 1
+ },
+ "person": "Pat",
+ "entries": [
+  {
+   "id": "client_daily",
+   "group": "Client reports and updates",
+   "name": "Client daily update",
+   "channel": "client channel",
+   "who": "The client",
+   "kind": "client_daily",
+   "status": "keep",
+   "audit": "a17",
+   "onRenderer": false,
+   "when": "Each morning for yesterday, when Cole taps Send (or auto post is on). A missed day of the last two gets its own post; the full numbers go in the thread.",
+   "why": "The client sees yesterday and the month so far against the goal without opening anything.",
+   "where": [
+    "worker.js:sendBrief",
+    "worker.js:editClientPost"
+   ],
+   "from": "cole",
+   "fromLabel": "Pat",
+   "kindLabel": "Client daily",
+   "example": {
+    "text": "Northlake Golf · Wed Nov 25. On goal. Next: Black Friday ads go live tonight at 6pm.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Northlake Golf · Wed Nov 25"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "On goal. Next: Black Friday ads go live tonight at 6pm."
+      }
+     },
+     {
+      "type": "section",
+      "fields": [
+       {
+        "type": "mrkdwn",
+        "text": "*Yesterday*\n$3,240 sales · 2.70x MER · goal $3,000"
+       },
+       {
+        "type": "mrkdwn",
+        "text": "*November so far*\n$61.2K of $75K goal · 2.55x MER"
+       }
+      ]
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "Triple Whale · 2:10pm CT · more in the thread"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "client_daily_thread_failed",
+   "group": "Client reports and updates",
+   "name": "Client daily thread did not post",
+   "channel": "internal channel",
+   "who": "Cole",
+   "kind": "internal_alert",
+   "status": "move",
+   "audit": "a23",
+   "onRenderer": true,
+   "when": "Right after a client daily went out but its thread reply failed.",
+   "why": "Someone posts the full numbers under the daily by hand so the client is not missing them.",
+   "where": [
+    "worker.js:sendBrief"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Alerts to the team",
+   "example": {
+    "text": "CLIENT · Northlake Golf: Post the full brief in the thread under today's client daily by hand. the daily went out but its thread did not",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "CLIENT · Northlake Golf: Post the full brief in the thread under today's client daily by hand"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "<@U0SAMPLE1>  the daily went out but its thread did not"
+      }
+     }
+    ],
+    "head": {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*CLIENT · Northlake Golf*\n<@U0SAMPLE1>  Post the full brief in the thread under today's client daily by hand\nWhy: the daily went out but its thread did not"
+     }
+    },
+    "mrkdwn": "*CLIENT · Northlake Golf*\n<@U0SAMPLE1>  Post the full brief in the thread under today's client daily by hand\nWhy: the daily went out but its thread did not"
+   }
+  },
+  {
+   "id": "client_report",
+   "group": "Client reports and updates",
+   "name": "Weekly and monthly client report",
+   "channel": "client channel",
+   "who": "The client",
+   "kind": "client_report",
+   "status": "keep",
+   "audit": "a18",
+   "onRenderer": false,
+   "when": "Mondays after the team call (weekly) and the 1st (monthly), when Cole taps Send. A report with no approved read is refused.",
+   "why": "It is the client product: our read, the numbers against the period before, our work and what we need from them.",
+   "where": [
+    "worker.js:sendReport"
+   ],
+   "from": "cole",
+   "fromLabel": "Pat",
+   "kindLabel": "Weekly and monthly reports",
+   "example": {
+    "text": "Northlake Golf · Weekly report, Nov 16 to 22. Sales up 12% on 8% less ad spend, so each ad dollar brought back more.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Northlake Golf · Weekly report, Nov 16 to 22"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Sales up 12% on 8% less ad spend, so each ad dollar brought back more."
+      }
+     },
+     {
+      "type": "section",
+      "fields": [
+       {
+        "type": "mrkdwn",
+        "text": "*Sales*\n$18,400 · up 12%"
+       },
+       {
+        "type": "mrkdwn",
+        "text": "*Ad spend*\n$6,900 · down 8%"
+       },
+       {
+        "type": "mrkdwn",
+        "text": "*MER (whole store)*\n2.67x · was 2.21x"
+       }
+      ]
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Our work: 9 new ads launched, 6 changes to your ads\n• This week: Black Friday ads go live Thursday\n• We need from you: product photos for the gift guide"
+      }
+     },
+     {
+      "type": "divider"
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "Triple Whale · 2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Open the full report"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "client_checkin",
+   "group": "Client reports and updates",
+   "name": "Black Friday client check-in update",
+   "channel": "client channel",
+   "who": "The client",
+   "kind": "client_checkin",
+   "status": "keep",
+   "audit": "a36",
+   "onRenderer": false,
+   "when": "After each War Room check-in, when Cole taps Send or Send all. Runs through Dec 4, the last sale day.",
+   "why": "The client sees how the sale is going since the last check-in, today and this week.",
+   "where": [
+    "standing.js:sendDraft"
+   ],
+   "from": "cole",
+   "fromLabel": "Pat",
+   "kindLabel": "Client check-in updates",
+   "example": {
+    "text": "Northlake Golf · Black Friday, 2pm check-in. Ahead of goal today. We raised the Black Friday budget from $400 to $600 a day.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Northlake Golf · Black Friday, 2pm check-in"
+      }
+     }
+    ],
+    "attachments": [
+     {
+      "color": "#2EB67D",
+      "blocks": [
+       {
+        "type": "section",
+        "text": {
+         "type": "mrkdwn",
+         "text": "Ahead of goal today. We raised the Black Friday budget from $400 to $600 a day."
+        }
+       },
+       {
+        "type": "section",
+        "fields": [
+         {
+          "type": "mrkdwn",
+          "text": "*Since last check-in*\n$2,180 sales · 3.10x MER"
+         },
+         {
+          "type": "mrkdwn",
+          "text": "*Today*\n$4,050 sales · 2.85x MER"
+         },
+         {
+          "type": "mrkdwn",
+          "text": "*This week*\n$22,600 sales · 2.70x MER"
+         }
+        ]
+       },
+       {
+        "type": "context",
+        "elements": [
+         {
+          "type": "mrkdwn",
+          "text": "Triple Whale · 2:10pm CT · goal 2.50x MER"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "client_approve_card",
+   "group": "Client reports and updates",
+   "name": "Client Approve button on a budget raise",
+   "channel": "client channel",
+   "who": "The client (one brand that asked to approve raises)",
+   "kind": "client_checkin",
+   "status": "keep",
+   "audit": "a37",
+   "onRenderer": false,
+   "when": "With a check-in update that carries a raise waiting on the client. Runs through Dec 4.",
+   "why": "The client decides on their own budget raise with one tap.",
+   "where": [
+    "standing.js:sendDraft"
+   ],
+   "from": "cole",
+   "fromLabel": "Pat",
+   "kindLabel": "Client check-in updates",
+   "example": {
+    "text": "Summit Socks Co · raise waiting on you. Black Friday is ahead of goal. Approve the raise and it goes live in Meta right away.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Summit Socks Co · raise waiting on you"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Black Friday is ahead of goal. Approve the raise and it goes live in Meta right away."
+      }
+     },
+     {
+      "type": "section",
+      "fields": [
+       {
+        "type": "mrkdwn",
+        "text": "*Now*\n$300 a day"
+       },
+       {
+        "type": "mrkdwn",
+        "text": "*Raise to*\n$450 a day"
+       }
+      ]
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "Triple Whale · 2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "ws_capprove",
+        "text": {
+         "type": "plain_text",
+         "text": "Approve $300 to $450"
+        },
+        "value": "sample",
+        "style": "primary"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "client_checkin_card",
+   "group": "Client reports and updates",
+   "name": "Picture card on a client check-in update",
+   "channel": "client channel",
+   "who": "The client",
+   "kind": "client_checkin",
+   "status": "keep",
+   "audit": "a36",
+   "onRenderer": false,
+   "when": "On top of a check-in update when the client picture card switch is on (off by default). Uploaded as the sender and shared only by the post; a failed card sends the text update alone.",
+   "why": "The client sees the check-in numbers as one picture at a glance.",
+   "where": [
+    "standing.js:userPng",
+    "standing.js:sendDraft"
+   ],
+   "from": "cole",
+   "fromLabel": "Pat",
+   "kindLabel": "Client check-in updates",
+   "example": {
+    "text": "Northlake Golf · Black Friday, 2pm check-in. The picture card sits above the update: sales, MER and spend since the last check-in.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Northlake Golf · Black Friday, 2pm check-in"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "The picture card sits above the update: sales, MER and spend since the last check-in."
+      }
+     },
+     {
+      "type": "image",
+      "image_url": "https://example.test/checkin-card.png",
+      "alt_text": "Check-in picture card"
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "Triple Whale · 2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "client_approve_done",
+   "group": "Client reports and updates",
+   "name": "Done, it is live in Meta",
+   "channel": "client channel",
+   "who": "The client who tapped Approve",
+   "kind": null,
+   "fixedFrom": "locus",
+   "fromNote": "Always Locus (War Room code)",
+   "status": "keep",
+   "audit": "a37",
+   "onRenderer": false,
+   "when": "Right after the client taps Approve and the raise goes through, in the thread.",
+   "why": "The client knows their tap worked.",
+   "where": [
+    "standing.js:handleClientUpdateButton"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": null,
+   "example": {
+    "text": "Done, it is live in Meta. Summit Socks Co Black Friday budget is now $450 a day.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Done, it is live in Meta"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Summit Socks Co Black Friday budget is now $450 a day."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "Meta · 2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "client_update",
+   "group": "Client reports and updates",
+   "name": "\"What we did\" update",
+   "channel": "client channel",
+   "who": "The client",
+   "kind": "client_update",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "When Cole taps Post on the what we did screen after the ad calls.",
+   "why": "The client hears in plain words what we changed in their ads and why.",
+   "where": [
+    "buyerlist.js:handleBuyer@/api/buyer-list/what-we-did"
+   ],
+   "from": "cole",
+   "fromLabel": "Pat",
+   "kindLabel": "\"What we did\" updates",
+   "example": {
+    "text": "Pine Ridge Apparel · What we did today",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Pine Ridge Apparel · What we did today"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Turned off two ads that spent $180 with no sales\n• Raised the gift set budget from $80 to $100 a day\n• Loaded 4 new holiday ads"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "Meta · 2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "client_recap",
+   "group": "Client reports and updates",
+   "name": "Client call recap",
+   "channel": "client channel",
+   "who": "The client",
+   "kind": "client_recap",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "When a client call is finished and the recap is ticked to post.",
+   "why": "Everyone leaves the call with the same list of decisions and asks.",
+   "where": [
+    "callscreen.js:finishCall"
+   ],
+   "from": "cole",
+   "fromLabel": "Pat",
+   "kindLabel": "Call recaps",
+   "example": {
+    "text": "Pine Ridge Apparel · Call recap, Nov 24",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Pine Ridge Apparel · Call recap, Nov 24"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Gift guide ads go live Dec 1\n• You send the new product photos by Friday\n• We test a bundle offer next week"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "client_outage",
+   "group": "Client reports and updates",
+   "name": "Platform outage note to clients",
+   "channel": "client channel",
+   "who": "Every client channel",
+   "kind": "client_outage",
+   "status": "move",
+   "audit": "a30",
+   "onRenderer": true,
+   "when": "When Cole taps Send to all clients on an outage card.",
+   "why": "Clients hear from us first when a platform problem explains a drop.",
+   "where": [
+    "pulse.js:pulseButton"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Platform outage notes to clients",
+   "example": {
+    "text": "Shopify: Checkout is down. Outage. Checkout is failing for some stores",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Shopify: Checkout is down"
+      }
+     }
+    ],
+    "attachments": [
+     {
+      "color": "#E01E5A",
+      "blocks": [
+       {
+        "type": "section",
+        "text": {
+         "type": "mrkdwn",
+         "text": "Outage. Checkout is failing for some stores"
+        }
+       },
+       {
+        "type": "context",
+        "elements": [
+         {
+          "type": "mrkdwn",
+          "text": "Shopify status page · 2:10pm CT"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "client_post",
+   "group": "Client reports and updates",
+   "name": "Strategist post in a channel",
+   "channel": "client channel or internal channel",
+   "who": "The client or the team, per the draft",
+   "kind": "client_post",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "When someone approves a post the Strategist drafted. A client channel needs the owner (or anyone, per the setting).",
+   "why": "A drafted message goes out only after a person says yes.",
+   "where": [
+    "slackwrite.js:postAction"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Strategist posts in a client channel",
+   "example": {
+    "text": "Northlake Golf · Holiday shipping dates. Last day to order for delivery by Dec 24 is Dec 17. We set the ads to say so from Dec 10.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Northlake Golf · Holiday shipping dates"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Last day to order for delivery by Dec 24 is Dec 17. We set the ads to say so from Dec 10."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "onboarding_welcome",
+   "group": "Client reports and updates",
+   "name": "Welcome in the new client channel",
+   "channel": "client channel",
+   "who": "The new client",
+   "kind": "onboarding_slack",
+   "status": "keep",
+   "audit": "a60",
+   "onRenderer": false,
+   "when": "Once, when the client first joins their Slack channel.",
+   "why": "A new client sees their team, their links and what happens next.",
+   "where": [
+    "newclient.js:welcomeOnJoin"
+   ],
+   "from": "cole",
+   "fromLabel": "Pat",
+   "kindLabel": "Onboarding in Slack (welcome, Shopify note)",
+   "example": {
+    "text": "Welcome, Pine Ridge Apparel! This channel is where we talk day to day. Say hi, ask anything, drop files.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Welcome, Pine Ridge Apparel!"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "This channel is where we talk day to day. Say hi, ask anything, drop files."
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Your team: strategist, media buyer, editor, designer\n• Finish your onboarding link\n• Book the strategy call\n• Then we start: research, first briefs, first ads"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "onboarding_voice",
+   "group": "Client reports and updates",
+   "name": "Voice interview ask",
+   "channel": "client channel or email",
+   "who": "The new client",
+   "kind": "onboarding_slack",
+   "status": "keep",
+   "audit": "a60",
+   "onRenderer": false,
+   "when": "Once, after the client sends the onboarding form. Email when they are not in Slack yet.",
+   "why": "The voice interview is how ad copy learns to sound like the brand.",
+   "where": [
+    "newclient.js:newClientTick"
+   ],
+   "from": "cole",
+   "fromLabel": "Pat",
+   "kindLabel": "Onboarding in Slack (welcome, Shopify note)",
+   "example": {
+    "text": "One more thing: your voice interview. When you have 20 minutes: you talk, we ask, then you rate a few sample lines.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "One more thing: your voice interview"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "When you have 20 minutes: you talk, we ask, then you rate a few sample lines."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Start the interview"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "onboarding_shopify",
+   "group": "Client reports and updates",
+   "name": "Please approve our Shopify request",
+   "channel": "client channel or email",
+   "who": "The new client",
+   "kind": "onboarding_slack",
+   "status": "keep",
+   "audit": "a60",
+   "onRenderer": false,
+   "when": "When the team marks the Shopify collaborator request as sent.",
+   "why": "Store access unlocks sales numbers and tracking.",
+   "where": [
+    "newclient.js:markShopifySent"
+   ],
+   "from": "cole",
+   "fromLabel": "Pat",
+   "kindLabel": "Onboarding in Slack (welcome, Shopify note)",
+   "example": {
+    "text": "Please approve our Shopify request for Pine Ridge Apparel. Shopify admin, Settings, Users: accept the request from our team.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Please approve our Shopify request for Pine Ridge Apparel"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Shopify admin, Settings, Users: accept the request from our team."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "onboarding_form_message",
+   "group": "Client reports and updates",
+   "name": "Client wrote from the onboarding form",
+   "channel": "internal channel or Slack DM",
+   "who": "Cole",
+   "kind": "team_notice",
+   "status": "keep",
+   "audit": "a60",
+   "onRenderer": true,
+   "when": "When a new client sends a message from their onboarding form (at most one every 30 seconds).",
+   "why": "A new client waiting on an answer gets one fast.",
+   "where": [
+    "worker.js:handle@/api/onboard-message"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "CLIENT · Pine Ridge Apparel: Answer the message they sent from their onboarding form. \"Where do I send the product photos?\"",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "CLIENT · Pine Ridge Apparel: Answer the message they sent from their onboarding form"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "<@U0SAMPLE1>  \"Where do I send the product photos?\""
+      }
+     }
+    ],
+    "head": {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*CLIENT · Pine Ridge Apparel*\n<@U0SAMPLE1>  Answer the message they sent from their onboarding form\nWhy: \"Where do I send the product photos?\""
+     }
+    },
+    "mrkdwn": "*CLIENT · Pine Ridge Apparel*\n<@U0SAMPLE1>  Answer the message they sent from their onboarding form\nWhy: \"Where do I send the product photos?\""
+   }
+  },
+  {
+   "id": "email_agreement",
+   "group": "Client reports and updates",
+   "name": "Agreement email",
+   "channel": "email",
+   "who": "The person who signs for the client",
+   "kind": "onboarding_email",
+   "status": "keep",
+   "audit": "a60",
+   "onRenderer": false,
+   "when": "When Cole presses Send on the agreement, and again for an updated agreement.",
+   "why": "The client signs the services agreement before work starts.",
+   "where": [
+    "contract.js:gmail"
+   ],
+   "from": "cole",
+   "fromLabel": "Pat",
+   "kindLabel": "Onboarding emails (welcome, agreement, reminders)",
+   "example": {
+    "text": "Our services agreement is ready to sign. Hi Pat, the agreement for Pine Ridge Apparel is ready. It takes two minutes to sign.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Our services agreement is ready to sign"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Hi Pat, the agreement for Pine Ridge Apparel is ready. It takes two minutes to sign."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Review and sign"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "email_welcome",
+   "group": "Client reports and updates",
+   "name": "Welcome email",
+   "channel": "email",
+   "who": "The client contact",
+   "kind": "onboarding_email",
+   "status": "keep",
+   "audit": "a60",
+   "onRenderer": false,
+   "when": "On the welcome step of a new client.",
+   "why": "The client gets every first step in one place.",
+   "where": [
+    "newclient.js:stepEmail"
+   ],
+   "from": "cole",
+   "fromLabel": "Pat",
+   "kindLabel": "Onboarding emails (welcome, agreement, reminders)",
+   "example": {
+    "text": "Welcome to Mobius, Pine Ridge Apparel",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Welcome to Mobius, Pine Ridge Apparel"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Sign the agreement\n• Fill in the onboarding link\n• Book the strategy call"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "email_welcome_locus",
+   "group": "Client reports and updates",
+   "name": "Welcome email with the Locus link",
+   "channel": "email",
+   "who": "The client contact",
+   "kind": "onboarding_email",
+   "status": "keep",
+   "audit": "a60",
+   "onRenderer": false,
+   "when": "When the team sends the welcome from Get started.",
+   "why": "The client signs in to Locus and finishes setup there.",
+   "where": [
+    "onboard.js:sendWelcome"
+   ],
+   "from": "cole",
+   "fromLabel": "Pat",
+   "kindLabel": "Onboarding emails (welcome, agreement, reminders)",
+   "example": {
+    "text": "Welcome, Pine Ridge Apparel: your Locus link. Sign in to finish setup: sign and pay, connect your accounts, ten questions.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Welcome, Pine Ridge Apparel: your Locus link"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Sign in to finish setup: sign and pay, connect your accounts, ten questions."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Open Locus"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "email_reminders",
+   "group": "Client reports and updates",
+   "name": "Sign and onboarding reminder emails",
+   "channel": "email",
+   "who": "The client contact or signer",
+   "kind": "onboarding_email",
+   "status": "keep",
+   "audit": "a60",
+   "onRenderer": false,
+   "when": "When the agreement or the onboarding link waits unsigned or unfinished.",
+   "why": "Setup does not stall on a forgotten email.",
+   "where": [
+    "newclient.js:sendReminder"
+   ],
+   "from": "cole",
+   "fromLabel": "Pat",
+   "kindLabel": "Onboarding emails (welcome, agreement, reminders)",
+   "example": {
+    "text": "A quick reminder: our agreement is ready to sign. Whenever you have a few minutes, here is your link.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "A quick reminder: our agreement is ready to sign"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Whenever you have a few minutes, here is your link."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Open it"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "email_get_started_reminder",
+   "group": "Client reports and updates",
+   "name": "Get started reminder",
+   "channel": "email",
+   "who": "Whoever holds an open setup step",
+   "kind": "onboarding_email",
+   "status": "keep",
+   "audit": "a60",
+   "onRenderer": false,
+   "when": "Day 3 and day 7 by itself, or when someone taps Remind on a step.",
+   "why": "Open setup steps get finished.",
+   "where": [
+    "onboard.js:onboardTick",
+    "onboard.js:remind"
+   ],
+   "from": "cole",
+   "fromLabel": "Pat",
+   "kindLabel": "Onboarding emails (welcome, agreement, reminders)",
+   "example": {
+    "text": "Pine Ridge Apparel: 2 setup steps left",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Pine Ridge Apparel: 2 setup steps left"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Connect Meta\n• Answer the ten questions"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Finish setup"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "email_handoff",
+   "group": "Client reports and updates",
+   "name": "A setup step handed to you",
+   "channel": "email",
+   "who": "The person the client handed a step to",
+   "kind": "onboarding_email",
+   "status": "keep",
+   "audit": "a60",
+   "onRenderer": false,
+   "when": "When a client hands one setup step to a colleague.",
+   "why": "The right person on the client side does the step.",
+   "where": [
+    "onboard.js:handoff"
+   ],
+   "from": "cole",
+   "fromLabel": "Pat",
+   "kindLabel": "Onboarding emails (welcome, agreement, reminders)",
+   "example": {
+    "text": "Pat asked you to connect Meta for Pine Ridge Apparel. It takes about five minutes.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Pat asked you to connect Meta for Pine Ridge Apparel"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "It takes about five minutes."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Do it now"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "email_payer",
+   "group": "Client reports and updates",
+   "name": "Invoice or agreement to the person who pays or signs",
+   "channel": "email",
+   "who": "The payer or signer the client named",
+   "kind": "onboarding_email",
+   "status": "keep",
+   "audit": "a60",
+   "onRenderer": false,
+   "when": "When the client names someone else to pay or sign and it is approved.",
+   "why": "The first invoice and the agreement reach the person who can act on them.",
+   "where": [
+    "onboard.js:handleOnboard@/api/onboard/approve-signer"
+   ],
+   "from": "cole",
+   "fromLabel": "Pat",
+   "kindLabel": "Onboarding emails (welcome, agreement, reminders)",
+   "example": {
+    "text": "Your invoice from Mobius Digital. Pat asked us to send you the first invoice for Pine Ridge Apparel.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Your invoice from Mobius Digital"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Pat asked us to send you the first invoice for Pine Ridge Apparel."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Open the invoice"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "email_signin_link",
+   "group": "Client reports and updates",
+   "name": "Sign in link",
+   "channel": "email",
+   "who": "A client login",
+   "kind": "login_email",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "When someone asks for a sign in link.",
+   "why": "A client gets back into Locus without a password.",
+   "where": [
+    "clients.js:sendSigninLink"
+   ],
+   "from": "cole",
+   "fromLabel": "Pat",
+   "kindLabel": "Sign in links and client login invites",
+   "example": {
+    "text": "Your Locus sign in link. It works once, for the next 30 minutes.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Your Locus sign in link"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "It works once, for the next 30 minutes."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Sign in"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "email_login_invite",
+   "group": "Client reports and updates",
+   "name": "Client login invite",
+   "channel": "email",
+   "who": "A person at the client",
+   "kind": "login_email",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "When the team invites a client login from Agency settings > Clients.",
+   "why": "Clients see their own numbers and updates in Locus.",
+   "where": [
+    "clients.js:handleClients@/api/clients/invite"
+   ],
+   "from": "cole",
+   "fromLabel": "Pat",
+   "kindLabel": "Sign in links and client login invites",
+   "example": {
+    "text": "You are invited to Pine Ridge Apparel in Locus. Your numbers, ads and updates in one place.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "You are invited to Pine Ridge Apparel in Locus"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Your numbers, ads and updates in one place."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Accept the invite"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "email_signup_code",
+   "group": "Client reports and updates",
+   "name": "Sign up code",
+   "channel": "email",
+   "who": "The person signing up",
+   "kind": null,
+   "fromNote": "The app mail sender when one is set, else Cole's mailbox",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "When someone signs up and asks for a code.",
+   "why": "Proves the email address before an account is made.",
+   "where": [
+    "clients.js:sendCode"
+   ],
+   "from": null,
+   "fromLabel": "The app mail sender when one is set, else Cole's mailbox",
+   "kindLabel": null,
+   "example": {
+    "text": "Your Locus code. Your code is 123 456. It works for 10 minutes.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Your Locus code"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Your code is 123 456. It works for 10 minutes."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "unsent_noon",
+   "group": "Client reports and updates",
+   "name": "Client updates not sent by noon",
+   "channel": "internal channel",
+   "who": "Cole",
+   "kind": "approval_ask",
+   "status": "move",
+   "audit": "a15",
+   "onRenderer": true,
+   "when": "Daily at noon, when client updates still wait as drafts.",
+   "why": "A client waits on these; the line says which.",
+   "where": [
+    "worker.js:unsentAtNoonPass"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Approval asks (drafts, War Room, batches)",
+   "example": {
+    "text": "3 client updates not sent",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "3 client updates not sent"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Northlake Golf daily\n• Pine Ridge Apparel daily\n• Summit Socks Co weekly report"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Open To send"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "draft_daily_card",
+   "group": "Client reports and updates",
+   "name": "Daily draft card to review",
+   "channel": "internal channel",
+   "who": "Cole",
+   "kind": "approval_ask",
+   "status": "off after Dec 2",
+   "audit": "a16",
+   "onRenderer": false,
+   "when": "When a daily is drafted, and when it is reset, rewritten or re-posted from the brief card route.",
+   "why": "Was the review step before a send; the To send page now has it.",
+   "where": [
+    "worker.js:draftBrief",
+    "worker.js:handle@/api/brief-card",
+    "worker.js:slackSyncBrief",
+    "worker.js:upgradeCardsOnce"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Approval asks (drafts, War Room, batches)",
+   "example": {
+    "text": "Northlake Golf daily draft · Wed Nov 25. Ready to send.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Northlake Golf daily draft · Wed Nov 25"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Ready to send."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "sample_send",
+        "text": {
+         "type": "plain_text",
+         "text": "Send to client"
+        },
+        "value": "sample",
+        "style": "primary"
+       },
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Open in Locus"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "draft_report_card",
+   "group": "Client reports and updates",
+   "name": "Report draft card to review",
+   "channel": "internal channel",
+   "who": "Cole",
+   "kind": "approval_ask",
+   "status": "off after Dec 2",
+   "audit": "a16",
+   "onRenderer": false,
+   "when": "When a weekly or monthly report is drafted, and when it is re-posted from the brief card route.",
+   "why": "Was the review step before a send; the To send page now has it.",
+   "where": [
+    "worker.js:postReportDraft",
+    "worker.js:handle@/api/brief-card",
+    "worker.js:slackSyncReport"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Approval asks (drafts, War Room, batches)",
+   "example": {
+    "text": "Pine Ridge Apparel weekly report draft · Nov 16 to 22. Needs a read approved before it can go.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Pine Ridge Apparel weekly report draft · Nov 16 to 22"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Needs a read approved before it can go."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Open the report"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "team_copy",
+   "group": "Client reports and updates",
+   "name": "Daily or report posted to the team channel",
+   "channel": "internal channel",
+   "who": "The team (brands with no client channel)",
+   "kind": "team_notice",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "When someone taps Post to team on a brand that has no client channel. Never automatic.",
+   "why": "The team sees the same daily and report a client would.",
+   "where": [
+    "worker.js:postBriefToTeam",
+    "worker.js:postReportToTeam"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "Summit Socks Co · Wed Nov 25. Under goal.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Summit Socks Co · Wed Nov 25"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Under goal."
+      }
+     },
+     {
+      "type": "section",
+      "fields": [
+       {
+        "type": "mrkdwn",
+        "text": "*Yesterday*\n$820 sales · 1.90x MER · goal $1,000"
+       }
+      ]
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "Triple Whale · 2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "client_preview",
+   "group": "Client reports and updates",
+   "name": "Preview of a client post",
+   "channel": "internal channel",
+   "who": "The team",
+   "kind": "team_notice",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "On request: the client post preview with post=1.",
+   "why": "Shows exactly what the client would see before it goes.",
+   "where": [
+    "worker.js:handle@/api/client-post/preview"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "Preview: Northlake Golf daily. Exactly as the client sees it.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Preview: Northlake Golf daily"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Exactly as the client sees it."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "client_request",
+   "group": "Client reports and updates",
+   "name": "A client made a request",
+   "channel": "internal channel",
+   "who": "The brand team",
+   "kind": "team_notice",
+   "status": "move",
+   "audit": "a56",
+   "onRenderer": true,
+   "when": "When a client writes a request, replies, a request is decided or marked done.",
+   "why": "A client waits on an answer.",
+   "where": [
+    "requests.js:handleRequests@/api/requests",
+    "requests.js:handleRequests@/api/requests/reply",
+    "requests.js:handleRequests@/api/requests/decide",
+    "requests.js:handleRequests@/api/requests/done"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "CLIENT · Pine Ridge Apparel: Handle their request: holiday banner on the home page. asked today, needed by Dec 1",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "CLIENT · Pine Ridge Apparel: Handle their request: holiday banner on the home page"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "<@U0SAMPLE1>  asked today, needed by Dec 1"
+      }
+     }
+    ],
+    "head": {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*CLIENT · Pine Ridge Apparel*\n<@U0SAMPLE1>  Handle their request: holiday banner on the home page\nWhy: asked today, needed by Dec 1"
+     }
+    },
+    "mrkdwn": "*CLIENT · Pine Ridge Apparel*\n<@U0SAMPLE1>  Handle their request: holiday banner on the home page\nWhy: asked today, needed by Dec 1"
+   }
+  },
+  {
+   "id": "card_comment",
+   "group": "Client reports and updates",
+   "name": "Changes asked on a card, or you were tagged in a comment",
+   "channel": "internal channel or Slack DM",
+   "who": "The card maker or the tagged person",
+   "kind": "team_notice",
+   "status": "move",
+   "audit": "a57",
+   "onRenderer": true,
+   "when": "When a client asks for changes on a card or someone tags a person in a card comment.",
+   "why": "A person waits on the answer.",
+   "where": [
+    "prodwork.js:notifyComment",
+    "prodwork.js:dm",
+    "prodwork.js:decide"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "CLIENT · Northlake Golf: Make the changes asked on card 412. \"Can the price be bigger on slide 2?\"",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "CLIENT · Northlake Golf: Make the changes asked on card 412"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "<@U0SAMPLE2>  \"Can the price be bigger on slide 2?\""
+      }
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Open card"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ],
+    "head": {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*CLIENT · Northlake Golf*\n<@U0SAMPLE2>  Make the changes asked on card 412\nWhy: \"Can the price be bigger on slide 2?\""
+     }
+    },
+    "mrkdwn": "*CLIENT · Northlake Golf*\n<@U0SAMPLE2>  Make the changes asked on card 412\nWhy: \"Can the price be bigger on slide 2?\""
+   }
+  },
+  {
+   "id": "spend_low",
+   "group": "Alerts when something breaks",
+   "name": "Spend well below normal",
+   "channel": "internal channel",
+   "who": "The brand's buyer",
+   "kind": "internal_alert",
+   "status": "move",
+   "audit": "a22",
+   "onRenderer": true,
+   "when": "Morning and afternoon, when an account spends far under its own last 7 days.",
+   "why": "A stuck campaign costs money by the hour, in season most of all.",
+   "where": [
+    "worker.js:deliveryPass"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Alerts to the team",
+   "example": {
+    "text": "Northlake Golf is spending well below normal. Check why. Worth a look in Ads Manager while the day is still live.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Northlake Golf is spending well below normal"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "<@U0SAMPLE1>  Check why. Worth a look in Ads Manager while the day is still live."
+      }
+     },
+     {
+      "type": "section",
+      "fields": [
+       {
+        "type": "mrkdwn",
+        "text": "*Today so far*\n$95"
+       },
+       {
+        "type": "mrkdwn",
+        "text": "*Normal by now*\n$520 · 82% down"
+       },
+       {
+        "type": "mrkdwn",
+        "text": "*Today's budgets*\n$700"
+       }
+      ]
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "Meta · 2:10pm CT · compared with the last 7 days, capped at today's budgets"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Open in Locus"
+        },
+        "url": "https://locus.go-mobius-digital.com/profit/?open=meta&act=brand_sample"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "brief_failed",
+   "group": "Alerts when something breaks",
+   "name": "Daily brief failed to go out",
+   "channel": "internal channel",
+   "who": "Cole",
+   "kind": "internal_alert",
+   "status": "move",
+   "audit": "a23",
+   "onRenderer": true,
+   "when": "Once per fault, when a daily brief could not be built or sent.",
+   "why": "A client misses an update otherwise.",
+   "where": [
+    "worker.js:alertBriefFailure"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Alerts to the team",
+   "example": {
+    "text": "OPS · Northlake Golf: Fix the daily brief for Northlake Golf. Triple Whale did not answer at 7am",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "OPS · Northlake Golf: Fix the daily brief for Northlake Golf"
+      }
+     }
+    ],
+    "attachments": [
+     {
+      "color": "#E01E5A",
+      "blocks": [
+       {
+        "type": "section",
+        "text": {
+         "type": "mrkdwn",
+         "text": "<@U0SAMPLE1>  Triple Whale did not answer at 7am"
+        }
+       }
+      ]
+     }
+    ],
+    "head": {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*OPS · Northlake Golf*\n<@U0SAMPLE1>  Fix the daily brief for Northlake Golf\nWhy: Triple Whale did not answer at 7am"
+     }
+    },
+    "mrkdwn": "*OPS · Northlake Golf*\n<@U0SAMPLE1>  Fix the daily brief for Northlake Golf\nWhy: Triple Whale did not answer at 7am"
+   }
+  },
+  {
+   "id": "claude_failed",
+   "group": "Alerts when something breaks",
+   "name": "Claude credit or key failed",
+   "channel": "internal channel",
+   "who": "Cole",
+   "kind": "internal_alert",
+   "status": "move",
+   "audit": "a24",
+   "onRenderer": true,
+   "when": "At most every 12 hours while Claude calls fail.",
+   "why": "It stops drafts and answers until fixed.",
+   "where": [
+    "worker.js:alertClaudeFailure"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Alerts to the team",
+   "example": {
+    "text": "OPS · Agency: Top up the Claude credit. the last 3 calls were refused",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "OPS · Agency: Top up the Claude credit"
+      }
+     }
+    ],
+    "attachments": [
+     {
+      "color": "#E01E5A",
+      "blocks": [
+       {
+        "type": "section",
+        "text": {
+         "type": "mrkdwn",
+         "text": "<@U0SAMPLE1>  the last 3 calls were refused"
+        }
+       }
+      ]
+     }
+    ],
+    "head": {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*OPS · Agency*\n<@U0SAMPLE1>  Top up the Claude credit\nWhy: the last 3 calls were refused"
+     }
+    },
+    "mrkdwn": "*OPS · Agency*\n<@U0SAMPLE1>  Top up the Claude credit\nWhy: the last 3 calls were refused"
+   }
+  },
+  {
+   "id": "meta_sync_failed",
+   "group": "Alerts when something breaks",
+   "name": "Meta sync failing",
+   "channel": "internal channel",
+   "who": "Cole",
+   "kind": "internal_alert",
+   "status": "move",
+   "audit": "a25",
+   "onRenderer": true,
+   "when": "At most every 12 hours while a brand we run fails to sync.",
+   "why": "Numbers go stale for clients.",
+   "where": [
+    "worker.js:alertSyncFailure"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Alerts to the team",
+   "example": {
+    "text": "OPS · Agency: Check the Meta connection for Pine Ridge Apparel. sync failed 4 times since 6am",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "OPS · Agency: Check the Meta connection for Pine Ridge Apparel"
+      }
+     }
+    ],
+    "attachments": [
+     {
+      "color": "#E01E5A",
+      "blocks": [
+       {
+        "type": "section",
+        "text": {
+         "type": "mrkdwn",
+         "text": "<@U0SAMPLE1>  sync failed 4 times since 6am"
+        }
+       }
+      ]
+     }
+    ],
+    "head": {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*OPS · Agency*\n<@U0SAMPLE1>  Check the Meta connection for Pine Ridge Apparel\nWhy: sync failed 4 times since 6am"
+     }
+    },
+    "mrkdwn": "*OPS · Agency*\n<@U0SAMPLE1>  Check the Meta connection for Pine Ridge Apparel\nWhy: sync failed 4 times since 6am"
+   }
+  },
+  {
+   "id": "sync_errors",
+   "group": "Alerts when something breaks",
+   "name": "\"Look at N errors in nightly sync\"",
+   "channel": "internal channel",
+   "who": "The team",
+   "kind": "internal_alert",
+   "status": "off after Dec 2",
+   "audit": "a26",
+   "onRenderer": true,
+   "when": "Nightly, when the sync logged errors.",
+   "why": "Was a nightly nudge; a real failure will show in the bell and the rest on the Status page.",
+   "where": [
+    "worker.js:alertScheduleTrouble"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Alerts to the team",
+   "example": {
+    "text": "OPS · Agency: Look at 3 errors in the nightly sync. all three were the same brand",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "OPS · Agency: Look at 3 errors in the nightly sync"
+      }
+     }
+    ],
+    "attachments": [
+     {
+      "color": "#E01E5A",
+      "blocks": [
+       {
+        "type": "section",
+        "text": {
+         "type": "mrkdwn",
+         "text": "<@U0SAMPLE1>  all three were the same brand"
+        }
+       }
+      ]
+     }
+    ],
+    "head": {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*OPS · Agency*\n<@U0SAMPLE1>  Look at 3 errors in the nightly sync\nWhy: all three were the same brand"
+     }
+    },
+    "mrkdwn": "*OPS · Agency*\n<@U0SAMPLE1>  Look at 3 errors in the nightly sync\nWhy: all three were the same brand"
+   }
+  },
+  {
+   "id": "smoke_failed",
+   "group": "Alerts when something breaks",
+   "name": "Locus self check failures",
+   "channel": "internal channel",
+   "who": "The team",
+   "kind": "internal_alert",
+   "status": "move",
+   "audit": "a27",
+   "onRenderer": false,
+   "when": "Daily at 8am, when a page check failed (each failure at most once a week).",
+   "why": "A broken page gets fixed before a client opens it.",
+   "where": [
+    "smoke.js:finish"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Alerts to the team",
+   "example": {
+    "text": "Fix the 2 failed Locus checks. 2 of 140 checks failed this morning.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Fix the 2 failed Locus checks"
+      }
+     }
+    ],
+    "attachments": [
+     {
+      "color": "#E01E5A",
+      "blocks": [
+       {
+        "type": "section",
+        "text": {
+         "type": "mrkdwn",
+         "text": "2 of 140 checks failed this morning."
+        }
+       },
+       {
+        "type": "section",
+        "text": {
+         "type": "mrkdwn",
+         "text": "• Northlake Golf · Website: no answer\n• Pine Ridge Apparel · Email: timed out"
+        }
+       },
+       {
+        "type": "context",
+        "elements": [
+         {
+          "type": "mrkdwn",
+          "text": "2:10pm CT"
+         }
+        ]
+       },
+       {
+        "type": "actions",
+        "elements": [
+         {
+          "type": "button",
+          "action_id": "noop_open",
+          "text": {
+           "type": "plain_text",
+           "text": "Open Status"
+          },
+          "url": "https://example.test/locus"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "alarm_bridge_dm",
+   "group": "Alerts when something breaks",
+   "name": "Urgent alarm DM (until Dec 5)",
+   "channel": "Slack DM",
+   "who": "The brand's buyer and the owner",
+   "kind": "internal_alert",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "When an ad account is blocked or unpaid, a live campaign stopped spending, or ads spend with no store order for hours; once per thing per day, only until per person delivery copies go live on Dec 5.",
+   "why": "Money stops right now and the bell is not on phones yet, so the row in Locus also gets a Slack DM.",
+   "where": [
+    "urgent.js:copies"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Alerts to the team",
+   "example": {
+    "text": "Northlake Golf: ads spending, no order in 5 hours. Check the store and the checkout.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Northlake Golf: ads spending, no order in 5 hours"
+      }
+     }
+    ],
+    "attachments": [
+     {
+      "color": "#E01E5A",
+      "blocks": [
+       {
+        "type": "section",
+        "text": {
+         "type": "mrkdwn",
+         "text": "Check the store and the checkout."
+        }
+       },
+       {
+        "type": "section",
+        "fields": [
+         {
+          "type": "mrkdwn",
+          "text": "*Since the last order*\n$180 ad spend"
+         },
+         {
+          "type": "mrkdwn",
+          "text": "*Normal gap*\nabout 2 hours"
+         }
+        ]
+       },
+       {
+        "type": "context",
+        "elements": [
+         {
+          "type": "mrkdwn",
+          "text": "Triple Whale, Meta · 2:10pm CT"
+         }
+        ]
+       },
+       {
+        "type": "actions",
+        "elements": [
+         {
+          "type": "button",
+          "action_id": "noop_open",
+          "text": {
+           "type": "plain_text",
+           "text": "Open in Locus"
+          },
+          "url": "https://example.test/locus"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "nightly_findings",
+   "group": "Alerts when something breaks",
+   "name": "Strategist nightly findings",
+   "channel": "internal channel",
+   "who": "The team",
+   "kind": "internal_alert",
+   "status": "off after Dec 2",
+   "audit": "a28",
+   "onRenderer": false,
+   "when": "Nightly, one post per finding (for example a brand under goal 3 days running).",
+   "why": "Was a nightly repeat; the same check comes back as an automation you switch on.",
+   "where": [
+    "worker.js:strategistNightly"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Alerts to the team",
+   "example": {
+    "text": "Northlake Golf is under its 2.50x MER goal 3 days running. Look at what changed on the account this week and at the creatives.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Northlake Golf is under its 2.50x MER goal 3 days running"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Look at what changed on the account this week and at the creatives."
+      }
+     },
+     {
+      "type": "section",
+      "fields": [
+       {
+        "type": "mrkdwn",
+        "text": "*3 days ago*\n1.90x"
+       },
+       {
+        "type": "mrkdwn",
+        "text": "*2 days ago*\n2.10x"
+       },
+       {
+        "type": "mrkdwn",
+        "text": "*Yesterday*\n1.70x"
+       }
+      ]
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "Triple Whale · 2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Open in Locus"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "monday_briefing",
+   "group": "Alerts when something breaks",
+   "name": "Monday briefing",
+   "channel": "internal channel",
+   "who": "The team",
+   "kind": "internal_alert",
+   "status": "off after Dec 2",
+   "audit": "a29",
+   "onRenderer": false,
+   "when": "Sunday night.",
+   "why": "Was a weekly summary nobody read.",
+   "where": [
+    "worker.js:strategistBriefing"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Alerts to the team",
+   "example": {
+    "text": "Monday briefing",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Monday briefing"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Northlake Golf: best week this month\n• Pine Ridge Apparel: spend down 20%"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "outage_card",
+   "group": "Alerts when something breaks",
+   "name": "Outage card",
+   "channel": "internal channel",
+   "who": "The #outages channel",
+   "kind": "internal_alert",
+   "status": "move",
+   "audit": "a30",
+   "onRenderer": true,
+   "when": "Each time a platform we depend on goes down or comes back.",
+   "why": "Checkout down on a sale weekend matters.",
+   "where": [
+    "pulse.js:pulseTick"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Alerts to the team",
+   "example": {
+    "text": "Shopify: Checkout is down. Outage. Checkout is failing for some stores",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Shopify: Checkout is down"
+      }
+     }
+    ],
+    "attachments": [
+     {
+      "color": "#E01E5A",
+      "blocks": [
+       {
+        "type": "section",
+        "text": {
+         "type": "mrkdwn",
+         "text": "Outage. Checkout is failing for some stores"
+        }
+       },
+       {
+        "type": "context",
+        "elements": [
+         {
+          "type": "mrkdwn",
+          "text": "Shopify status page · 2:10pm CT"
+         }
+        ]
+       },
+       {
+        "type": "actions",
+        "elements": [
+         {
+          "type": "button",
+          "action_id": "pulse_send",
+          "text": {
+           "type": "plain_text",
+           "text": "Send to all clients"
+          },
+          "value": "pulse:alert:1:shopify",
+          "style": "danger"
+         },
+         {
+          "type": "button",
+          "action_id": "noop_open",
+          "text": {
+           "type": "plain_text",
+           "text": "Status page"
+          },
+          "url": "https://example.test/status"
+         },
+         {
+          "type": "button",
+          "action_id": "noop_open_2",
+          "text": {
+           "type": "plain_text",
+           "text": "Platform status in Locus"
+          },
+          "url": "https://locus.go-mobius-digital.com/profit/?open=pulse"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "approve_failed",
+   "group": "Alerts when something breaks",
+   "name": "\"Approve did not go through\"",
+   "channel": "Slack DM",
+   "who": "Cole",
+   "kind": null,
+   "fixedFrom": "locus",
+   "fromNote": "Always Locus (War Room code)",
+   "status": "keep",
+   "audit": "a39",
+   "onRenderer": false,
+   "when": "Only when a client's Approve on a raise fails. Runs through Dec 4.",
+   "why": "The money is not where the client thinks it is.",
+   "where": [
+    "standing.js:handleClientUpdateButton"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": null,
+   "example": {
+    "text": "Summit Socks Co tapped Approve but it did not go through. Make the change by hand in Meta and tell them.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Summit Socks Co tapped Approve but it did not go through"
+      }
+     }
+    ],
+    "attachments": [
+     {
+      "color": "#E01E5A",
+      "blocks": [
+       {
+        "type": "section",
+        "text": {
+         "type": "mrkdwn",
+         "text": "Make the change by hand in Meta and tell them."
+        }
+       },
+       {
+        "type": "section",
+        "fields": [
+         {
+          "type": "mrkdwn",
+          "text": "*Asked*\n$300 to $450 a day"
+         }
+        ]
+       },
+       {
+        "type": "context",
+        "elements": [
+         {
+          "type": "mrkdwn",
+          "text": "2:10pm CT"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "alert_rule",
+   "group": "Alerts when something breaks",
+   "name": "Alert rule a person wrote",
+   "channel": "internal channel or Slack DM",
+   "who": "The rule's person or channel",
+   "kind": "internal_alert",
+   "status": "keep",
+   "audit": "a40",
+   "onRenderer": true,
+   "when": "At most once a day per rule, when its condition is true. Also on Test.",
+   "why": "Someone asked to be told exactly this.",
+   "where": [
+    "alerts.js:alertTick",
+    "alerts.js:handleAlerts@/api/alerts/test"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Alerts to the team",
+   "example": {
+    "text": "Northlake Golf MER is under 1.5x",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Northlake Golf MER is under 1.5x"
+      }
+     },
+     {
+      "type": "section",
+      "fields": [
+       {
+        "type": "mrkdwn",
+        "text": "*Today*\n1.32x"
+       },
+       {
+        "type": "mrkdwn",
+        "text": "*Last 7 days*\n1.61x"
+       }
+      ]
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "Triple Whale · 2:10pm CT · rule by the owner"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Open in Locus"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "new_ad_account",
+   "group": "Alerts when something breaks",
+   "name": "New ad account to match to a client",
+   "channel": "internal channel",
+   "who": "Cole (#mobius-newbiz)",
+   "kind": "team_notice",
+   "status": "move",
+   "audit": "a59",
+   "onRenderer": true,
+   "when": "When an ad account new since the last look matched no client.",
+   "why": "A new client cannot get numbers until their account is matched.",
+   "where": [
+    "worker.js:autoConnectMeta"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "OPS · Agency: Say whose new Meta ad account \"Pine Ridge US\" is. not theirs? Ignore this",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "OPS · Agency: Say whose new Meta ad account \"Pine Ridge US\" is"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "<@U0SAMPLE1>  not theirs? Ignore this"
+      }
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "text": {
+         "type": "plain_text",
+         "text": "Yes, it is Pine Ridge Apparel's"
+        },
+        "action_id": "nc_meta_yes",
+        "value": "sample"
+       }
+      ]
+     }
+    ],
+    "head": {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*OPS · Agency*\n<@U0SAMPLE1>  Say whose new Meta ad account \"Pine Ridge US\" is\nWhy: not theirs? Ignore this"
+     }
+    },
+    "mrkdwn": "*OPS · Agency*\n<@U0SAMPLE1>  Say whose new Meta ad account \"Pine Ridge US\" is\nWhy: not theirs? Ignore this"
+   }
+  },
+  {
+   "id": "meta_connect_ask",
+   "group": "Alerts when something breaks",
+   "name": "Add our access to a new client's Meta",
+   "channel": "internal channel",
+   "who": "Cole",
+   "kind": "team_notice",
+   "status": "move",
+   "audit": "a59",
+   "onRenderer": true,
+   "when": "When a new client's ad account is matched but our system user or buyer is not on it yet.",
+   "why": "Syncs and ad changes need that access.",
+   "where": [
+    "worker.js:connectMetaFor"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "OPS · Pine Ridge Apparel: Add the Mobius Tools system user to Pine Ridge Apparel's ad account. the sync cannot read it yet",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "OPS · Pine Ridge Apparel: Add the Mobius Tools system user to Pine Ridge Apparel's ad account"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "<@U0SAMPLE1>  the sync cannot read it yet"
+      }
+     }
+    ],
+    "head": {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*OPS · Pine Ridge Apparel*\n<@U0SAMPLE1>  Add the Mobius Tools system user to Pine Ridge Apparel's ad account\nWhy: the sync cannot read it yet"
+     }
+    },
+    "mrkdwn": "*OPS · Pine Ridge Apparel*\n<@U0SAMPLE1>  Add the Mobius Tools system user to Pine Ridge Apparel's ad account\nWhy: the sync cannot read it yet"
+   }
+  },
+  {
+   "id": "newclient_internal",
+   "group": "Alerts when something breaks",
+   "name": "New client setup lines",
+   "channel": "internal channel",
+   "who": "The brand team",
+   "kind": "team_notice",
+   "status": "keep",
+   "audit": "a59",
+   "onRenderer": true,
+   "when": "During a new client's setup, at each step that needs a person.",
+   "why": "Setup steps land with the person who does them.",
+   "where": [
+    "newclient.js:laneInternal"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "OPS · Pine Ridge Apparel: Book the strategy call. the onboarding form is in",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "OPS · Pine Ridge Apparel: Book the strategy call"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "<@U0SAMPLE1>  the onboarding form is in"
+      }
+     }
+    ],
+    "head": {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*OPS · Pine Ridge Apparel*\n<@U0SAMPLE1>  Book the strategy call\nWhy: the onboarding form is in"
+     }
+    },
+    "mrkdwn": "*OPS · Pine Ridge Apparel*\n<@U0SAMPLE1>  Book the strategy call\nWhy: the onboarding form is in"
+   }
+  },
+  {
+   "id": "newclient_summary",
+   "group": "Alerts when something breaks",
+   "name": "New client summary",
+   "channel": "internal channel",
+   "who": "The brand team and #mobius-newbiz",
+   "kind": "team_notice",
+   "status": "keep",
+   "audit": "a59",
+   "onRenderer": false,
+   "when": "Once, when a new client's setup summary step runs.",
+   "why": "The whole team knows a new client started, who is on it and where things are.",
+   "where": [
+    "newclient.js:stepSummary"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "New client: Pine Ridge Apparel. Starting Dec 1.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "New client: Pine Ridge Apparel"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Starting Dec 1."
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Strategist, media buyer, editor, designer picked\n• Client channel made\n• First invoice sent"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "connect_ask",
+   "group": "Alerts when something breaks",
+   "name": "Client connect link asks",
+   "channel": "internal channel",
+   "who": "Cole",
+   "kind": "team_notice",
+   "status": "move",
+   "audit": "a58",
+   "onRenderer": true,
+   "when": "When a client finishes an item on their connect link that needs us (an invite to accept, a request that failed).",
+   "why": "Access a client gave us gets used the same day.",
+   "where": [
+    "connect.js:connectPost",
+    "worker.js:handle@/api/connect/"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "OPS · Northlake Golf: Make the Klaviyo key for Northlake Golf and paste it in Locus. they invited us",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "OPS · Northlake Golf: Make the Klaviyo key for Northlake Golf and paste it in Locus"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "<@U0SAMPLE1>  they invited us"
+      }
+     }
+    ],
+    "head": {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*OPS · Northlake Golf*\n<@U0SAMPLE1>  Make the Klaviyo key for Northlake Golf and paste it in Locus\nWhy: they invited us"
+     }
+    },
+    "mrkdwn": "*OPS · Northlake Golf*\n<@U0SAMPLE1>  Make the Klaviyo key for Northlake Golf and paste it in Locus\nWhy: they invited us"
+   }
+  },
+  {
+   "id": "buyer_list",
+   "group": "Ad calls and the War Room",
+   "name": "Buyer list post",
+   "channel": "internal channel",
+   "who": "The buyer (#daily-briefs)",
+   "kind": "approval_ask",
+   "status": "move",
+   "audit": "a4",
+   "onRenderer": true,
+   "when": "Daily, the top ad calls with an Open button (turned off by a setting).",
+   "why": "Was the daily list of calls; the calls stay on Meta > Suggestions.",
+   "where": [
+    "buyerlist.js:postBuyerList"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Approval asks (drafts, War Room, batches)",
+   "example": {
+    "text": "MEDIA BUYING · Northlake Golf: Make today's 5 ad calls. 2 cuts, 2 raises, 1 refresh",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "MEDIA BUYING · Northlake Golf: Make today's 5 ad calls"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "<@U0SAMPLE1>  2 cuts, 2 raises, 1 refresh"
+      }
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Open Suggestions"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ],
+    "head": {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*MEDIA BUYING · Northlake Golf*\n<@U0SAMPLE1>  Make today's 5 ad calls\nWhy: 2 cuts, 2 raises, 1 refresh"
+     }
+    },
+    "mrkdwn": "*MEDIA BUYING · Northlake Golf*\n<@U0SAMPLE1>  Make today's 5 ad calls\nWhy: 2 cuts, 2 raises, 1 refresh"
+   }
+  },
+  {
+   "id": "min_off",
+   "group": "Ad calls and the War Room",
+   "name": "Test minimums due off",
+   "channel": "internal channel",
+   "who": "The buyer",
+   "kind": "team_notice",
+   "status": "move",
+   "audit": "a3",
+   "onRenderer": true,
+   "when": "Daily, when a test spend minimum reached its end.",
+   "why": "Minimums left on push money at ads Meta would not pick.",
+   "where": [
+    "minoff.js:minOffTick"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "MEDIA BUYING · Northlake Golf: Take the $20 minimum off ad set 368. its test ended today",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "MEDIA BUYING · Northlake Golf: Take the $20 minimum off ad set 368"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "<@U0SAMPLE1>  its test ended today"
+      }
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "sample_minoff",
+        "text": {
+         "type": "plain_text",
+         "text": "Take it off"
+        },
+        "value": "sample"
+       }
+      ]
+     }
+    ],
+    "head": {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*MEDIA BUYING · Northlake Golf*\n<@U0SAMPLE1>  Take the $20 minimum off ad set 368\nWhy: its test ended today"
+     }
+    },
+    "mrkdwn": "*MEDIA BUYING · Northlake Golf*\n<@U0SAMPLE1>  Take the $20 minimum off ad set 368\nWhy: its test ended today"
+   }
+  },
+  {
+   "id": "war_room_checkin",
+   "group": "Ad calls and the War Room",
+   "name": "War Room check-in",
+   "channel": "Slack DM",
+   "who": "Cole",
+   "kind": "approval_ask",
+   "status": "keep",
+   "audit": "a35",
+   "onRenderer": false,
+   "when": "At each Black Friday check-in (8am, 2pm, 8pm CT today), through Dec 4.",
+   "why": "Says a check-in is ready and opens the War Room, where the raises are approved.",
+   "where": [
+    "standing.js:postRetry",
+    "standing.js:slackPng"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Approval asks (drafts, War Room, batches)",
+   "example": {
+    "text": "Black Friday check-in, 2pm. 3 brands ahead of goal, 1 under. 2 raises wait on you.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Black Friday check-in, 2pm"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "3 brands ahead of goal, 1 under. 2 raises wait on you."
+      }
+     },
+     {
+      "type": "section",
+      "fields": [
+       {
+        "type": "mrkdwn",
+        "text": "*Since last check-in*\n$9,800 sales · 2.90x"
+       },
+       {
+        "type": "mrkdwn",
+        "text": "*Today*\n$18,200 sales · 2.70x"
+       }
+      ]
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "Triple Whale · 2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Open the War Room"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "client_update_batch",
+   "group": "Ad calls and the War Room",
+   "name": "Client updates batch, Send and Send all",
+   "channel": "Slack DM",
+   "who": "Cole",
+   "kind": "approval_ask",
+   "status": "keep",
+   "audit": "a36",
+   "onRenderer": false,
+   "when": "After each check-in, one draft per client with a thread preview. Through Dec 4.",
+   "why": "Cole sends the client check-in updates from one place.",
+   "where": [
+    "standing.js:offerClientUpdate",
+    "standing.js:postBatch",
+    "standing.js:threadPreview",
+    "standing.js:saveBatch"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Approval asks (drafts, War Room, batches)",
+   "example": {
+    "text": "Client updates: 3 ready",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Client updates: 3 ready"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Northlake Golf\n• Pine Ridge Apparel\n• Summit Socks Co"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "sample_sendall",
+        "text": {
+         "type": "plain_text",
+         "text": "Send all"
+        },
+        "value": "sample",
+        "style": "primary"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "approve_receipt",
+   "group": "Ad calls and the War Room",
+   "name": "\"Approved, live in Meta\" receipt",
+   "channel": "Slack DM",
+   "who": "Cole",
+   "kind": null,
+   "fixedFrom": "locus",
+   "fromNote": "Always Locus (War Room code)",
+   "status": "off after Dec 2",
+   "audit": "a38",
+   "onRenderer": false,
+   "when": "Each time a client approves a raise themselves.",
+   "why": "A receipt; the change is in Changes made.",
+   "where": [
+    "standing.js:handleClientUpdateButton"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": null,
+   "example": {
+    "text": "Summit Socks Co approved: $300 to $450 a day. Live in Meta.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Summit Socks Co approved: $300 to $450 a day"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Live in Meta."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "Meta · 2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "war_room_title_test",
+   "group": "Ad calls and the War Room",
+   "name": "Title size test DM",
+   "channel": "Slack DM",
+   "who": "Cole",
+   "kind": null,
+   "fixedFrom": "locus",
+   "fromNote": "Always Locus (a test)",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "Only on request, from the War Room sample route.",
+   "why": "Shows the four title sizes Slack can draw, to pick one.",
+   "where": [
+    "standing.js:handleStanding@/api/standing/sample"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": null,
+   "example": {
+    "text": "Black Friday Update. Sales: $6,100 (normal text, for comparison)",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Black Friday Update"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Sales: $6,100 (normal text, for comparison)"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "todays_calls",
+   "group": "Ad calls and the War Room",
+   "name": "Today's calls post",
+   "channel": "internal channel",
+   "who": "The brand channel",
+   "kind": "team_notice",
+   "status": "off after Dec 2",
+   "audit": "a6",
+   "onRenderer": true,
+   "when": "Was daily; switched off.",
+   "why": "Replaced by the Buyer list long ago.",
+   "where": [
+    "todaypost.js:todayTick"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "MEDIA BUYING · Northlake Golf: Make today's 3 ad calls",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "MEDIA BUYING · Northlake Golf: Make today's 3 ad calls"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "<@U0SAMPLE1>"
+      }
+     }
+    ],
+    "head": {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*MEDIA BUYING · Northlake Golf*\n<@U0SAMPLE1>  Make today's 3 ad calls"
+     }
+    },
+    "mrkdwn": "*MEDIA BUYING · Northlake Golf*\n<@U0SAMPLE1>  Make today's 3 ad calls"
+   }
+  },
+  {
+   "id": "monday_review",
+   "group": "Ad calls and the War Room",
+   "name": "Monday account review",
+   "channel": "internal channel",
+   "who": "The brand channel",
+   "kind": "team_notice",
+   "status": "off after Dec 2",
+   "audit": "a52",
+   "onRenderer": true,
+   "when": "Was Mondays; switched off.",
+   "why": "/buy does this now.",
+   "where": [
+    "review.js:reviewBrand"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "MEDIA BUYING · Northlake Golf: Read the Monday review and decide on the 2 suggested changes",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "MEDIA BUYING · Northlake Golf: Read the Monday review and decide on the 2 suggested changes"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "<@U0SAMPLE1>"
+      }
+     }
+    ],
+    "head": {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*MEDIA BUYING · Northlake Golf*\n<@U0SAMPLE1>  Read the Monday review and decide on the 2 suggested changes"
+     }
+    },
+    "mrkdwn": "*MEDIA BUYING · Northlake Golf*\n<@U0SAMPLE1>  Read the Monday review and decide on the 2 suggested changes"
+   }
+  },
+  {
+   "id": "monday_test_post",
+   "group": "Ad calls and the War Room",
+   "name": "Monday test calls post",
+   "channel": "internal channel",
+   "who": "The brand channel",
+   "kind": "team_notice",
+   "status": "off after Dec 2",
+   "audit": "a53",
+   "onRenderer": false,
+   "when": "Was Mondays; off since Nov 20.",
+   "why": "Posts nothing any more.",
+   "where": [
+    "asana-brand.js:postMonday"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "Northlake Golf · tests this week",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Northlake Golf · tests this week"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Hook test: 3 openers\n• Offer test: bundle vs single"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "morning_card",
+   "group": "Team day (plans, check-ins, tasks, meetings)",
+   "name": "Morning card per brand",
+   "channel": "internal channel",
+   "who": "The brand team, people tagged",
+   "kind": "team_notice",
+   "status": "off after Dec 2",
+   "audit": "a1",
+   "onRenderer": false,
+   "when": "Daily at 5am per brand, with its calls, tasks, leak lines and dates in the thread.",
+   "why": "Its useful parts move to My day and Brand > Today first, then the card stops.",
+   "where": [
+    "morningcard.js:postCard",
+    "morningcard.js:redraw"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "Northlake Golf · Thursday. Yesterday $3,240 sales at 2.70x MER.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Northlake Golf · Thursday"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Yesterday $3,240 sales at 2.70x MER."
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Media buying: 2 ad calls\n• Creative: card 412 due today\n• Client: chase the gift guide photos"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "Triple Whale · 2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "task_reminders",
+   "group": "Team day (plans, check-ins, tasks, meetings)",
+   "name": "Late and due task lines with Done buttons",
+   "channel": "internal channel",
+   "who": "The task owner",
+   "kind": "team_notice",
+   "status": "move",
+   "audit": "a2",
+   "onRenderer": true,
+   "when": "On the due day, then 1, 3 and 7 days late.",
+   "why": "Was the nudge; it becomes one \"N tasks late\" line plus the list in My day.",
+   "where": [
+    "actions.js:actionTick",
+    "actions.js:handleReaction"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "CREATIVE · Northlake Golf: Finish 2 late tasks. due Nov 24 and Nov 25",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "CREATIVE · Northlake Golf: Finish 2 late tasks"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "<@U0SAMPLE2>  due Nov 24 and Nov 25"
+      }
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "sample_done",
+        "text": {
+         "type": "plain_text",
+         "text": "Done"
+        },
+        "value": "sample"
+       }
+      ]
+     }
+    ],
+    "head": {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*CREATIVE · Northlake Golf*\n<@U0SAMPLE2>  Finish 2 late tasks\nWhy: due Nov 24 and Nov 25"
+     }
+    },
+    "mrkdwn": "*CREATIVE · Northlake Golf*\n<@U0SAMPLE2>  Finish 2 late tasks\nWhy: due Nov 24 and Nov 25"
+   }
+  },
+  {
+   "id": "my_work",
+   "group": "Team day (plans, check-ins, tasks, meetings)",
+   "name": "My work DM",
+   "channel": "Slack DM",
+   "who": "People who switched it on",
+   "kind": "team_notice",
+   "status": "keep",
+   "audit": "a9",
+   "onRenderer": true,
+   "when": "Weekdays at 5am.",
+   "why": "Two people asked for their own tasks and cards first thing.",
+   "where": [
+    "mywork.js:myWorkDmTick"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "Your work today. 3 things today, 1 late.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Your work today"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "<@U0SAMPLE2>  3 things today, 1 late."
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Card 412 · Northlake Golf · due today\n• Brief the gift guide · Pine Ridge Apparel\n• Late: resize the holiday statics · Summit Socks Co"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "Locus · 2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Open My day"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "checkin_board",
+   "group": "Team day (plans, check-ins, tasks, meetings)",
+   "name": "Daily check-in post and plan form",
+   "channel": "internal channel",
+   "who": "The team (#daily-checkin)",
+   "kind": "team_notice",
+   "status": "move",
+   "audit": "a10",
+   "onRenderer": true,
+   "when": "Weekdays at 5am.",
+   "why": "The team posts today's plan or says they are out.",
+   "where": [
+    "checkin.js:ensureDay",
+    "checkin.js:redraw"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "Friday check-in. Tap a button below. Everything you post goes in this thread.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Friday check-in"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Tap a button below. Everything you post goes in this thread."
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Alex: plan posted\n• Sam: out today"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "ci_plan",
+        "text": {
+         "type": "plain_text",
+         "text": "Post my plan"
+        },
+        "value": "sample",
+        "style": "primary"
+       },
+       {
+        "type": "button",
+        "action_id": "ci_out",
+        "text": {
+         "type": "plain_text",
+         "text": "I'm out today"
+        },
+        "value": "sample"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "checkin_reply",
+   "group": "Team day (plans, check-ins, tasks, meetings)",
+   "name": "Plan and out today replies in the check-in thread",
+   "channel": "internal channel",
+   "who": "The team (#daily-checkin)",
+   "kind": "team_notice",
+   "status": "move",
+   "audit": "a10",
+   "onRenderer": false,
+   "when": "Each time a person posts a plan, a wrap-up or \"out today\".",
+   "why": "Everyone sees who is doing what today.",
+   "where": [
+    "checkin.js:postInThread"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "Alex's plan",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Alex's plan"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Northlake Golf: 4 holiday statics\n• Pine Ridge Apparel: brief the gift guide"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "week_plan_copy",
+   "group": "Team day (plans, check-ins, tasks, meetings)",
+   "name": "A person's week plan copied to the brand channel",
+   "channel": "internal channel",
+   "who": "The brand team",
+   "kind": "team_notice",
+   "status": "move",
+   "audit": "a54",
+   "onRenderer": false,
+   "when": "When a person posts their week from the Monday form.",
+   "why": "Each brand channel shows who works on it this week.",
+   "where": [
+    "checkin.js:submitCheckin"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "Alex's week · Northlake Golf",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Alex's week · Northlake Golf"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Main focus: holiday gifting\n• Batch 1: 6 statics, Wednesday"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "no_plan_dm",
+   "group": "Team day (plans, check-ins, tasks, meetings)",
+   "name": "\"No plan yet\" DM",
+   "channel": "Slack DM",
+   "who": "Each person with no plan 4 hours in",
+   "kind": "team_notice",
+   "status": "move",
+   "audit": "a11",
+   "onRenderer": true,
+   "when": "Weekdays, 4 hours after the check-in post, once.",
+   "why": "Becomes the top line of the person's My day, not a ping.",
+   "where": [
+    "checkin.js:checkinTick"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "OPS · Agency: Post your plan for today in #daily-checkin. no plan from you yet today",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "OPS · Agency: Post your plan for today in #daily-checkin"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "<@U0SAMPLE2>  no plan from you yet today"
+      }
+     }
+    ],
+    "head": {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*OPS · Agency*\n<@U0SAMPLE2>  Post your plan for today in #daily-checkin\nWhy: no plan from you yet today"
+     }
+    },
+    "mrkdwn": "*OPS · Agency*\n<@U0SAMPLE2>  Post your plan for today in #daily-checkin\nWhy: no plan from you yet today"
+   }
+  },
+  {
+   "id": "guest_week_dm",
+   "group": "Team day (plans, check-ins, tasks, meetings)",
+   "name": "Monday \"post your week\" DM to guests",
+   "channel": "Slack DM",
+   "who": "Slack guests with no Locus login",
+   "kind": "team_notice",
+   "status": "keep",
+   "audit": "a12",
+   "onRenderer": true,
+   "when": "Mondays in the morning.",
+   "why": "Guests have no page to see it on.",
+   "where": [
+    "checkin.js:checkinTick"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "Post your week for the Monday call. Morning Sam. The main focus and what you're working on, per brand.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Post your week for the Monday call"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Morning Sam. The main focus and what you're working on, per brand."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "ci_week",
+        "text": {
+         "type": "plain_text",
+         "text": "Post my week"
+        },
+        "value": "sample",
+        "style": "primary"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "card_review",
+   "group": "Team day (plans, check-ins, tasks, meetings)",
+   "name": "Card moved to Review, Approve all",
+   "channel": "internal channel",
+   "who": "The reviewer",
+   "kind": "approval_ask",
+   "status": "move",
+   "audit": "a13",
+   "onRenderer": false,
+   "when": "Each time a designer moves an ad card to Review, plus the decision in its thread.",
+   "why": "Becomes one line for the reviewer, \"N cards waiting on review\".",
+   "where": [
+    "checkin.js:reviewPost",
+    "checkin.js:postAlbum",
+    "checkin.js:reviewSubmit",
+    "checkin.js:redrawReview"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Approval asks (drafts, War Room, batches)",
+   "example": {
+    "text": "Review card 412 · Northlake Golf. 6 statics sent for your look.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Review card 412 · Northlake Golf"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "6 statics sent for your look."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "sample_approve",
+        "text": {
+         "type": "plain_text",
+         "text": "Approve all"
+        },
+        "value": "sample",
+        "style": "primary"
+       },
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Open card"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "calendar_countdown",
+   "group": "Team day (plans, check-ins, tasks, meetings)",
+   "name": "Calendar countdown (live tomorrow, a week out)",
+   "channel": "internal channel",
+   "who": "Step owners",
+   "kind": "team_notice",
+   "status": "move",
+   "audit": "a19",
+   "onRenderer": false,
+   "when": "Daily from 8am, for steps still open before a launch.",
+   "why": "Shows only to the owner of a step still open, after the \"not built\" check is fixed.",
+   "where": [
+    "calendar.js:calendarTick"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "Northlake Golf · Gift guide goes live tomorrow",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Northlake Golf · Gift guide goes live tomorrow"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Ads built: open (Sam)\n• Email scheduled: done"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Open the calendar"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "fyi_roundup",
+   "group": "Team day (plans, check-ins, tasks, meetings)",
+   "name": "End of day FYI roundup",
+   "channel": "internal channel",
+   "who": "The brand channel",
+   "kind": "team_notice",
+   "status": "off after Dec 2",
+   "audit": "a21",
+   "onRenderer": false,
+   "when": "Daily at 4pm.",
+   "why": "Its own title said it needs no action; Brand > Today shows the day.",
+   "where": [
+    "lane.js:roundupTick"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "FYI · Northlake Golf · Thursday",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "FYI · Northlake Golf · Thursday"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Ops: Klaviyo connected\n• Creative: card 412 approved"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "monday_plans_missing",
+   "group": "Team day (plans, check-ins, tasks, meetings)",
+   "name": "Monday \"brands with no Monday plan\"",
+   "channel": "internal channel",
+   "who": "Strategists (#daily-checkin)",
+   "kind": "team_notice",
+   "status": "move",
+   "audit": "a31",
+   "onRenderer": false,
+   "when": "Mondays at 7am, when a brand has no plan yet.",
+   "why": "Becomes one Monday line for the strategist.",
+   "where": [
+    "callnudge.js:callNudgeTick"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "CREATIVE · Monday plans: Post your week for Northlake Golf and Summit Socks Co before the 8:00 team call. the team call screen shows your plan",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "CREATIVE · Monday plans: Post your week for Northlake Golf and Summit Socks Co before the 8:00 team call"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "<@U0SAMPLE2>  the team call screen shows your plan"
+      }
+     }
+    ],
+    "head": {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*CREATIVE · Monday plans*\n<@U0SAMPLE2>  Post your week for Northlake Golf and Summit Socks Co before the 8:00 team call\nWhy: the team call screen shows your plan"
+     }
+    },
+    "mrkdwn": "*CREATIVE · Monday plans*\n<@U0SAMPLE2>  Post your week for Northlake Golf and Summit Socks Co before the 8:00 team call\nWhy: the team call screen shows your plan"
+   }
+  },
+  {
+   "id": "meetings_finished",
+   "group": "Team day (plans, check-ins, tasks, meetings)",
+   "name": "\"Meetings finished at noon\" DM",
+   "channel": "Slack DM",
+   "who": "Cole",
+   "kind": "team_notice",
+   "status": "off after Dec 2",
+   "audit": "a32",
+   "onRenderer": false,
+   "when": "Weekdays from noon, when Locus finished a meeting nobody closed (or could not).",
+   "why": "Calls still finish on their own; the DM changes nothing.",
+   "where": [
+    "callnudge.js:callNudgeTick"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "Meetings finished at noon. Nobody pressed Finish, so Locus did.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Meetings finished at noon"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Nobody pressed Finish, so Locus did."
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Northlake Golf client call"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "meeting_notes_confirm",
+   "group": "Team day (plans, check-ins, tasks, meetings)",
+   "name": "Meeting notes to confirm",
+   "channel": "internal channel",
+   "who": "Cole",
+   "kind": "team_notice",
+   "status": "off after Dec 2",
+   "audit": "a33",
+   "onRenderer": true,
+   "when": "When a recorded call's notes are ready.",
+   "why": "Nobody confirmed one in five weeks.",
+   "where": [
+    "meetings.js:tellReady"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "CLIENT · Agency: Confirm the notes from \"Northlake Golf weekly\". 4 tasks and 1 request found",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "CLIENT · Agency: Confirm the notes from \"Northlake Golf weekly\""
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "<@U0SAMPLE1>  4 tasks and 1 request found"
+      }
+     }
+    ],
+    "head": {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*CLIENT · Agency*\n<@U0SAMPLE1>  Confirm the notes from \"Northlake Golf weekly\"\nWhy: 4 tasks and 1 request found"
+     }
+    },
+    "mrkdwn": "*CLIENT · Agency*\n<@U0SAMPLE1>  Confirm the notes from \"Northlake Golf weekly\"\nWhy: 4 tasks and 1 request found"
+   }
+  },
+  {
+   "id": "morning_line",
+   "group": "Team day (plans, check-ins, tasks, meetings)",
+   "name": "Morning line DM",
+   "channel": "Slack DM",
+   "who": "People who opted in (nobody did)",
+   "kind": "team_notice",
+   "status": "off after Dec 2",
+   "audit": "a8",
+   "onRenderer": false,
+   "when": "Was each morning at the person's hour; also on request as a test.",
+   "why": "The per person morning brief replaces it.",
+   "where": [
+    "morning.js:morningTick",
+    "morning.js:handleMorning@/api/me/morning"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "Your brands this morning",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Your brands this morning"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Northlake Golf: $3,240 yesterday, 2.70x\n• Pine Ridge Apparel: $1,100 yesterday, 2.10x"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "Triple Whale · 2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "automation_dm",
+   "group": "Team day (plans, check-ins, tasks, meetings)",
+   "name": "Automation message",
+   "channel": "Slack DM",
+   "who": "The person an automation rule is for",
+   "kind": "team_notice",
+   "status": "keep",
+   "audit": "a41",
+   "onRenderer": false,
+   "when": "When a switched on automation fires and the person picked Slack (none are on yet).",
+   "why": "This is how \"tell me if a brand is under goal 3 days running\" reaches Slack.",
+   "where": [
+    "automations.js:sendWays"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "Northlake Golf is under goal 3 days running. Day 1 of 4 reminders, then quiet.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Northlake Golf is under goal 3 days running"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Day 1 of 4 reminders, then quiet."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Open in Locus"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "trybe_post",
+   "group": "Creator program (Mobius only)",
+   "name": "Creator videos to review or load",
+   "channel": "internal channel",
+   "who": "The buyer and the reviewer",
+   "kind": "team_notice",
+   "status": "move",
+   "audit": "a45",
+   "onRenderer": false,
+   "when": "Each morning per brand while creator videos wait.",
+   "why": "Becomes two Locus lines: approved videos to load, videos to review.",
+   "where": [
+    "trybe.js:trybeTick"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "Northlake Golf · 4 approved creator videos to load. Load them into Meta. The oldest has waited 3 days.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Northlake Golf · 4 approved creator videos to load"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "<@U0SAMPLE1>  Load them into Meta. The oldest has waited 3 days."
+      }
+     },
+     {
+      "type": "section",
+      "fields": [
+       {
+        "type": "mrkdwn",
+        "text": "*To load*\n4"
+       },
+       {
+        "type": "mrkdwn",
+        "text": "*Oldest*\n3 days"
+       }
+      ]
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Creator A, black driver\n• Creator B, putting drill\n• and 2 more"
+      }
+     },
+     {
+      "type": "divider"
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "Trybe · 2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Open Creators"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "trybe_recut",
+   "group": "Creator program (Mobius only)",
+   "name": "Creator recut cards made",
+   "channel": "internal channel",
+   "who": "The editor",
+   "kind": "team_notice",
+   "status": "off after Dec 2",
+   "audit": "a46",
+   "onRenderer": true,
+   "when": "When recut cards are made from creator videos.",
+   "why": "The cards are already in the editor's My day.",
+   "where": [
+    "trybe.js:trybeRecutAnnounce"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "CREATORS · Northlake Golf: Recut 3 creator videos. cards made today",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "CREATORS · Northlake Golf: Recut 3 creator videos"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "<@U0SAMPLE2>  cards made today"
+      }
+     }
+    ],
+    "head": {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*CREATORS · Northlake Golf*\n<@U0SAMPLE2>  Recut 3 creator videos\nWhy: cards made today"
+     }
+    },
+    "mrkdwn": "*CREATORS · Northlake Golf*\n<@U0SAMPLE2>  Recut 3 creator videos\nWhy: cards made today"
+   }
+  },
+  {
+   "id": "discord_welcome",
+   "group": "Creator program (Mobius only)",
+   "name": "Creator Discord welcome",
+   "channel": "Discord",
+   "who": "New creators in the brand's Discord",
+   "kind": "creator_discord",
+   "status": "keep",
+   "audit": "a48",
+   "onRenderer": false,
+   "when": "One post a day from 5pm Central, for everyone who joined that day.",
+   "why": "New creators know where to start.",
+   "where": [
+    "trybe.js:welcomeAll"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Creator Discord posts",
+   "example": {
+    "text": "Welcome to the club. Say hi in #intros, then read #start-here.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Welcome to the club"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Say hi in #intros, then read #start-here."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "discord_daily",
+   "group": "Creator program (Mobius only)",
+   "name": "Creator Discord daily question",
+   "channel": "Discord",
+   "who": "Creators in the brand's Discord",
+   "kind": "creator_discord",
+   "status": "keep",
+   "audit": "a48",
+   "onRenderer": false,
+   "when": "On request (no longer on a timer), one question or poll from a rotating bank.",
+   "why": "Keeps creators talking and filming.",
+   "where": [
+    "trybe.js:discordDaily"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Creator Discord posts",
+   "example": {
+    "text": "Question of the day. What is the one shot you always film first?",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Question of the day"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "What is the one shot you always film first?"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "discord_weekly",
+   "group": "Creator program (Mobius only)",
+   "name": "Creator Discord weekly winners",
+   "channel": "Discord",
+   "who": "Creators in the brand's Discord",
+   "kind": "creator_discord",
+   "status": "keep",
+   "audit": "a48",
+   "onRenderer": false,
+   "when": "Weekly, naming the top videos (never sales counts).",
+   "why": "Shows creators what works so they make more of it.",
+   "where": [
+    "trybe.js:postWinnersV2",
+    "trybe.js:discordWeekly"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Creator Discord posts",
+   "example": {
+    "text": "This week's top videos",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "This week's top videos"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Creator A: the 3 second hook\n• Creator B: the unboxing"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "discord_this_week",
+   "group": "Creator program (Mobius only)",
+   "name": "Creator Discord Monday \"this week\" post",
+   "channel": "Discord",
+   "who": "Creators in the brand's Discord",
+   "kind": "creator_discord",
+   "status": "keep",
+   "audit": "a48",
+   "onRenderer": false,
+   "when": "Mondays in #this-week, what to film this week, with the creators it names tagged. Fridays the same job posts the winners.",
+   "why": "Creators start the week knowing what to make.",
+   "where": [
+    "trybe.js:discordWeekly"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Creator Discord posts",
+   "example": {
+    "text": "This week",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "This week"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Film the gift set unboxing\n• Show the putter on a real green"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "discord_call_ask",
+   "group": "Creator program (Mobius only)",
+   "name": "Creator Discord \"From today's call\" post",
+   "channel": "Discord",
+   "who": "Creators in the brand's Discord",
+   "kind": "creator_discord",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "After a creator call, only when the person ticks \"Post it\".",
+   "why": "The one ask from the call reaches the creators who missed it.",
+   "where": [
+    "trybe.js:postCallAsk"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Creator Discord posts",
+   "example": {
+    "text": "From today's call. Send one video this week that opens on the product in your hand.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "From today's call"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Send one video this week that opens on the product in your hand."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "discord_idle_dm",
+   "group": "Creator program (Mobius only)",
+   "name": "Creator Discord \"keep your spot\" DM",
+   "channel": "Discord",
+   "who": "One creator with no new video in a while",
+   "kind": "creator_discord",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "Once per quiet spell, when the creator Discord sync runs (on the creator tick when auto is on, or on request) and a creator has sent no video for the warning number of days.",
+   "why": "The creator knows to send a video before they lose their place in the Discord.",
+   "where": [
+    "trybe.js:trybeDiscordSync"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Creator Discord posts",
+   "example": {
+    "text": "Keep your spot. Hey Alex, we have not seen a new video from you in 21 days. Submit one on Trybe in the next week to keep your spot.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Keep your spot"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Hey Alex, we have not seen a new video from you in 21 days. Submit one on Trybe in the next week to keep your spot."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "discord_team_post",
+   "group": "Creator program (Mobius only)",
+   "name": "Creator Discord post by the team",
+   "channel": "Discord",
+   "who": "Creators in the brand's Discord",
+   "kind": "creator_discord",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "Only when someone on the team writes it in Locus (or an agent asks): a post as the mascot, an edit of one, or taking one down.",
+   "why": "The team talks to creators in the brand's voice without opening Discord.",
+   "where": [
+    "trybe.js:handleTrybe@/api/trybe/discord-say",
+    "profit/discord.js:handleDiscord@/api/amb/discord/post",
+    "profit/discord.js:handleDiscord@/api/amb/discord/edit",
+    "profit/discord.js:handleDiscord@/api/amb/discord/delete"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Creator Discord posts",
+   "example": {
+    "text": "New this week. The holiday gift box is in. Film it on a table, not in your hand.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "New this week"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "The holiday gift box is in. Film it on a table, not in your hand."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "discord_first_posts",
+   "group": "Creator program (Mobius only)",
+   "name": "Creator Discord first posts",
+   "channel": "Discord",
+   "who": "Creators in the brand's Discord",
+   "kind": "creator_discord",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "Once, when the team builds a brand's Discord (and again when its look changes): the start here and how it works posts.",
+   "why": "A new server reads as ready from the first visit.",
+   "where": [
+    "profit/discord.js:build"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Creator Discord posts",
+   "example": {
+    "text": "Start here. Upload on Trybe, talk here. This week's ideas are in #this-week.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Start here"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Upload on Trybe, talk here. This week's ideas are in #this-week."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "social_by_hand",
+   "group": "Social posting and site reviews",
+   "name": "Social post must be done by hand",
+   "channel": "internal channel",
+   "who": "The post owner",
+   "kind": "team_notice",
+   "status": "parked",
+   "audit": "a50",
+   "onRenderer": true,
+   "when": "When a planned social post could not go out by itself.",
+   "why": "Goes off with the rest of social; the code stays, hidden.",
+   "where": [
+    "socialpost.js:notifyHandoff"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "Post this by hand: Instagram, Northlake Golf. The platform refused the automatic post.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Post this by hand: Instagram, Northlake Golf"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "The platform refused the automatic post."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Open post"
+        },
+        "url": "https://example.test/locus"
+       },
+       {
+        "type": "button",
+        "action_id": "sample_done",
+        "text": {
+         "type": "plain_text",
+         "text": "Done"
+        },
+        "value": "sample"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "social_nudge",
+   "group": "Social posting and site reviews",
+   "name": "Social Monday \"N of T posts planned\"",
+   "channel": "internal channel",
+   "who": "The brand team",
+   "kind": "team_notice",
+   "status": "off after Dec 2",
+   "audit": "a49",
+   "onRenderer": true,
+   "when": "Mondays, when the week has fewer posts planned than the target.",
+   "why": "Social is gone, so this goes too.",
+   "where": [
+    "socialpost.js:socialNudgeTick"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "CREATIVE · Northlake Golf: Fill this week's social plan. 2 of 5 posts planned",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "CREATIVE · Northlake Golf: Fill this week's social plan"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "<@U0SAMPLE2>  2 of 5 posts planned"
+      }
+     }
+    ],
+    "head": {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*CREATIVE · Northlake Golf*\n<@U0SAMPLE2>  Fill this week's social plan\nWhy: 2 of 5 posts planned"
+     }
+    },
+    "mrkdwn": "*CREATIVE · Northlake Golf*\n<@U0SAMPLE2>  Fill this week's social plan\nWhy: 2 of 5 posts planned"
+   }
+  },
+  {
+   "id": "site_review",
+   "group": "Social posting and site reviews",
+   "name": "Site review sent",
+   "channel": "internal channel",
+   "who": "Cole",
+   "kind": "team_notice",
+   "status": "off after Dec 2",
+   "audit": "a58",
+   "onRenderer": true,
+   "when": "When a client sends back a site review.",
+   "why": "Site reviews leave the app once no client link is still open.",
+   "where": [
+    "sitereview.js:send"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "Northlake Golf reviewed the gift guide page",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Northlake Golf reviewed the gift guide page"
+      }
+     },
+     {
+      "type": "section",
+      "fields": [
+       {
+        "type": "mrkdwn",
+        "text": "*Approved*\n4"
+       },
+       {
+        "type": "mrkdwn",
+        "text": "*Changes*\n2"
+       },
+       {
+        "type": "mrkdwn",
+        "text": "*Not reviewed*\n1"
+       }
+      ]
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Open in Locus"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "scheduled_question",
+   "group": "Old features we no longer run",
+   "name": "Scheduled Strategist question",
+   "channel": "internal channel",
+   "who": "A chosen channel",
+   "kind": "strategist_reply",
+   "status": "off after Dec 2",
+   "audit": "a43",
+   "onRenderer": false,
+   "when": "On its schedule (none were ever set up).",
+   "why": "Never used.",
+   "where": [
+    "askschedule.js:runSchedule",
+    "askschedule.js:runReader"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Strategist answers in threads",
+   "example": {
+    "text": "Weekly question: which ads to cut?",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Weekly question: which ads to cut?"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Northlake Golf: 2 ads under goal"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "dashboard_post",
+   "group": "Old features we no longer run",
+   "name": "Saved dashboard on a Slack schedule",
+   "channel": "internal channel",
+   "who": "A chosen channel",
+   "kind": "team_notice",
+   "status": "off after Dec 2",
+   "audit": "a44",
+   "onRenderer": false,
+   "when": "On the dashboard's schedule, if one is set.",
+   "why": "No sign anyone uses the Slack copy; the dashboards stay.",
+   "where": [
+    "worker.js:postDashboard"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "Holiday dashboard: last 7 days",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Holiday dashboard: last 7 days"
+      }
+     },
+     {
+      "type": "section",
+      "fields": [
+       {
+        "type": "mrkdwn",
+        "text": "*Sales*\n$41,000"
+       },
+       {
+        "type": "mrkdwn",
+        "text": "*MER*\n2.60x"
+       }
+      ]
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     },
+     {
+      "type": "actions",
+      "elements": [
+       {
+        "type": "button",
+        "action_id": "noop_open",
+        "text": {
+         "type": "plain_text",
+         "text": "Open in Locus"
+        },
+        "url": "https://example.test/locus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "setup_line",
+   "group": "Old features we no longer run",
+   "name": "\"Account Health is wired up\" setup line",
+   "channel": "internal channel",
+   "who": "The alert channel",
+   "kind": "team_notice",
+   "status": "off after Dec 2",
+   "audit": "a65",
+   "onRenderer": false,
+   "when": "Once, on the setup test tap.",
+   "why": "Leftover from setup.",
+   "where": [
+    "worker.js:handle@/api/slack-test"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Team notices",
+   "example": {
+    "text": "Account Health is wired up. Budget pace alerts will post here.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Account Health is wired up"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Budget pace alerts will post here."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "strategist_answer",
+   "group": "Answers and tools on request",
+   "name": "Strategist answer in a thread",
+   "channel": "internal channel or Slack DM",
+   "who": "The person who asked",
+   "kind": "strategist_reply",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "When someone tags Locus or asks it something in Slack, including files it makes.",
+   "why": "Answers land where the question was asked.",
+   "where": [
+    "ideas.js:say",
+    "lookups.js:lookupSlack",
+    "stratmake.js:slackUpload",
+    "strattools.js:uploadToSlack"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Strategist answers in threads",
+   "example": {
+    "text": "Northlake Golf last 7 days. $21,400 sales on $8,100 of ads, 2.64x MER, up from 2.31x.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Northlake Golf last 7 days"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "$21,400 sales on $8,100 of ads, 2.64x MER, up from 2.31x."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "Triple Whale · 2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "idea_draft",
+   "group": "Answers and tools on request",
+   "name": "Draft thread started from Locus",
+   "channel": "internal channel",
+   "who": "The brand team",
+   "kind": "strategist_reply",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "When someone asks Locus to draft our version of a post or an idea and to work in Slack.",
+   "why": "The draft and its back and forth live in one thread.",
+   "where": [
+    "ideas.js:ideaFromLocus",
+    "ideas.js:appRow",
+    "ideas.js:runIdeaJob",
+    "ideas.js:adminIdea",
+    "ideas.js:handleIdeaAction",
+    "ideas.js:redrawCard"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Strategist answers in threads",
+   "example": {
+    "text": "Check the draft Locus writes in this thread. Alex asked from Locus: our version of this post for Northlake Golf.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Check the draft Locus writes in this thread"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Alex asked from Locus: our version of this post for Northlake Golf."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "studio_batch",
+   "group": "Answers and tools on request",
+   "name": "Studio batch of made ads",
+   "channel": "internal channel",
+   "who": "The person who asked",
+   "kind": "strategist_reply",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "When a Studio batch someone started finishes (or fails).",
+   "why": "The made ads come back to the thread they were asked in.",
+   "where": [
+    "studiomake.js:postBatch",
+    "studiomake.js:runStudioMake",
+    "worker.js:queue"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Strategist answers in threads",
+   "example": {
+    "text": "6 ads made for Northlake Golf. Gift set, three sizes each.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "6 ads made for Northlake Golf"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Gift set, three sizes each."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "access_refused",
+   "group": "Answers and tools on request",
+   "name": "Not allowed to use Locus",
+   "channel": "Slack DM",
+   "who": "Someone not on the access list",
+   "kind": "strategist_reply",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "When a person who may not use Locus messages it.",
+   "why": "Says plainly why there is no answer.",
+   "where": [
+    "worker.js:handleSlackEvent"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Strategist answers in threads",
+   "example": {
+    "text": "Locus is for the team only. Ask the owner to add you to the access list.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Locus is for the team only"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Ask the owner to add you to the access list."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "agent_post",
+   "group": "Answers and tools on request",
+   "name": "Post from Claude Code (the agent tool)",
+   "channel": "internal channel or client channel",
+   "who": "Any channel the agent names",
+   "kind": null,
+   "fromNote": "Locus, or Cole when the call sets as_cole",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "Only when an agent session calls slack_post; a client channel needs as_cole and the owner asking.",
+   "why": "Lets an agent post the drafts the owner approved.",
+   "where": [
+    "mcp.js:tools"
+   ],
+   "from": null,
+   "fromLabel": "Locus, or Cole when the call sets as_cole",
+   "kindLabel": null,
+   "example": {
+    "text": "Pine Ridge Apparel · Update. Drafted in Claude Code and approved by the owner.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Pine Ridge Apparel · Update"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Drafted in Claude Code and approved by the owner."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "share_picture",
+   "group": "Answers and tools on request",
+   "name": "Shared picture of a Locus page",
+   "channel": "internal channel or client channel",
+   "who": "The channel the person picked",
+   "kind": null,
+   "fixedFrom": "locus",
+   "fromNote": "Always Locus (the app uploads the picture)",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "When someone taps Share to Slack on a page.",
+   "why": "A chart goes to the conversation without a screenshot.",
+   "where": [
+    "worker.js:handle@/api/share/slack"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": null,
+   "example": {
+    "text": "Pace · Northlake Golf. Nov 1 to 25. Shared by Alex.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Pace · Northlake Golf"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Nov 1 to 25. Shared by Alex."
+      }
+     },
+     {
+      "type": "image",
+      "image_url": "https://example.test/picture.png",
+      "alt_text": "Pace chart"
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tap_reply",
+   "group": "Answers and tools on request",
+   "name": "Reply to a button tap",
+   "channel": "internal channel or Slack DM",
+   "who": "Only the person who tapped",
+   "kind": null,
+   "fixedFrom": "locus",
+   "fromNote": "Always Locus (the reply to the tap)",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "Right after someone taps a button or tags Locus: the tapped message redrawn as done, or a note only they see (not allowed, already sent, too old).",
+   "why": "The person knows what their tap did without a new post in the channel.",
+   "where": [
+    "actions.js:handleActionButton",
+    "asana-brand.js:runMondayPlan",
+    "checkin.js:reviewAction",
+    "ideas.js:whisper",
+    "lookups.js:lookupWhyTap",
+    "minoff.js:handleMinOffButton",
+    "newclient.js:handleNewClientAction",
+    "socialpost.js:handleSocialButton",
+    "worker.js:slackWhisper",
+    "worker.js:handleSlackInteract",
+    "worker.js:askTapSay"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": null,
+   "example": {
+    "text": "Already sent. Already sent at 2:10pm. Nothing sent twice.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Already sent"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Already sent at 2:10pm. Nothing sent twice."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "strategist_schedule",
+   "group": "Answers and tools on request",
+   "name": "Strategist scheduled post",
+   "channel": "internal channel or Slack DM",
+   "who": "A team channel or a teammate",
+   "kind": null,
+   "fixedFrom": "locus",
+   "fromNote": "Always Locus",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "At the time a person picked, after they tapped Apply on the Strategist's card. Never a client channel.",
+   "why": "A reminder or note lands when it is useful, not when it was written.",
+   "where": [
+    "slackwrite.js:scheduleAction"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": null,
+   "example": {
+    "text": "Reminder: gift guide photos. Northlake Golf photos are due to the client today.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Reminder: gift guide photos"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Northlake Golf photos are due to the client today."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "strategist_edit",
+   "group": "Answers and tools on request",
+   "name": "Strategist edit of a Locus message",
+   "channel": "internal channel",
+   "who": "The channel where the message is",
+   "kind": null,
+   "fixedFrom": "locus",
+   "fromNote": "Always Locus",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "After a person taps Apply on the Strategist's edit card, or undoes one. Locus's own plain messages only.",
+   "why": "A wrong line is fixed in place instead of a second post.",
+   "where": [
+    "slackwrite.js:editAction",
+    "slackwrite.js:channelAction"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": null,
+   "example": {
+    "text": "Edited. Gift guide photos are due Friday, not Thursday.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Edited"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Gift guide photos are due Friday, not Thursday."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "owner_edit",
+   "group": "Answers and tools on request",
+   "name": "Owner edit of a Locus message",
+   "channel": "internal channel or client channel",
+   "who": "The channel where the message is",
+   "kind": null,
+   "fixedFrom": "locus",
+   "fromNote": "Always Locus",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "Only when the owner edits or deletes one of Locus's own messages from Locus.",
+   "why": "A wrong message is fixed or taken down without opening Slack.",
+   "where": [
+    "worker.js:handle@/api/ask/own-message"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": null,
+   "example": {
+    "text": "Edited by the owner. The shipping cutoff is Dec 17.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Edited by the owner"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "The shipping cutoff is Dec 17."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "example_dm",
+   "group": "Answers and tools on request",
+   "name": "Example message to the owner",
+   "channel": "Slack DM",
+   "who": "The owner only",
+   "kind": null,
+   "fixedFrom": "locus",
+   "fromNote": "Always Locus",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "Only on request, to see a new message design in Slack before any real path sends it.",
+   "why": "A design is checked in real Slack first.",
+   "where": [
+    "exampledm.js:handleExampleDm"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": null,
+   "example": {
+    "text": "Example, not real. A new message design, sent to your own DM only.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Example, not real"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "A new message design, sent to your own DM only."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  }
+ ]
+}
