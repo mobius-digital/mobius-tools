@@ -10,6 +10,7 @@ import { routes } from '../../src/metrics/routes.js';
 import { forgetStale } from '../../src/metrics/service.js';
 import { dayEconomics, totals } from '../../src/metrics/money.js';
 import { checkIsStale } from '../../src/metrics/health.js';
+import { liveReplaces, wholeDays } from '../../src/metrics/series.js';
 import { storeData, setGoals, today, NORTH_SECOND_AD_ACCOUNT } from './fixture.mjs';
 
 const sample = name => JSON.parse(readFileSync(new URL(`../../src/metrics/samples/${name}.json`, import.meta.url), 'utf8'));
@@ -102,6 +103,15 @@ test('a view only teammate may read', async () => {
   const r = await get(freshEnv(), `/pw/api/client?act=${NORTH}&days=7`, 'viewer');
   assert.equal(r.status, 200);
   assert.equal(r.json.rows.length, 7);
+});
+
+test('liveReplaces: the live row takes the stored row\'s place for its day, never sits beside it', () => {
+  const rows = [{ date: '2026-03-09', sales: 1 }, { date: '2026-03-10', sales: 2 }];
+  liveReplaces(rows, { date: '2026-03-10', sales: 9 });
+  assert.deepEqual(rows, [{ date: '2026-03-09', sales: 1 }, { date: '2026-03-10', sales: 9 }]);
+  liveReplaces(rows, { date: '2026-03-11', sales: 4 });
+  assert.deepEqual(rows.map(r => r.date), ['2026-03-09', '2026-03-10', '2026-03-11']);
+  assert.deepEqual(wholeDays(rows, '2026-03-11').map(r => r.date), ['2026-03-09', '2026-03-10']);
 });
 
 const SENT_ON = [

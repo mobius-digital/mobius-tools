@@ -714,6 +714,19 @@ function liveRow(acct, day, rules) {
   const meta = fb != null ? { [day.date]: { spend: fb } } : {};
   return dayEconomics(piv, meta, day.date, marginOverride(acct, monthOf(day.date)), rules);
 }
+/** Today's live row goes in PLACE of any stored row for the same day, never beside it (2026-11-26).
+ *  The hourly Triple Whale sync can land a partial today in tw_daily, so seriesFor may already hold a row for
+ *  today; pushing the live row next to it listed the day twice and summed it twice in every total. */
+function liveReplaces(list, row) {
+  for (let i = list.length - 1; i >= 0; i--) if (list[i].date === row.date) list.splice(i, 1);
+  list.push(row);
+  return list;
+}
+/** `to`, but never later than the brand's own yesterday. */
+function wholeDaysTo(acct, to) {
+  const yday = addDays(localDate(acct.tz), -1);
+  return to > yday ? yday : to;
+}
 /** Revenue and ad spend hour by hour, blended. Revenue is Total Sales less tax,
  *  the same line as the day; tax by hour is subtracted when TW carries it. */
 function hoursOf(day) {
@@ -2198,7 +2211,7 @@ export default {
        brand, nothing internal. The token is the auth, like the plan link. */
     let sq;
     if ((sq = path.match(/^\/api\/season\/([a-f0-9]{16,})$/)) && request.method === 'GET') {
-      try { return await seasonPublic(env, sq[1], (acct, from, to) => seriesFor(env, acct, from, to)); } catch (e) { return json({ error: e.message }, 500); }
+      try { return await seasonPublic(env, sq[1], (acct, from, to) => seriesFor(env, acct, from, wholeDaysTo(acct, to))); } catch (e) { return json({ error: e.message }, 500); }
     }
 
     /* Cover images for a client's shared ad set - same arrangement as the
@@ -2322,11 +2335,11 @@ export default {
             ? { verdict: 'override', reason: `using a flat ${Math.round(margin_pct * 100)}% margin override`, blended: margin_pct }
             : judgeCosts(rows));
           const mtdRows = allRows.filter(r => r.date >= monthStart);
-          const plan = planFor(a, ym, mtdRows);          // whole days only, see /api/client
+          const plan = planFor(a, ym, mtdRows.filter(r => r.date < today));   // whole days only, see /api/client
           let live = null;
           if (to === today) {
             const day = await twDay(env, request, a, today).catch(() => null);
-            if (day) { const row = liveRow(a, day, rules); if (row) { applyAdSpend([row], spread(exp, today, today, [row]).adByDate); rows.push(row); mtdRows.push(row); } live = { as_of: day.as_of }; }
+            if (day) { const row = liveRow(a, day, rules); if (row) { applyAdSpend([row], spread(exp, today, today, [row]).adByDate); liveReplaces(rows, row); liveReplaces(mtdRows, row); } live = { as_of: day.as_of }; }
           }
           return {
             ...pubAccount(a),
@@ -2384,14 +2397,15 @@ export default {
         // It sees WHOLE days only: a live partial today is added after the plan is
         // pro-rated, so "planned by now" means through yesterday on a Today window.
         const mtdRows = allRows.filter(r => r.date >= monthStart);
-        const plan = planFor(acct, ym, mtdRows);
-        // A single day gets its hourly shape; today additionally gets its live row.
+        // A partial today the sync stored is not a whole day either (2026-11-26).
+        const plan = planFor(acct, ym, mtdRows.filter(r => r.date < today));
+        // A single day gets its hourly shape; today additionally gets its live row, in place of a stored one.
         let liveAsOf = null, hours = null;
         if (from === to || to === today) {
           const day = await twDay(env, request, acct, to).catch(() => null);
           if (day) {
             if (from === to) hours = hoursOf(day);
-            if (to === today) { const row = liveRow(acct, day, rules); if (row) { applyAdSpend([row], spread(exp, today, today, [row]).adByDate); rows.push(row); mtdRows.push(row); } liveAsOf = day.as_of; }
+            if (to === today) { const row = liveRow(acct, day, rules); if (row) { applyAdSpend([row], spread(exp, today, today, [row]).adByDate); liveReplaces(rows, row); liveReplaces(mtdRows, row); } liveAsOf = day.as_of; }
           }
         }
         /* Custom expenses over the window (expenses.js, 2026-10-10). `total`/`items` = the ones under contribution margin
@@ -3039,7 +3053,10 @@ export default {
       if (path.startsWith('/api/season')) {
         const sr = await handleSeason({
           path, request, env, accountsFor, email: await sessionEmail(env, request),
-          series: (acct, from, to) => seriesFor(env, acct, from, to),
+          /* Whole days only (2026-11-26): season.js counts "yesterday" on Central time and adds today from `live`, so
+             for a brand west of Central, between midnight Central and the brand's own midnight, its "yesterday" is the
+             brand's today. Clipped to the brand's own yesterday, a partial today the sync stored never joins the live row. */
+          series: (acct, from, to) => seriesFor(env, acct, from, wholeDaysTo(acct, to)),
           /* Today's hourly shape from Triple Whale, the same call the Profit Today preset makes. */
           /* The War Room (2026-10-09) also reads orders and Meta / Google spend by the hour, and the day as one row.
              liveDay (2026-11-22) fills spend from Meta when TW has none, and flags a brand with no TW shop. */
