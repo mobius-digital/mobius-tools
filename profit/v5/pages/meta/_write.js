@@ -171,7 +171,7 @@ export async function sayYes(ctx, c, onDone) {
     h('div', { class: 'mw-on' }, [c.brand, c.name].filter(Boolean).join(', ')),
     c.why ? h('p', { class: 'mw-why' }, c.why) : null,
     amountWrap, ba, status, bigLine, detail, heldLine, overWrap, whyWrap, err,
-    h('p', { class: 'mw-detail' }, 'Written to Meta and logged in Changes made. Undo for 24 hours.'),
+    h('p', { class: 'mw-detail' }, 'Written to Meta and logged in Changes. Undo for 24 hours.'),
     h('div', { class: 'mw-btns' }, button('Cancel', { onclick: () => sh.close() }), yes)) });
 
   let plan = null, from = null, big = false, seq = 0, needOver = false, checking = false, writing = false;

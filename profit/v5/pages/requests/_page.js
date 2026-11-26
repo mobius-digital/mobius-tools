@@ -15,7 +15,7 @@ const RQ_CSS = `.rq-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap
 .rq-ads{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
 .rq-ad{flex:none;position:relative;width:96px;aspect-ratio:4/5;border-radius:12px;overflow:hidden;background:linear-gradient(160deg,var(--bg-sunk),var(--line-strong));display:grid;place-items:center;font-size:12px;font-weight:600;color:var(--muted)}
 .rq-ad img{width:100%;height:100%;object-fit:cover;display:block}
-.rq-ad .ok{position:absolute;left:6px;bottom:6px;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.92);font-size:11px;font-weight:650;color:var(--good)}
+.rq-ad .ok{position:absolute;left:6px;bottom:6px;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.92);font-size:11px;font-weight:600;color:var(--good)}
 .rq-ad .ok.no{color:var(--muted)}
 .rq-chat{display:grid;gap:10px}
 .rq-msg{max-width:80%;justify-self:start;display:grid;gap:3px}

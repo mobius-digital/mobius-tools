@@ -53,14 +53,20 @@ export function adName(a) {
 export const safeThumb = t => typeof t === 'string' && /^(data:image\/(png|jpe?g|webp|gif|svg\+xml)[;,]|https:\/\/)/i.test(t) ? t : null;
 
 /** Up to n best ads: from the ads that carried real money, ranked on Triple Whale ROAS when the report has
-    Triple Whale's ad credit, else on spend. Each: { id, platform, name, spend, roas, thumb, video } (platform: the ad's own, else 'meta': the report's ad list is Meta's) (roas null = not read). */
+    Triple Whale's ad credit, else on spend. Each: { id, platform, name, spend, revenue, purchases, cpa, roas, thumb, video }
+    (platform: the ad's own, else 'meta': the report's ad list is Meta's) (roas, revenue null = not read; purchases and
+    cpa only when the credit carries an order count, and then cpa is always spend / purchases). */
 export function bestAds(data, n = 3) {
   const top = (data && data.ads && data.ads.top) || [];
   if (!top.length) return [];
   const tw = data.attr && data.attr.ads && data.attr.ads[ATTR_MODEL];
   const rows = top.map(a => {
     const credit = tw ? (tw[a.ad_id] || { revenue: 0 }) : null;   /* no row under the model is a real zero */
-    return { id: a.ad_id, platform: a.platform || 'meta', name: adName(a), spend: a.spend, roas: credit && a.spend > 0 ? (credit.revenue || 0) / a.spend : null, thumb: safeThumb(a.thumb), video: !!a.video };
+    const revenue = credit ? credit.revenue || 0 : null;
+    const n = credit ? credit.orders ?? credit.purchases ?? null : null, purchases = n != null && isFinite(n) ? +n : null;
+    return { id: a.ad_id, platform: a.platform || 'meta', name: adName(a), spend: a.spend, revenue, purchases,
+      cpa: purchases > 0 && a.spend > 0 ? a.spend / purchases : null,
+      roas: credit && a.spend > 0 ? revenue / a.spend : null, thumb: safeThumb(a.thumb), video: !!a.video };
   });
   if (tw) rows.sort((a, b) => (b.roas || 0) - (a.roas || 0) || b.spend - a.spend);
   return rows.slice(0, n);

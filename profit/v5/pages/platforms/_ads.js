@@ -96,7 +96,7 @@ const CSS = `
 .ads-warn .lx-stat{white-space:normal;color:var(--warn)}
 .ads-rng{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .ads-rng .k{font-size:12.5px;color:var(--muted);margin-right:4px}
-.ads-chip{height:30px;padding:0 12px;border:0;border-radius:999px;background:var(--bg-sunk);color:var(--ink-2);font:inherit;font-size:12.5px;font-weight:550;cursor:pointer;white-space:nowrap}
+.ads-chip{height:30px;padding:0 12px;border:0;border-radius:999px;background:var(--bg-sunk);color:var(--ink-2);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap}
 .ads-chip:hover{background:var(--line-strong)}
 .ads-chip.on{background:var(--ink);color:var(--bg)}
 .ads-lvl{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;background:var(--bg-sunk);color:var(--muted);font-size:11px;font-weight:600;white-space:nowrap;flex:none}

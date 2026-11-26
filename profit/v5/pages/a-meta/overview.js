@@ -2,7 +2,7 @@
    Spend is Meta's; sales and ROAS are Triple Whale, last platform click.
    The data comes from the shared platform loader (a-today/_more.js); this page draws it with the kit tiles,
    so every number says its window and its source. */
-import { put, h, money, x, kpi, kpis, delta, legend, lineChart, empty, addStyles } from '../../kit.js';
+import { put, h, money, x, kpi, kpis, tiles, delta, legend, lineChart, empty, addStyles } from '../../kit.js';
 import { loadPlatform, samplePlatform } from '../a-today/_more.js';
 import { helpBar } from '../home/_biz.js';
 import { def } from '../platforms/_ads.js';
@@ -47,19 +47,20 @@ function render(el, d, ctx) {
   const change = before > 0 && ok(spend) ? spend / before - 1 : null;
   const dl = d.daily, dates = dl ? dl.dates.map(shortDay) : null;
 
+  ctx.askWindow = wl || null;
   ctx.askContext = `Meta across every brand, ${wl}: spend ${money(spend)}`
     + (ok(sales) ? `, sales ${money(sales)} (Triple Whale last click), ROAS ${x(roas)}` : '')
     + `. ${under.length} of ${withSales.length} brands with a sales source are under their goal ROAS.`;
 
-  const tiles = kpis([
-    kpi({ size: 'lg', label: 'Meta spend, all brands', value: money(spend), window: wl, source: 'Meta',
+  const tileRow = tiles([
+    kpi({ label: 'Meta spend, all brands', value: money(spend), window: wl, source: 'Meta',
       sub: change == null ? `${rows.length} brands` : [delta(change, { plain: true }), ' vs ' + pl],
       spark: dl ? dl.spend : null, sparkLabels: dates, sparkFormat: v => money(v) }),
-    kpi({ size: 'lg', label: 'Sales from Meta ads', value: ok(sales) ? money(sales) : quiet('no data'), window: wl, source: 'Triple Whale',
+    kpi({ label: 'Sales from Meta ads', value: ok(sales) ? money(sales) : quiet('no data'), window: wl, source: 'Triple Whale',
       sub: noSrc.length ? `${noSrc.length} brand${noSrc.length === 1 ? '' : 's'} with no sales source left out` : '',
       spark: dl && dl.has_sales ? dl.sales : null, sparkLabels: dates, sparkFormat: v => money(v) }),
-    kpi({ size: 'lg', label: def('ROAS', 'roas'), value: ok(roas) ? x(roas) : quiet('no data'), window: wl, source: 'Triple Whale', sub: 'brands with a sales source' }),
-    kpi({ size: 'lg', label: 'Brands under goal ROAS', value: String(under.length), window: wl, source: 'Triple Whale',
+    kpi({ label: def('ROAS', 'roas'), value: ok(roas) ? x(roas) : quiet('no data'), window: wl, source: 'Triple Whale', sub: 'brands with a sales source' }),
+    kpi({ label: 'Brands under goal ROAS', value: String(under.length), window: wl, source: 'Triple Whale',
       sub: under.length ? under.map(b => b.name).slice(0, 2).join(', ') + (under.length > 2 ? ` and ${under.length - 2} more` : '') : `of ${withSales.length} with a goal` }),
   ], { cols: 4 });
 
@@ -98,7 +99,7 @@ function render(el, d, ctx) {
     { title: 'What it is for', text: 'Meta across every brand: spend, the sales it brought in and its ROAS against each brand\'s goal.' },
     { title: 'How it is counted', text: `Spend is Meta's own. Sales and ROAS are Triple Whale, last platform click, so they will not match Meta's own reporting. A brand with no sales source shows no sales figure.${d.days_missing ? ` ${d.days_missing} brand${d.days_missing === 1 ? '' : 's'} did not answer for the day by day chart.` : ''}` },
   ]);
-  put(el, h('div', { class: 'ag am' }, help, tiles, chart, tbl));
+  put(el, h('div', { class: 'ag am' }, help, tileRow, chart, tbl));
 }
 
 export default {

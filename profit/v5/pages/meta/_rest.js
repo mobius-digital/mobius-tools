@@ -1,4 +1,4 @@
-/* Shared by Meta > Live now, Top ads, Suggestions and Changes made: small helpers, the states, the
+/* Shared by Meta > Live now, Best ads, Suggestions and Changes: small helpers, the states, the
    local parts the kit does not have (an ad picture tile, the "example" chip) and their layout CSS.
    Every sale, ROAS and cost per sale on these pages is Triple Whale's (last click per platform).
    Spend, budgets and delivery are Meta's. No ember in here. */
@@ -71,7 +71,7 @@ export const oldLink = (ctx, label) => (!ctx.isClient && ctx.legacy ? button(lab
 export { statusDot, x };
 
 const CSS = `
-.mr-row,.mr-grid,.mr-list,.mr-kp{min-width:0}
+.mr-row,.mr-grid,.mr-list{min-width:0}
 .mr-eg{height:22px;font-size:11.5px;font-weight:500}
 .mr-bar{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .mr-bar .sp{flex:1}
@@ -86,9 +86,7 @@ const CSS = `
 .mr-tile.xs .pd-play,.mr-tile.sm .pd-play{display:none}
 .mr-tile.sm{width:56px;height:70px}.mr-tile.xs{width:32px;height:32px;border-radius:var(--r-chip,6px)}.mr-tile.xs svg{width:16px;height:16px}
 .mr-tile.lg{width:76px;height:95px}
-.mr-kp{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--sp-8)}
-.mr-kp .lx-kpi .v{font-size:var(--num-xl)}
-.mr-kp .lx-kpi .v small{font-size:14px}
+/* the figure tiles on these pages are the kit's tiles() (app.css .lx-tiles), the same as Home */
 .mr-n{font-size:var(--num-l);font-weight:600;letter-spacing:-.03em;line-height:1.1;color:var(--ink);font-variant-numeric:tabular-nums}
 .mr-dim{color:var(--muted)}.mr-faint{color:var(--faint)}
 .mr-num{font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -96,9 +94,6 @@ const CSS = `
 .ads-open{cursor:pointer;transition:background .12s,box-shadow .12s}
 .ads-open:focus-visible{outline:2px solid var(--ink-2);outline-offset:2px}
 @media (max-width:759px){
-  .mr-kp{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-5)}
-  .mr-kp .lx-kpi .v{font-size:var(--num-l)}
-  .mr-kp>:last-child:nth-child(odd){grid-column:1/-1}
   .mr-bar{gap:10px}
 }`;
 export function styles(id, extra) {

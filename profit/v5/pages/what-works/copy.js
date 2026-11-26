@@ -60,7 +60,7 @@ function row(r, i, d, ctx, maxCtr) {
   const open = ST.open.has(r.text), long = r.text.length > 150;
   const sales = d.has_sales, dim = thin(r.orders);
   const text = h('div', { class: 'ww-txt' }, '"' + (open || !long ? r.text : r.text.slice(0, 148).trim() + '...') + '"',
-    long ? h('a', { href: '#', style: { marginLeft: '6px', fontSize: '12.5px', fontWeight: 550 }, onclick: e => { e.preventDefault(); open ? ST.open.delete(r.text) : ST.open.add(r.text); e.target.closest('.ww-cp').replaceWith(row(r, i, d, ctx, maxCtr)); } }, open ? 'Show less' : 'Show all') : null);
+    long ? h('a', { href: '#', style: { marginLeft: '6px', fontSize: '12.5px', fontWeight: 500 }, onclick: e => { e.preventDefault(); open ? ST.open.delete(r.text) : ST.open.add(r.text); e.target.closest('.ww-cp').replaceWith(row(r, i, d, ctx, maxCtr)); } }, open ? 'Show less' : 'Show all') : null);
   return h('div', { class: 'ww-cp' },
     h('span', { class: 'i' }, String(i + 1)),
     h('div', { class: 'tx' }, text,

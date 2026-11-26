@@ -28,7 +28,7 @@ const CSS = `
 .em-chart{padding:28px 32px 22px}
 .em-kpis .lx-kpi .s{flex-wrap:wrap}
 .em-kpis .lx-kpi .l{white-space:normal}
-.em-ex{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;border:1px dashed var(--line-strong);color:var(--muted);font-size:11.5px;font-weight:550;white-space:nowrap}
+.em-ex{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;border:1px dashed var(--line-strong);color:var(--muted);font-size:11.5px;font-weight:500;white-space:nowrap}
 .em-big{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:10px}
 .em-big>span:last-child{color:var(--muted);font-size:13.5px}
 .em-name{display:block;min-width:0;max-width:44ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -50,7 +50,7 @@ const CSS = `
 .em-steps{display:grid;gap:0}
 .em-steps>div{display:grid;grid-template-columns:minmax(120px,1fr) minmax(0,2.2fr) auto;gap:16px;align-items:center;height:44px;border-top:1px solid var(--line);font-size:14px}
 .em-steps>div:first-child{border-top:0}
-.em-steps>div.tot{font-weight:650}
+.em-steps>div.tot{font-weight:600}
 .em-steps .trk{position:relative;height:10px;border-radius:999px;background:var(--bg-sunk)}
 .em-steps .trk i{position:absolute;top:0;bottom:0;left:var(--l,0%);width:var(--w,0%);border-radius:999px;background:var(--ink)}
 .em-steps .trk i.cut{background:var(--icon)}
@@ -74,7 +74,7 @@ const CSS = `
 .em-more{display:flex;justify-content:center;padding:10px 0 14px}
 .em-camps .em-name{max-width:30ch}
 .em-camps .lx-table td .sub{display:block;font-size:11.5px;color:var(--muted);font-weight:400}
-.em-lab{font-size:13.5px;font-weight:550;color:var(--ink-2)}
+.em-lab{font-size:13.5px;font-weight:500;color:var(--ink-2)}
 .em-num{font-size:var(--num-l);font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 .lx-table td.em-go{width:28px;color:var(--faint);text-align:right}
 .lx-table tr.click:hover td.em-go{color:var(--ink)}

@@ -248,10 +248,10 @@ const CSS = `
 .mp-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .mp-tile{display:grid;gap:4px;padding:14px 16px;border-radius:14px;background:var(--bg-sunk)}
 .mp-tile .l{font-size:12.5px;font-weight:600;color:var(--muted)}
-.mp-tile .v{font-size:var(--num-m);font-weight:650;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.mp-tile .v{font-size:var(--num-m);font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .mp-tile .s{font-size:12px;color:var(--muted)}
 .mp-unfiled{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 14px;border-radius:12px;background:var(--warn-bg,#FFF6E5)}
-.mp-unfiled p{margin:0;flex:1 1 260px;font-size:14px;font-weight:550;color:var(--ink)}
+.mp-unfiled p{margin:0;flex:1 1 260px;font-size:14px;font-weight:500;color:var(--ink)}
 .mp-dot{display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--dot);margin-right:9px;vertical-align:1px}
 .mp-told{border-top:1px dashed var(--line);padding-top:10px}
 .mp-told summary{cursor:pointer;font-size:13.5px;font-weight:600;color:var(--ink-2)}
@@ -260,7 +260,7 @@ const CSS = `
 .mp-nobody.sm{width:28px;height:28px}
 .mp-figs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:40px}
 .mp-fig{display:grid;gap:6px;min-width:0;align-content:start}
-.mp-fig .l{font-size:13.5px;font-weight:550;color:var(--muted)}
+.mp-fig .l{font-size:13.5px;font-weight:500;color:var(--muted)}
 .mp-fig .v{font-size:var(--num-l);font-weight:600;letter-spacing:-.045em;line-height:1;font-variant-numeric:tabular-nums}
 .mp-fig .v.bad{color:var(--bad)}
 .mp-fig .s{font-size:13.5px;color:var(--muted)}
@@ -280,11 +280,11 @@ const CSS = `
 .mp-m .ti small,.mp-m .wh small{font-size:12.5px;color:var(--muted)}
 .mp-m .br{font-size:13.5px;color:var(--ink-2);min-width:0}
 .mp-m .wh{display:grid;gap:2px;font-size:14px;min-width:0}
-.mp-m .wh small{color:var(--warn);font-weight:550}
+.mp-m .wh small{color:var(--warn);font-weight:500}
 .mp-m>.lx-stat,.mp-m>.lx-pill{justify-self:start}
 .mp-o{display:flex;align-items:center;gap:14px;min-height:64px;padding:10px 26px;border-top:1px solid var(--line)}
 .mp-o:first-child{border-top:0}
-.mp-o .what{flex:1;min-width:0;font-size:15px;font-weight:550;letter-spacing:-.01em}
+.mp-o .what{flex:1;min-width:0;font-size:15px;font-weight:500;letter-spacing:-.01em}
 .mp-o .what small{display:block;font-size:12.5px;font-weight:500;color:var(--muted)}
 .mp-o .who{width:200px;font-size:13px;color:var(--muted)}
 .mp-o>.lx-stat,.mp-o>.lx-pill{width:70px;flex:none}
@@ -304,7 +304,7 @@ const CSS = `
 .mp-tasks{display:grid}
 .mp-t{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
 .mp-t:first-child{border-top:0}
-.mp-t .what{flex:1;min-width:0;font-size:14.5px;font-weight:550}
+.mp-t .what{flex:1;min-width:0;font-size:14.5px;font-weight:500}
 .mp-t .what small{display:block;font-size:12.5px;font-weight:500;color:var(--muted)}
 .mp-foot{display:grid;gap:12px;justify-items:start;padding-top:18px;border-top:1px solid var(--line)}
 @media (max-width:1040px){

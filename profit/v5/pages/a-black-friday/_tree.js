@@ -51,7 +51,7 @@ const CSS = `
 .wrt-h .lx-btn{min-height:32px}
 .wrt-msg{padding:12px 16px 14px 40px;font-size:13px;color:var(--muted);line-height:1.5}
 .wrt-msg.err{color:var(--bad)}
-.wrt-r{display:grid;grid-template-columns:var(--wrt-g);gap:10px;align-items:center;padding:0 16px 0 40px;min-height:44px;border-top:1px solid var(--line);font-size:13px;min-width:0}
+.wrt-r{display:grid;grid-template-columns:var(--wrt-g);gap:10px;align-items:center;padding:0 16px 0 40px;min-height:44px;border-top:1px solid var(--line);font-size:var(--fs-table);min-width:0}
 .wrt{--wrt-g:minmax(0,1fr) 76px 64px 56px 72px 60px 60px 68px 128px 150px}
 .wrt-r.hd{min-height:30px;font-size:var(--fs-colhead);font-weight:600;color:var(--muted);border-top:0}
 .wrt-r.hd>span{line-height:1.25;min-width:0}
@@ -77,7 +77,7 @@ const CSS = `
 .wrt-call>*{max-width:100%}
 /* a call pill never clips: a long action wraps to a second line inside its column */
 .lx-pill.wrt-pill{height:auto;min-height:22px;padding:3px 8px;white-space:normal;line-height:1.25;text-align:left;overflow-wrap:anywhere}
-button.wrt-pill{border:0;font:inherit;font-size:var(--fs-meta,12px);font-weight:550;cursor:pointer}
+button.wrt-pill{border:0;font:inherit;font-size:var(--fs-meta,12px);font-weight:500;cursor:pointer}
 button.wrt-pill:hover,button.wrt-pill:focus-visible{filter:brightness(.95)}
 .wrt-act{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:4px 10px;min-width:0}
 .wrt-more{padding:6px 16px 10px 58px;border-top:1px solid var(--line)}
@@ -94,7 +94,7 @@ button.wrt-pill:hover,button.wrt-pill:focus-visible{filter:brightness(.95)}
 .wr-sw em{font-style:normal;font-size:11.5px;color:var(--warn)}
 .wr-sw:not([disabled]):hover span{text-decoration:underline;text-underline-offset:3px}
 /* Set budget: a small quiet button, never a resting underline (the dotted underline is for defined terms only) */
-.wr-lk{display:inline-flex;align-items:center;min-height:26px;border:1px solid var(--line-strong);border-radius:var(--r-btn);background:var(--surface);padding:0 9px;font:inherit;font-size:12.5px;font-weight:550;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+.wr-lk{display:inline-flex;align-items:center;min-height:26px;border:1px solid var(--line-strong);border-radius:var(--r-btn);background:var(--surface);padding:0 9px;font:inherit;font-size:12.5px;font-weight:500;color:var(--ink-2);cursor:pointer;white-space:nowrap}
 .wr-lk:hover,.wr-lk:focus-visible{background:var(--row-hover);color:var(--ink)}
 /* narrower steps: the budget moves under the name, then Meta's own count and sales, then the week spend */
 @container (max-width:1000px){
@@ -196,7 +196,7 @@ export function writeSheet(ctx, o) {
     isBudget ? h('label', null, defLabel('New budget a day', 'budget_a_day'), amount) : null,
     jumpWrap, ba,
     h('label', null, 'What the client will read', why),
-    h('p', { class: 'note' }, 'Checked with Meta first, then written and logged in Changes made. Undo for 24 hours.'),
+    h('p', { class: 'note' }, 'Checked with Meta first, then written and logged in Changes. Undo for 24 hours.'),
     status, btns) });
   const reset = () => { dry = null; if (!whyTyped) why.value = line(toOf()); drawBa(); drawBtns(); };
   if (amount) { amount.oninput = reset; jump.onchange = reset; setTimeout(() => { try { amount.focus(); amount.select(); } catch {} }, 60); }
@@ -388,7 +388,7 @@ export function campaignInside(ctx, T, opts) {
   /* the phone's one line under a name: today, then this week, each with its window */
   const subLine = (t, m, idle) => {
     const today = t && ok(t.spend) && t.spend > 0 ? `Today ${usd(t.spend)}${ok(t.roas) ? ', ROAS ' + x(t.roas) : ''}` : 'Nothing spent today';
-    const week = m && ok(m.spend) && m.spend > 0 ? `This week ${usd(m.spend)}${ok(m.purchases) ? ', ' + m.purchases + (m.purchases === 1 ? ' sale' : ' sales') : ''}${ok(m.roas) ? ', ROAS ' + x(m.roas) : ''}` : idle ? 'No spend this week' : 'This week: none';
+    const week = m && ok(m.spend) && m.spend > 0 ? `This week ${usd(m.spend)}${ok(m.purchases) ? ', ' + m.purchases + (m.purchases === 1 ? ' order' : ' orders') : ''}${ok(m.roas) ? ', ROAS ' + x(m.roas) : ''}` : idle ? 'No spend this week' : 'This week: none';
     return [h('span', null, today), h('span', null, week)];
   };
   function callCell(id, r, onApply, on) {
@@ -484,7 +484,7 @@ export function campaignInside(ctx, T, opts) {
     const ids = sets.flatMap(s => s.ads.map(a => a.id)).filter(id => !(id in T.pics));
     if (ids.length) T.covers(act, ids).then(got => { if (got && host.isConnected) draw(); });
     const head = h('div', { class: 'wrt-h' },
-      h('span', { class: 't' }, h('b', null, 'Ad sets and ads'), `, today and this week (${win.label}). Spend is Meta; sales and ROAS are Triple Whale last click.`,
+      h('span', { class: 't' }, h('b', null, 'Ad sets and ads'), `, today and this week (${win.label}). Spend is Meta; orders and ROAS are Triple Whale last click.`,
         h('span', { class: 'mo' }, " Meta's own count is Meta's figure, a second opinion.")),
       staleStamp({ at: D.at, label: 'Read', onRefresh: () => load(true) }),
       opts.details ? button('Campaign details', { onclick: () => opts.details() }) : null);
@@ -492,7 +492,7 @@ export function campaignInside(ctx, T, opts) {
     const hd = h('div', { class: 'wrt-r hd', 'aria-hidden': 'true' },
       h('span', null, 'Ad set and ads'), h('span', { class: 'c-bud r' }, 'Budget a day'),
       h('span', { class: 'c-tspend r' }, 'Spent today'), h('span', { class: 'c-troas r' }, defLabel('ROAS today', 'roas')),
-      h('span', { class: 'c-spend r' }, 'Spend, this week'), h('span', { class: 'c-sales r' }, 'Sales, this week'),
+      h('span', { class: 'c-spend r' }, 'Spend, this week'), h('span', { class: 'c-sales r' }, 'Orders, this week'),
       h('span', { class: 'c-roas r' }, defLabel('ROAS, this week', 'roas')), h('span', { class: 'c-meta r' }, "Meta's own count"), h('span', { class: 'c-call' }, 'Ad call'), h('span', { class: 'c-act r' }, ''));
     const rows = [];
     for (const s of sets) {
@@ -506,7 +506,7 @@ export function campaignInside(ctx, T, opts) {
     }
     const errs = Object.values(D.errs || {}).filter(Boolean);
     put(host, head, hd, rows,
-      h('p', { class: 'wrt-foot' }, 'Ad calls come from the ad rules: wait until twice the goal cost is spent and 3 days pass, scale 3 or more sales on goal, cut at three times the goal with none, and read the ad set first. An ad still inside its wait window has no call.',
+      h('p', { class: 'wrt-foot' }, 'Ad calls come from the ad rules: wait until twice the goal cost is spent and 3 days pass, scale 3 or more orders on goal, cut at three times the goal with none, and read the ad set first. An ad still inside its wait window has no call.',
         errs.length ? ' Not read: ' + errs.join('; ') + '.' : ''));
   }
   load(false);

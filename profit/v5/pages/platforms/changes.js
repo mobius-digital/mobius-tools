@@ -154,7 +154,7 @@ export function changesCss() { style(); addStyles('pc-css', CSS); }
 /* ---------- render ---------- */
 function render(el, d, ctx) {
   changesCss();
-  if (!ctx.brand || !d || d.no_brand) return put(el, empty({ title: 'Pick a brand', text: 'Changes made is one brand at a time.' }));
+  if (!ctx.brand || !d || d.no_brand) return put(el, empty({ title: 'Pick a brand', text: 'Changes shows one brand at a time.' }));
   if (d.connected === false) return put(el, empty({ title: 'The change list did not answer', text: d.error || 'Nothing was read. Try again in a minute.',
     action: ctx.isClient ? null : button('Open integrations', { primary: true, href: ctx.href('brand-settings', 'integrations') }) }));
   /* sample numbers seen as a client: only the changes that carry a written reason, and no names */
@@ -166,7 +166,7 @@ function render(el, d, ctx) {
   const n = g => rows.filter(r => groupOf(r.cat) === g).length;
   const plats = ['meta', 'google', 'tiktok'].filter(p => rows.some(r => r.platform === p));
   const hero = figures([
-    { label: (d.client_view ? 'Changes made for you, ' : 'Changes made, ') + (d.window ? d.window.label : ''), value: num(rows.length), lead: true, sub: plats.map(p => `${platName(p)} ${rows.filter(r => r.platform === p).length}`).join(', ') },
+    { label: (d.client_view ? 'Changes made for you, ' : 'Changes, ') + (d.window ? d.window.label : ''), value: num(rows.length), lead: true, sub: plats.map(p => `${platName(p)} ${rows.filter(r => r.platform === p).length}`).join(', ') },
     { label: 'Budgets moved', value: num(n('budget')) },
     { label: 'Turned off or on', value: num(n('onoff')) },
     { label: 'New ads and sets', value: num(n('new')) },

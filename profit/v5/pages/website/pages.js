@@ -394,7 +394,7 @@ function figures(d) {
       sub: ok(t.visits_prev) ? 'vs ' + num(t.visits_prev) + ' before' : null, window: win, source: src, spark: series(r => r.visits), sparkLabels: labels, sparkFormat: v => num(v) }),
     kpi({ label: defl('Conversion rate', 'conversion_rate'), value: ok(t.conversion) ? pct(t.conversion, { digits: 2 }) : 'no data', delta: dl(move(t.conversion, t.conversion_prev)),
       sub: ok(t.orders) ? num(t.orders) + ' orders' : null, window: win, source: src, spark: series(r => rateOf(r.orders, r.visits)), sparkLabels: labels, sparkFormat: v => pct(v, { digits: 1 }) }),
-    kpi({ label: 'Added to cart', value: ok(t.cart_rate) ? pct(t.cart_rate, { digits: 1 }) : 'no data', delta: dl(move(t.cart_rate, t.cart_rate_prev)),
+    kpi({ label: 'Add to cart', value: ok(t.cart_rate) ? pct(t.cart_rate, { digits: 1 }) : 'no data', delta: dl(move(t.cart_rate, t.cart_rate_prev)),
       sub: ok(t.carts) ? num(t.carts) + ' carts' : 'of visits', window: win, source: src, spark: series(r => rateOf(r.carts, r.visits)), sparkLabels: labels, sparkFormat: v => pct(v, { digits: 1 }) }),
     kpi({ label: 'Sales per visit', value: ok(t.per_visit) ? money(t.per_visit, { cents: true }) : 'no data', delta: dl(move(t.per_visit, t.per_visit_prev)),
       sub: ok(t.per_visit_prev) ? 'vs ' + money(t.per_visit_prev, { cents: true }) + ' before' : null, window: win, source: src, spark: series(r => rateOf(r.revenue, r.visits)), sparkLabels: labels, sparkFormat: v => money(v, { cents: true }) }),
@@ -535,7 +535,7 @@ function openPage(ctx, d, r) {
     h('p', { class: 'wp-quiet' }, (d.range ? span(d.range.from, d.range.to) + ' · ' : '') + GA));
 
   /* the funnel: how many went on at each step. The step rate is the figure; the count sits under it. */
-  const steps = [['Visits', r.visits], ['Added to cart', r.carts], ['Checkout', r.checkouts], ['Orders', r.orders]];
+  const steps = [['Visits', r.visits], ['Add to cart', r.carts], ['Checkout', r.checkouts], ['Orders', r.orders]];
   const funnel = ok(r.visits) ? h('div', null, h('h4', { class: 'wp-h' }, 'What visitors did', h('small', null, GA)),
     h('div', { class: 'wp-fun' }, steps.map(([l, v], i) => {
       const prevV = i ? steps[i - 1][1] : null, step = i && ok(v) && ok(prevV) ? rateOf(v, prevV) : null;
@@ -617,6 +617,7 @@ const page = {
     const t = d.totals || {};
     const paid = L.list.filter(r => r.ads.length);
     const topPage = sortRows(paid, 'ad_spend')[0];
+    ctx.askWindow = d.range ? span(d.range.from, d.range.to) : null;
     ctx.askContext = [
       `Website page for ${d.range ? span(d.range.from, d.range.to) : 'these dates'}: ${ok(t.visits) ? num(t.visits) + ' visits to the whole site, conversion ' + pct(t.conversion || 0, { digits: 2 }) + ' (' + GA + ')' : 'no Google Analytics visits'}.`,
       paid.length ? `${num(paid.length)} landing pages get Meta ads; the most ad spend goes to ${nameOf(topPage)} (${usd(topPage.ad_spend)}, ${ok(topPage.cv) ? pct(topPage.cv, { digits: 1 }) + ' conversion' : 'conversion not tracked'}).` : d.ads_state === 'loading' ? 'The Meta ads are still being read.' : 'No ad landing pages read.',

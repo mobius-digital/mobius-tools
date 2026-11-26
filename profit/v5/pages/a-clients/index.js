@@ -20,7 +20,7 @@ const CL_CSS = `.cl-steps{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .cl-reqs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .cl-req{display:grid;gap:2px;padding:12px 14px;border-radius:14px;background:var(--bg-sunk)}
 .cl-req .l{font-size:12.5px;font-weight:600;color:var(--muted)}
-.cl-req .v{font-size:var(--num-m);font-weight:650;font-variant-numeric:tabular-nums}`;
+.cl-req .v{font-size:var(--num-m);font-weight:600;font-variant-numeric:tabular-nums}`;
 
 /** The five setup steps of a new client as small chips: done = green, still to do = gray. */
 function stepChips(o) {

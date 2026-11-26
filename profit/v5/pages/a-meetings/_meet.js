@@ -223,7 +223,7 @@ const CSS = `
 .mt-page{display:grid;gap:44px;min-width:0}
 .mt-pick{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap}
 .mt-chips{display:flex;gap:6px;flex-wrap:wrap;min-width:0}
-.mt-chip{height:32px;padding:0 13px;border:0;border-radius:999px;background:var(--bg-sunk);color:var(--ink-2);font-size:13px;font-weight:550;cursor:pointer;white-space:nowrap}
+.mt-chip{height:32px;padding:0 13px;border:0;border-radius:999px;background:var(--bg-sunk);color:var(--ink-2);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
 .mt-chip:hover{color:var(--ink)}
 .mt-chip.on{background:var(--ink);color:#fff}
 .mt-chip i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;background:var(--faint)}
@@ -252,8 +252,8 @@ const CSS = `
 .mt-h>span{color:var(--muted);font-size:13.5px}
 .mt-h .lx-legend{margin-left:auto}
 .mt-goal{fill:var(--ink);font-size:12.5px;font-weight:600}
-.mt-pt{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round;fill:var(--ink-2);font-size:12.5px;font-weight:550;text-anchor:middle;font-variant-numeric:tabular-nums}
-.mt-last{paint-order:stroke;stroke:#fff;stroke-width:5px;stroke-linejoin:round;fill:var(--ink);font-size:20px;font-weight:650;letter-spacing:-.03em;text-anchor:end;font-variant-numeric:tabular-nums}
+.mt-pt{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round;fill:var(--ink-2);font-size:12.5px;font-weight:500;text-anchor:middle;font-variant-numeric:tabular-nums}
+.mt-last{paint-order:stroke;stroke:#fff;stroke-width:5px;stroke-linejoin:round;fill:var(--ink);font-size:20px;font-weight:600;letter-spacing:-.03em;text-anchor:end;font-variant-numeric:tabular-nums}
 .mt-decide{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:48px;align-items:center;padding:30px 36px}
 .mt-decide h2{margin:12px 0 6px;font-size:20px;font-weight:600;letter-spacing:-.028em;line-height:1.25}
 .mt-decide p{margin:0;color:var(--muted);font-size:14px}
@@ -273,7 +273,7 @@ const CSS = `
 .mt-open{display:grid;gap:6px;min-width:0}
 .mt-prom{display:flex;align-items:center;gap:16px;min-height:72px;padding:10px 0;border-top:1px solid var(--line)}
 .mt-prom:first-child{border-top:0}
-.mt-prom .what{flex:1;min-width:0;font-size:15.5px;font-weight:550;letter-spacing:-.01em}
+.mt-prom .what{flex:1;min-width:0;font-size:15.5px;font-weight:500;letter-spacing:-.01em}
 .mt-prom .who{color:var(--muted);font-size:13px;width:150px}
 .mt-tick{display:inline-flex;align-items:center;gap:8px;width:118px;font-size:13.5px;font-weight:600;white-space:nowrap}
 .mt-tick i{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--good)}
@@ -317,8 +317,8 @@ const CSS = `
 .mt-col:last-child{padding-right:0}
 .mt-col h2{margin:6px 0 0;font-size:var(--num-l);font-weight:600;letter-spacing:-.035em;line-height:1.1}
 .mt-step{display:flex;gap:14px;align-items:flex-start}
-.mt-step .n{flex:none;width:28px;height:28px;border-radius:50%;background:var(--bg-sunk);display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:650}
-.mt-step b{display:block;font-size:15.5px;font-weight:550;letter-spacing:-.01em;line-height:1.35;padding-top:3px}
+.mt-step .n{flex:none;width:28px;height:28px;border-radius:50%;background:var(--bg-sunk);display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+.mt-step b{display:block;font-size:15.5px;font-weight:500;letter-spacing:-.01em;line-height:1.35;padding-top:3px}
 .mt-step small{display:block;font-size:13px;color:var(--muted);margin-top:2px}
 .mt-ex{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:16px;background:var(--band);font-size:13.5px;margin-top:4px}
 .mt-ex b{font-weight:600}

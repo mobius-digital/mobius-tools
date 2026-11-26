@@ -38,7 +38,7 @@ function draw(el, data, ctx) {
       about: 'The agency standard for running ads: the rules every daily Meta ad call follows, budget and launch rules for every platform, and the sale ladder. A brand can hold its own numbers (listed below). Hover or tap a dotted word for its meaning.',
       fixed: [
         ['Attribution for every call', 'Triple Whale, last platform click', 'Meta’s own count is a second opinion only. Not a setting.'],
-        ['Undo', '24 hours on every change ' + APP_NAME + ' makes', 'Every change lands in Changes made.'],
+        ['Undo', '24 hours on every change ' + APP_NAME + ' makes', 'Every change lands in Changes.'],
         ['Paused for 14 days', 'Never switched back on by ' + APP_NAME, 'A person turns it back on.'],
         ['A new prospecting ad set', 'Never turned off for weak ROAS', 'Its job is finding new buyers. Fix it with new ads.'],
       ] }) }),

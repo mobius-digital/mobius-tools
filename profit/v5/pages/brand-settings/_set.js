@@ -285,11 +285,11 @@ const CSS = `
 .lx-st{display:grid;gap:var(--sp-8);min-width:0}
 .lx-st-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-height:34px}
 .lx-st-bar .n{font-size:13px;color:var(--muted);min-width:0}
-.lx-st-err{flex-basis:100%;margin:0;padding:10px 14px;border-radius:10px;background:var(--bad-bg,#FDECEC);color:var(--bad,#B42318);font-size:13px;font-weight:550;line-height:1.45;overflow-wrap:anywhere}
+.lx-st-err{flex-basis:100%;margin:0;padding:10px 14px;border-radius:10px;background:var(--bad-bg,#FDECEC);color:var(--bad,#B42318);font-size:13px;font-weight:500;line-height:1.45;overflow-wrap:anywhere}
 .lx-st-err[hidden]{display:none}
 .lx-st-cf{display:grid;gap:22px;min-width:0}
 .lx-st-cf-lead{margin:0;font-size:13.5px;color:var(--ink-2)}
-.lx-st-cf .g h3{font-size:14px;font-weight:650;letter-spacing:-.01em}
+.lx-st-cf .g h3{font-size:14px;font-weight:600;letter-spacing:-.01em}
 .lx-st-cf .g .hint{margin:2px 0 10px;font-size:12.5px;line-height:1.45;color:var(--muted)}
 .lx-st-cf dl{margin:0;display:grid;border-top:1px solid var(--line)}
 .lx-st-cf dl>div{display:grid;gap:3px;padding:11px 0;border-bottom:1px solid var(--line);min-width:0}
@@ -297,7 +297,7 @@ const CSS = `
 .lx-st-cf dd{margin:0;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:14.5px;font-variant-numeric:tabular-nums;min-width:0;overflow-wrap:anywhere}
 .lx-st-cf dd .was{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--line-strong)}
 .lx-st-cf dd i{font-style:normal;font-size:12px;color:var(--faint)}
-.lx-st-cf dd b{font-weight:650;color:var(--ink)}
+.lx-st-cf dd b{font-weight:600;color:var(--ink)}
 .lx-st-cf .g.held dd b{font-weight:500;color:var(--ink-2)}
 .lx-st-cf .acts{display:flex;gap:10px;flex-wrap:wrap}
 .lx-st-cf .acts .lx-btn{flex:1 1 150px;justify-content:center}
@@ -324,7 +324,7 @@ const CSS = `
 .lx-st-area{font-size:14px;border-radius:12px;width:100%}
 .lx-st-times{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
 .lx-st-days{display:inline-flex;gap:4px;flex-wrap:wrap}
-.lx-st-days button{height:32px;min-width:44px;padding:0 9px;border:0;border-radius:9px;background:var(--bg-sunk);font-size:12.5px;font-weight:550;color:var(--muted);cursor:pointer}
+.lx-st-days button{height:32px;min-width:44px;padding:0 9px;border:0;border-radius:9px;background:var(--bg-sunk);font-size:12.5px;font-weight:500;color:var(--muted);cursor:pointer}
 .lx-st-days button.on{background:var(--ink);color:var(--bg)}
 .lx-st-bar .lx-btn.primary.lx-st-idle:disabled{background:var(--bg-sunk);color:var(--muted);box-shadow:none;border-color:transparent;opacity:1;cursor:default}
 .lx-st-helpdl{display:grid;gap:12px;margin:0}
@@ -334,7 +334,7 @@ const CSS = `
 .lx-st-helpdl dd span{display:block;font-size:12.5px;color:var(--muted)}
 .lx-st-say{padding:14px 28px;border-top:1px solid var(--line);font-size:15px;line-height:2.5;color:var(--ink-2);margin:0}
 .lx-st-say:first-child,.lx-st-row:first-child{border-top:0}
-.lx-st-say b{color:var(--ink);font-weight:650}
+.lx-st-say b{color:var(--ink);font-weight:600}
 .lx-st-say .lx-st-box{height:32px;margin:0 3px;vertical-align:middle}
 .lx-st-say .lx-st-num{width:40px}
 .lx-st-say .lx-st-days,.lx-st-say .lx-st-sel,.lx-st-say .lx-toggle{vertical-align:middle;margin:0 3px}
@@ -342,7 +342,7 @@ const CSS = `
 .lx-st-fold>summary::-webkit-details-marker{display:none}
 .lx-st-fold>summary h3{font-size:var(--fs-h3);font-weight:600;letter-spacing:-.015em}
 .lx-st-fold>summary .note{font-size:13px;color:var(--muted)}
-.lx-st-fold>summary .more{font-size:13px;font-weight:550;color:var(--ink-2)}
+.lx-st-fold>summary .more{font-size:13px;font-weight:500;color:var(--ink-2)}
 .lx-st-fold[open]>summary .more{font-size:0}
 .lx-st-fold[open]>summary .more::after{content:"Hide";font-size:13px}
 .lx-st-fold[open]>.lx-st-rows{border-top:1px solid var(--line)}
@@ -362,7 +362,7 @@ const CSS = `
 .lx-st-con.head{padding-top:10px;padding-bottom:10px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
 .lx-st-con.head+.lx-st-con{border-top:1px solid var(--line)}
 .lx-st-con details{grid-column:1/-1;font-size:12.5px;color:var(--ink-2)}
-.lx-st-con details summary{cursor:pointer;color:var(--ink);font-weight:550;width:max-content}
+.lx-st-con details summary{cursor:pointer;color:var(--ink);font-weight:500;width:max-content}
 .lx-st-con details p{margin-top:6px;max-width:80ch;line-height:1.5;overflow-wrap:anywhere}
 .lx-st-who{display:flex;align-items:center;gap:10px;min-width:0}
 .lx-st-who b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

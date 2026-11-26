@@ -54,7 +54,7 @@ const CSS = `
 .az-ph svg{display:block}
 .az-ph img{width:100%;height:100%;object-fit:contain}
 .az-ph.flip svg{transform:scaleX(-1)}
-.az-ph .txt{font-size:12.5px;font-weight:550;color:var(--ink-2);line-height:1.35;padding:44px 16px 0;text-align:left;align-self:start;justify-self:start}
+.az-ph .txt{font-size:12.5px;font-weight:500;color:var(--ink-2);line-height:1.35;padding:44px 16px 0;text-align:left;align-self:start;justify-self:start}
 .az-body{padding:16px 20px 18px;display:grid;gap:12px}
 .az-body.roomy{padding:22px 24px 24px;gap:16px;flex:1;align-content:start}
 .az-name{font-size:15px;font-weight:600;letter-spacing:-.015em;line-height:1.25;min-width:0}
@@ -68,7 +68,7 @@ const CSS = `
 .az-stats b i{display:inline-block;width:18px;height:3px;border-radius:2px;background:var(--line-strong);vertical-align:middle}
 .az-lock{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);padding-top:12px;border-top:1px solid var(--line)}
 .az-lock svg,.az-box svg,.az-ask>svg{width:15px;height:15px;flex:none}
-.az-tag{position:absolute;left:10px;top:10px;font-size:11px;font-weight:650;letter-spacing:.04em;background:#fff;color:var(--ink);border-radius:999px;padding:2px 8px;box-shadow:0 0 0 1px var(--line)}
+.az-tag{position:absolute;left:10px;top:10px;font-size:11px;font-weight:600;letter-spacing:.04em;background:#fff;color:var(--ink);border-radius:999px;padding:2px 8px;box-shadow:0 0 0 1px var(--line)}
 .az-ab{display:grid;grid-template-columns:1fr 1fr;gap:3px}
 .az-ab .az-ph{height:128px}
 .az-ab .az-ph.win{box-shadow:inset 0 -4px 0 var(--good)}

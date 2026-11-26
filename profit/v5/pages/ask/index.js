@@ -192,12 +192,12 @@ const CSS = `
 .lx-qa-list:empty{display:none}
 .lx-qa-a{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;min-width:0}
 .lx-qa-q{display:flex;justify-content:flex-end}
-.lx-qa-q span{max-width:min(640px,90%);padding:11px 16px;border-radius:16px 16px 4px 16px;background:var(--ink);color:var(--bg);font-size:14px;font-weight:550;line-height:1.4;overflow-wrap:anywhere}
+.lx-qa-q span{max-width:min(640px,90%);padding:11px 16px;border-radius:16px 16px 4px 16px;background:var(--ink);color:var(--bg);font-size:14px;font-weight:500;line-height:1.4;overflow-wrap:anywhere}
 .lx-qa-card{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--sp-6)}
 .lx-qa-say{display:flex;gap:14px;align-items:baseline}
 .lx-qa-say .by{flex:none;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--brand-ink)}
 .lx-qa-say .w{display:grid;gap:8px;font-size:15px;line-height:1.5;color:var(--ink-2);min-width:0;overflow-wrap:anywhere}
-.lx-qa-say b{color:var(--ink);font-weight:650;font-variant-numeric:tabular-nums}
+.lx-qa-say b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
 .lx-qa-a.err .lx-qa-say .w{color:var(--bad)}
 .lx-qa-chart{position:relative;min-width:0}
 .lx-qa-ct{font-size:14.5px;font-weight:600;letter-spacing:-.01em}

@@ -53,10 +53,12 @@ export const GLOSSARY = {
   call_hold: { name: 'Hold', definition: 'On target. Leave the budget where it is and check again at the next check-in.' },
   call_cut: { name: 'Cut', definition: 'Under break-even. Bring the budget down by the step shown.' },
   call_too_early: { name: 'Too early', definition: 'Not enough spend or time yet to judge. Check again at the next check-in.' },
-  call_numbers: { name: 'No read', definition: 'No call is made for this campaign right now: the sale has not started or has ended, the client runs the budget, or the store numbers could not be read. The numbers still show.' },
+  call_numbers: { name: 'No read', definition: 'No call is made for this campaign right now: the sale has not started or has ended, or the store numbers could not be read. The numbers still show.' },
+  call_client: { name: 'Client decides', definition: 'The client runs this budget, so Locus makes no call on it. The numbers still show; change it only when the client asks.' },
   call_reading: { name: 'Reading', definition: 'The earlier check-ins are still being read. The call shows once they are in, so a move is never suggested on half the numbers.' },
   call_done: { name: 'Done', definition: 'The budget was changed from this page or from the Slack check-in at this check-in.' },
   no_sales_read: { name: 'No sales read', definition: 'Triple Whale has no sales on record for this campaign, so its ROAS is not shown as a zero.' },
+  no_store_roas: { name: 'No read', definition: 'This brand has no store connected to Triple Whale, so there are no sales to credit and no ROAS to read. Spend and budgets still show.' },
   too_little_spend: { name: 'Too little spend', definition: 'The campaign spent too little in this window for its ROAS to mean anything yet.' },
   pace: { name: 'Pace', definition: 'Spent today against the share of the daily budget the hours so far would use. 100% is right on pace; under it, the campaign is not spending what it is given.' },
   link_clicks: { name: 'Link clicks', definition: 'Clicks on the ad that went to the website this week.', source: 'Meta' },
@@ -113,7 +115,13 @@ const ALIAS = {
 };
 /** Plain words: never a definition, whatever key a page passes (decision 2). Keys after norm and ALIAS. */
 export const STOPLIST = new Set(['sales', 'ad_spend', 'spend', 'orders', 'today', 'yesterday', 'this_week', 'budget', 'budget_a_day', 'clicks', 'link_clicks', 'impressions', 'customers', 'revenue']);
-const stopped = key => { if (!key || typeof key === 'object') return false; const k = norm(key); return STOPLIST.has(k) || STOPLIST.has(ALIAS[k]); };
+const stopWord = v => { const k = norm(v); return !!k && (STOPLIST.has(k) || STOPLIST.has(ALIAS[k])); };
+/* a plain word stays plain: a key on the list, or an object definition whose name is a plain word ("Sales") */
+const stopped = (key, text) => {
+  if (!key) return false;
+  if (typeof key === 'object') return stopWord(key.name) || (typeof text === 'string' && stopWord(text));
+  return stopWord(key);
+};
 const norm = k => String(k == null ? '' : k).trim().toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 /** The local entry for a key, at once: { name, definition, formula?, source? } or null. */
 export function glossaryFor(key) {
@@ -212,7 +220,7 @@ function mark(node, d) {
 export function defined(node, key) {
   if (!node) return node;
   /* a plain word stays plain text (an explicit (i) button still explains it) */
-  if (stopped(key) && !node.classList.contains('lx-info')) return node;
+  if (stopped(key, node.textContent) && !node.classList.contains('lx-info')) return node;
   const local = glossaryFor(key);
   if (local) mark(node, local);
   if (!(key && typeof key === 'object') && !SAMPLE) engineFor(key).then(d => { if (d) mark(node, d); }, () => {});

@@ -54,7 +54,7 @@ const CSS = `
 .gg-camps .lx-table td{white-space:nowrap}
 .gg-camps td.name{min-width:220px;max-width:320px}
 .gg-cn{display:flex;align-items:center;gap:8px;min-width:0}
-.gg-cn b{font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.gg-cn b{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .gg-ctype{display:flex;align-items:center;gap:8px;margin-top:2px;font-size:12px;color:var(--muted)}
 .gg-more-cols{display:flex;justify-content:flex-end;padding:10px 24px 14px}
 .gg-sh{display:grid;gap:16px}.gg-sh .g{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
@@ -84,8 +84,8 @@ a.gg-wait:hover{background:var(--bg-sunk)}
 .gg-sw.g{background:var(--line-strong)}
 .gg-terms .lx-table td{white-space:normal}
 .gg-terms .lx-table td.num{white-space:nowrap}
-.gg-terms tr:has(.gg-th) td{background:var(--band);font-weight:650}
-.gg-th{font-weight:650}
+.gg-terms tr:has(.gg-th) td{background:var(--band);font-weight:600}
+.gg-th{font-weight:600}
 .gg-th small{margin-left:10px;font-size:12.5px;font-weight:400;color:var(--muted)}
 .gg-term{padding-left:16px;display:block}
 .gg-flag{display:block;margin-top:2px}
@@ -116,12 +116,12 @@ a.gg-wait:hover{background:var(--bg-sunk)}
 .gg-chg{display:flex;align-items:flex-start;gap:14px;padding:6px 0;min-width:0}
 .gg-chg .lx-pill{flex:none;min-width:74px;justify-content:center;margin-top:1px}
 .gg-chg .tx{min-width:0;flex:1}
-.gg-chg .tx b{display:block;font-size:14.5px;font-weight:550;overflow-wrap:anywhere}
+.gg-chg .tx b{display:block;font-size:14.5px;font-weight:500;overflow-wrap:anywhere}
 .gg-chg .tx span{display:block;font-size:12.5px;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
 .gg-chg .ba{flex:none;text-align:right;font-size:12px;color:var(--muted);line-height:1.35;font-variant-numeric:tabular-nums}
 .gg-chg .ba b{display:block;font-size:14.5px;font-weight:600;color:var(--ink)}
 .gg-more{border-top:1px solid var(--line);padding-top:14px;margin-top:6px}
-.gg-more summary{cursor:pointer;font-size:13.5px;font-weight:550;color:var(--ink-2)}
+.gg-more summary{cursor:pointer;font-size:13.5px;font-weight:500;color:var(--ink-2)}
 .gg-more .gg-chg .tx b{font-weight:450;font-size:13.5px}
 .gg-rules{margin:0;padding-left:20px;display:grid;gap:6px;font-size:14px;color:var(--ink-2)}
 .gg-strip{display:flex;align-items:center;gap:16px;padding:18px 22px;border-radius:18px;background:var(--band)}

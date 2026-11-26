@@ -66,7 +66,7 @@ const CSS = `
 .wr3{display:grid;gap:var(--sp-6);min-width:0}
 /* this page says when it checked in its own toolbar, so the shell's "updated" stamp is hidden and the head sits closer */
 .lx-page:has(.wr3){row-gap:16px}
-.lx-page:has(.wr3) .lx-asof-slot,.lx-page:has(.wr3) .lx-head-tools{display:none}
+.lx-page:has(.wr3) .lx-head-tools{display:none}
 .wr3-menu{min-width:200px}
 .wr3-menu .lx-item[disabled]{opacity:.5;cursor:default}
 .wr3-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;min-width:0}
@@ -91,7 +91,8 @@ const CSS = `
 .wr3-hk.lean{grid-template-columns:minmax(0,1fr)}
 .wr3-hk>div{display:grid;gap:6px;min-width:0;align-content:start}
 .wr3-hk .big .lx-hero-num{line-height:1}
-.wr3-scope{display:inline-flex;align-items:center;min-height:22px;padding:0 8px;border-radius:999px;background:var(--surface-2);font-size:12px;color:var(--ink-2);white-space:nowrap;margin-left:4px}
+/* which brands count: plain words after the percent (dotted, its meaning on hover), never a chip */
+.wr3-scope{display:inline;font-size:var(--fs-small,12.5px);color:var(--muted);white-space:nowrap;margin-left:6px}
 .wr3-hk .big{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .wr3-hk .scope{font-size:12px;color:var(--muted)}
 .wr3-hk .of{font-size:13.5px;color:var(--muted);font-variant-numeric:tabular-nums}
@@ -100,7 +101,7 @@ const CSS = `
 .wr3-prog{position:relative;height:8px;border-radius:999px;background:var(--bg-sunk);overflow:hidden}
 .wr3-prog i{position:absolute;left:0;top:0;bottom:0;width:var(--v,0%);border-radius:999px;background:var(--grad)}
 .wr3-ph{display:grid;grid-template-columns:var(--cols);gap:4px;min-width:0}
-.wr3-ph>button{display:grid;gap:6px;min-width:0;padding:4px 2px;border:0;background:none;text-align:left;cursor:default;border-radius:8px}
+.wr3-ph>button{display:grid;gap:6px;min-width:0;padding:4px 2px;border:0;background:none;text-align:left;cursor:default;border-radius:var(--r-chip,6px)}
 .wr3-ph>button:hover,.wr3-ph>button:focus-visible{background:var(--row-hover)}
 .wr3-ph i{display:block;height:6px;border-radius:999px;background:var(--bg-sunk);position:relative}
 .wr3-ph .done i{background:var(--faint);opacity:.45}
@@ -149,7 +150,7 @@ const CSS = `
 .wr3-tile .hd{display:flex;align-items:baseline;justify-content:space-between;gap:8px;min-width:0}
 .wr3-tile .hd b{font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .wr3-tile .hd small{font-size:12px;color:var(--muted);white-space:nowrap}
-.wr3-tile .mer{font-size:var(--num-l);font-weight:650;letter-spacing:-.03em;line-height:1.15;font-variant-numeric:tabular-nums;margin:2px 0 4px}
+.wr3-tile .mer{font-size:var(--num-l);font-weight:600;letter-spacing:-.03em;line-height:1.15;font-variant-numeric:tabular-nums;margin:2px 0 4px}
 .wr3-tile .mer small{font-size:12px;font-weight:400;letter-spacing:0;color:var(--muted);margin-left:6px}
 .wr3-tile .ln{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;min-width:0}
 .wr3-tile .ln span:first-child{color:var(--muted)}
@@ -169,7 +170,7 @@ const CSS = `
 .wr3-amber{margin:0;color:var(--warn);background:var(--warn-bg);border-radius:var(--r-btn);padding:8px 12px;font-size:12.5px;line-height:1.45}
 /* the campaigns: a row per campaign that opens in place to its ad sets and ads */
 .wr3-cl{--cg:minmax(0,1fr) 84px 80px 66px 66px 66px 124px 156px;display:grid;border:1px solid var(--line);border-radius:var(--r-tbl);overflow:hidden;container:wr3cl / inline-size;min-width:0;background:var(--surface)}
-.wr3-cr{display:grid;grid-template-columns:var(--cg);gap:10px;align-items:center;padding:0 14px 0 6px;min-height:54px;border-top:1px solid var(--line);font-size:13px;min-width:0}
+.wr3-cr{display:grid;grid-template-columns:var(--cg);gap:10px;align-items:center;padding:0 14px 0 6px;min-height:54px;border-top:1px solid var(--line);font-size:var(--fs-table);min-width:0}
 .wr3-cr.hd{min-height:0;padding-top:8px;padding-bottom:6px;font-size:var(--fs-colhead);font-weight:600;color:var(--muted);border-top:0;align-items:end}
 .wr3-cr.hd>span{line-height:1.25;min-width:0}
 .wr3-cr.grp{min-height:0;padding-top:8px;padding-bottom:0;border-top:0;font-size:11.5px;color:var(--faint);font-weight:600}
@@ -193,7 +194,7 @@ const CSS = `
 .wr3-cn .sub{display:none}
 .wr3-cr .r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wr3-cr .c-call{display:flex;min-width:0}
-.wr3-cbtn{border:0;font:inherit;font-size:var(--fs-meta,12px);font-weight:550;cursor:pointer;max-width:100%}
+.wr3-cbtn{border:0;font:inherit;font-size:var(--fs-meta,12px);font-weight:500;cursor:pointer;max-width:100%}
 .wr3-cbtn:hover,.wr3-cbtn:focus-visible{filter:brightness(.95)}
 .wr3-cr .c-act{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:4px 10px;min-width:0}
 .wr3-cl-foot{padding:8px 14px 10px;font-size:12px;color:var(--faint);border-top:1px solid var(--line);line-height:1.45}
@@ -231,7 +232,7 @@ const CSS = `
 .wr3-sh{display:grid;gap:var(--sp-4)}
 .wr3-sh .call{display:grid;gap:4px}
 .wr3-sh .call b{font-size:17px;letter-spacing:-.015em}
-.wr3-sh h4{margin:0;font-size:14px;font-weight:650;letter-spacing:-.01em}
+.wr3-sh h4{margin:0;font-size:14px;font-weight:600;letter-spacing:-.01em}
 .wr3-sh dl{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:8px 14px;margin:0;font-size:13.5px}
 .wr3-sh dt{color:var(--muted);overflow-wrap:anywhere}
 .wr3-sh dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;text-align:right}
@@ -664,10 +665,13 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
   const merTone = (mer, c) => !ok(mer) || !ok(c.goal) ? '' : mer >= c.goal ? 'good' : ok(c.be) && mer < c.be ? 'bad' : 'warn';
   const roasTone = (w, c) => !w || !w.readable || !c.roas || !ok(c.roas.goal) ? '' : w.roas >= c.roas.goal ? 'good' : ok(c.roas.be) && w.roas < c.roas.be ? 'bad' : '';
   const tcls = t => t ? t + '-t' : null;
-  const roasTxt = w => !w ? (S.probing ? '...' : 'n/a') : w.readable ? fx(w.roas) : w.no_tw ? 'no sales read' : 'too little spend';
+  /* a brand with no store connected never has a ROAS: it reads "no read", never a waiting ellipsis */
+  const roasTxt = (w, c) => c && c.mode === 'no_sales' ? 'no read' : !w ? (S.probing ? 'reading' : 'n/a') : w.readable ? fx(w.roas) : w.no_tw ? 'no sales read' : 'too little spend';
   /** The ROAS cell: the number, or the reason there is none, with its meaning on hover or tap. */
   const roasCell = (w, c) => {
-    const t = roasTxt(w);
+    const t = roasTxt(w, c);
+    if (c && c.mode === 'no_sales') return defLabel(t, 'no_store_roas', { class: 'dim' });
+    if (!w) return h('span', { class: 'dim' }, t);
     if (w && !w.readable) return defLabel(t, w.no_tw ? 'no_sales_read' : 'too_little_spend', { class: 'dim' });
     return h('span', { class: tcls(roasTone(w, c)) }, t);
   };
@@ -687,6 +691,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     if (cp.move && S.probing) return 'Reading';
     if (cp.move) return cp.call === 'putback' ? CALL_WORD.putback : `${cp.move.to > cp.move.from ? 'Raise' : 'Cut'} ${Math.abs(Math.round(cp.move.pct * 100))}%`;
     if (aboMove(c, cp)) return aboMove(c, cp) > 0 ? 'Raise the ad sets' : 'Cut the ad sets';
+    if (c.mode === 'watch') return 'Client decides';
     if (c.mode !== 'live' || !c.gate.light) return 'No read';
     if (cp.early) return 'Too early';
     return CALL_WORD[cp.call] || 'Hold';
@@ -701,6 +706,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     if (w === 'Done') return 'call_done';
     if (w === 'Reading') return 'call_reading';
     if (w === 'No read') return 'call_numbers';
+    if (w === 'Client decides') return 'call_client';
     if (w === 'Too early') return 'call_too_early';
     return CALL_KEY[cp.call] || 'call_hold';
   }
@@ -772,7 +778,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
   }
   function fillSpark(c, host) {
     const w = S.hourCache[c.act], hs = w ? hourSeries([w]) : null;
-    const head = h('div', { class: 'lx-chart-h' }, h('span', { class: 'wr3-lab' }, 'Today by the hour, whole store · Triple Whale'), hs ? hourLegend(hs) : null);
+    const head = h('div', { class: 'lx-chart-h' }, h('span', { class: 'wr3-lab' }, c.mode === 'no_sales' ? 'Ad spend by the hour · Meta' : 'Today by the hour, whole store · Triple Whale'), hs ? hourLegend(hs) : null);
     if (hs) return put(host, head, hourChart(hs, { height: 128, phoneHeight: 120, axis: false, windowLabel: 'Hourly, 12am to now, Central time', ticks: [0, Math.min(6, hs.sales.length - 1), Math.min(12, hs.sales.length - 1), hs.sales.length - 1].filter((v, i, a) => a.indexOf(v) === i), label: `${c.name}: sales and ad spend by the hour today` }));
     const msg = S.hourErr[c.act] ? 'Today by the hour did not load: ' + S.hourErr[c.act] : w ? 'No sales or spend yet today.' : 'Reading today by the hour...';
     put(host, head, h('p', { class: 'wr3-quiet' }, msg));
@@ -830,7 +836,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     const toggle = () => writeSheet(ctx, { act: c.act, brand: c.name, level: 'campaign', object: cp.id, name: cp.name, kind: on ? 'pause' : 'resume',
       why: on ? 'Turning a campaign off stops every ad set and ad in it.' : null,
       onDone: r => { T.local.status[cp.id] = r.status; draw(); }, onUndo: () => { delete T.local.status[cp.id]; draw(); } });
-    const sub = [daily ? money(daily) + ' a day' : 'Ad set budgets', money(cp.spent) + ' spent today', 'ROAS today ' + roasTxt(cp.w.today), 'this week ' + roasTxt(cp.w.week)].join(' · ');
+    const sub = [daily ? money(daily) + ' a day' : 'Ad set budgets', money(cp.spent) + ' spent today', 'ROAS today ' + roasTxt(cp.w.today, c), 'this week ' + roasTxt(cp.w.week, c)].join(' · ');
     const row = h('div', { class: 'wr3-cr row' + (open ? ' open' : '') },
       h('span', { class: 'wr3-cn' },
         h('button', { type: 'button', class: 'wr3-exp', 'aria-expanded': String(open), 'aria-label': `${open ? 'Close' : 'Open'} the ad sets in ${cp.name}`, onclick: flip }, h('i', { 'aria-hidden': 'true' })),
@@ -854,14 +860,18 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     treeCss();
     const since = sinceWord(c);
     const callHead = defLabel('Call', c.roas && ok(c.roas.be) ? { title: 'The call', body: `${glossaryFor('calls').definition} This brand's break-even ROAS: ${fx(c.roas.be)}${c.roas.assumed ? `, ${assumedWhy(c.roas)}` : ''}.` } : 'calls');
+    const noSales = c.mode === 'no_sales';
     return h('div', { class: 'wr3-cl' },
-      h('div', { class: 'wr3-cr grp', 'aria-hidden': 'true' }, h('span', null, h('span', { class: 'full' }, 'ROAS, Triple Whale last click'), h('span', { class: 'short' }, 'ROAS (Triple Whale)'))),
+      /* no store connected: no Triple Whale ROAS, so no Triple Whale header over the columns */
+      h('div', { class: 'wr3-cr grp', 'aria-hidden': 'true' }, h('span', null, noSales ? h('span', null, 'ROAS, no store connected')
+        : [h('span', { class: 'full' }, 'ROAS, Triple Whale last click'), h('span', { class: 'short' }, 'ROAS (Triple Whale)')])),
       h('div', { class: 'wr3-cr hd' },
         h('span', { style: { paddingLeft: '36px' } }, 'Campaign'), h('span', { class: 'r c-bud' }, 'Budget a day'), h('span', { class: 'r c-spent' }, 'Spent today'),
         h('span', { class: 'r c-since' }, since ? `Since ${since}` : 'Since check-in'), h('span', { class: 'r c-today' }, 'Today'), h('span', { class: 'r c-week' }, 'This week'),
         h('span', { class: 'c-call' }, callHead), h('span', { class: 'r c-act' }, '')),
       c.camps.length ? c.camps.flatMap(cp => campRow(c, cp)) : h('p', { class: 'wr3-quiet', style: { padding: '12px 14px' } }, 'No live campaign in Meta.'),
-      h('p', { class: 'wr3-cl-foot' }, 'Budgets and spend are Meta. ROAS is Triple Whale last click: the sales it credits to the campaign over the campaign\'s own spend. Open a campaign for its ad sets and ads.'));
+      h('p', { class: 'wr3-cl-foot' }, noSales ? 'Budgets and spend are Meta. No store is connected, so there is no ROAS to read. Open a campaign for its ad sets and ads.'
+        : 'Budgets and spend are Meta. ROAS is Triple Whale last click: the sales it credits to the campaign over the campaign\'s own spend. Open a campaign for its ad sets and ads.'));
   }
 
   function brandCard(c) {
@@ -889,7 +899,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
             tile(c.windows.since, c, sinceHead, c.basis ? `to ${at}` : null, S.probing ? 'Reading the earlier check-in' : 'No earlier check-in today'),
             tile(c.windows.today, c, 'Today', `12am to ${at}`),
             tile(c.windows.week, c, 'This week', `Mon to ${at}`)),
-          h('span', { class: 'lx-srcline' }, 'Whole store, Central time · Triple Whale')),
+          h('span', { class: 'lx-srcline' }, c.mode === 'no_sales' ? 'Ad spend, Central time · Meta' : 'Whole store, Central time · Triple Whale')),
         one ? null : sparkFor(c)),            // one brand: the hero above already draws its today by the hour
       callLines(c),
       warns.map(t => h('p', { class: 'wr3-amber' }, t)),
@@ -929,8 +939,8 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
             h('button', { type: 'button', class: 'br', onclick: () => jumpToCard(c.act), 'aria-label': `Show ${c.name} on this page` }, c.name),
             h('span', { class: 'dec' }, decisionText(cp)),
             h('div', { class: 'wr3-chips' },
-              h('span', null, sinceRoasLabel(since), h('b', null, roasTxt(cp.w.since))),
-              h('span', null, defLabel('ROAS today', 'roas'), h('b', null, roasTxt(cp.w.today))),
+              h('span', null, sinceRoasLabel(since), h('b', null, roasTxt(cp.w.since, c))),
+              h('span', null, defLabel('ROAS today', 'roas'), h('b', null, roasTxt(cp.w.today, c))),
               c.roas && ok(c.roas.goal) ? h('span', null, defLabel('Goal ROAS', { title: 'Goal ROAS', body: 'The ROAS this brand asks of each campaign. Set in Brand settings > Goals.' }), h('b', null, fx(c.roas.goal))) : null,
               h('span', null, defLabel('Store MER today', 'mer'), h('b', null, fx(c.windows.today.mer)))),
             why ? h('p', { class: 'why' }, why) : null),

@@ -43,16 +43,16 @@ export const BRAND_MENU = [
   ] },
   { group: 'Ads', lines: [
     { id: 'platforms', label: 'All platforms', icon: 'grid', who: 'all', tabs: [
-      t('side-by-side', 'Side by side', 'channels'), t('live-now', 'Live now'), t('changes', 'Changes made', 'changes')] },
+      t('side-by-side', 'Side by side', 'channels'), t('live-now', 'Live now'), t('changes', 'Changes', 'changes')] },
     { id: 'meta', label: 'Meta', icon: 'meta', who: 'all', tabs: [
-      t('overview', 'Overview', 'meta'), t('live-now', 'Live now', 'mtoday'), t('top-ads', 'Top ads', 'adcreative'),
-      t('suggestions', 'Suggestions', 'buyer', true), t('load-ads', 'Load ads', 'launch', true), t('changes', 'Changes made', 'changes')] },
+      t('overview', 'Overview', 'meta'), t('live-now', 'Live now', 'mtoday'), t('top-ads', 'Best ads', 'adcreative'),
+      t('suggestions', 'Suggestions', 'buyer', true), t('load-ads', 'Load ads', 'launch', true), t('changes', 'Changes', 'changes')] },
     { id: 'google', label: 'Google', icon: 'google', who: 'all', tabs: [
       t('overview', 'Overview', 'google'), t('search-terms', 'Search terms', 'gterms'), t('products-ads', 'Products and creative', 'gads'),
-      t('suggestions', 'Suggestions', null, true), t('changes', 'Changes made', 'gchanges')] },
+      t('suggestions', 'Suggestions', null, true), t('changes', 'Changes', 'gchanges')] },
     { id: 'tiktok', label: 'TikTok', icon: 'tiktok', who: 'all', tabs: [
-      t('overview', 'Overview', 'tiktok'), t('live-now', 'Live now'), t('top-videos', 'Top videos'),
-      t('suggestions', 'Suggestions', null, true), t('changes', 'Changes made')] },
+      t('overview', 'Overview', 'tiktok'), t('live-now', 'Live now'), t('top-videos', 'Best videos'),
+      t('suggestions', 'Suggestions', null, true), t('changes', 'Changes')] },
     { id: 'amazon', label: 'Amazon', icon: 'amazon', who: 'all', tabs: [
       t('overview', 'Overview'), t('search', 'Search terms'), t('products', 'Products'), t('creative', 'Creative')] },
   ] },
@@ -102,7 +102,7 @@ export const AGENCY_MENU = [
     { id: 'a-month', label: 'This month', icon: 'month', who: 'team', tabs: [t('pace', 'Pace', 'month'), t('profit', 'Profit', 'profit')] },
   ] },
   { group: 'Ads', lines: [
-    { id: 'a-platforms', label: 'All platforms', icon: 'grid', who: 'team', tabs: [t('side-by-side', 'Side by side', 'channels'), t('changes', 'Changes made', 'changes')] },
+    { id: 'a-platforms', label: 'All platforms', icon: 'grid', who: 'team', tabs: [t('side-by-side', 'Side by side', 'channels'), t('changes', 'Changes', 'changes')] },
     { id: 'a-meta', label: 'Meta', icon: 'meta', who: 'team', tabs: [t('suggestions', 'Suggestions', 'buyer'), t('overview', 'Overview', 'meta'), t('load-ads', 'Load ads', 'launch')] },
     { id: 'a-google', label: 'Google', icon: 'google', who: 'team', tabs: [t('suggestions', 'Suggestions'), t('overview', 'Overview', 'google'), t('search-terms', 'Search terms', 'gterms')] },
   ] },

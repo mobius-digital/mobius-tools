@@ -99,7 +99,7 @@ function groups(rep, ctx) {
       sub: hasSales ? was(p.aov, v => money(v, { cur })) : null }),
   ];
   const ads = [
-    tile({ label: 'Ad spend', value: ok(t.spend) ? t.spend : 'no data', unit: 'money', cur, source: PLATFORMS, lead: false,
+    tile({ label: 'Ad spend', value: ok(t.spend) ? t.spend : 'no data', unit: 'money', cur, source: PLATFORMS,
       sub: [delta(change(t.spend, p.spend), { plain: true }), vs], spark: spark(r => r.spend) }),
     tile({ label: defLabel('Store MER', 'mer'), value: hasSales && ok(t.mer) ? t.mer : 'no data', unit: 'x', source: TW,
       sub: hasSales ? was(p.mer, x) : null }),
@@ -130,13 +130,13 @@ function platformsOf(rep) {
   const rows = rep.platforms || [], cur = rep.currency;
   if (!rows.length && !rep.amazon) return null;
   const tbl = rows.length ? h('div', { class: 'lx-table-wrap rp-tbl' }, h('table', { class: 'lx-table rp-plat' },
-    h('thead', null, h('tr', null, h('th', null, 'Platform'), h('th', { class: 'num' }, 'Spend'), h('th', { class: 'num' }, defLabel('Sales', PLAT_SALES_DEF)), h('th', { class: 'num' }, defLabel('ROAS', PLAT_ROAS_DEF)))),
+    h('thead', null, h('tr', null, h('th', null, 'Platform'), h('th', { class: 'num' }, 'Spend'), h('th', { class: 'num' }, 'Sales from its ads'), h('th', { class: 'num' }, defLabel('ROAS', PLAT_ROAS_DEF)))),
     h('tbody', null, rows.map(p => h('tr', null,
       h('td', null, platformChip(p.id, { label: p.label })), h('td', { class: 'num' }, money(p.spend, { cur })),
       p.waiting ? h('td', { class: 'num rp-q', colspan: 2 }, p.note || 'not credited yet')
         : p.low ? [h('td', { class: 'num' }, p.sales != null ? money(p.sales, { cur }) : ''), h('td', { class: 'num rp-q' }, 'too few orders to read')]
           : [h('td', { class: 'num' }, money(p.sales, { cur })), h('td', { class: 'num' }, x(p.roas))]))))) : null;
-  return h('section', { class: 'cr-sect' }, heading('By platform', null, span(rep.period_start, rep.period_end)),
+  return card({ title: 'By platform', note: span(rep.period_start, rep.period_end), class: 'rp-byp' },
     h('p', { class: 'rp-src' }, 'Spend from each platform. Sales and ROAS: Triple Whale, last platform click.'), tbl,
     rep.amazon ? h('p', { class: 'rp-note' }, 'Amazon: ' + money(rep.amazon.sales, { cur }) + ' in sales' + (rep.amazon.orders != null ? ' from ' + num(rep.amazon.orders) + ' orders.' : '.')) : null);
 }
@@ -146,8 +146,8 @@ function chartOf(rep, pickAt) {
   if (days.length < 2) return null;
   const cur = rep.currency, labels = days.map(r => dayLabel(rep, r.date));
   const hasSales = days.some(r => r.sales > 0);
-  return h('section', { class: 'cr-sect' },
-    h('div', { class: 'lx-chart-h' }, h('h3', null, 'Day by day'), legend([hasSales ? { name: 'Sales', lead: true } : null, { name: 'Ad spend' }].filter(Boolean))),
+  return card({ class: 'rp-dbd' },
+    h('div', { class: 'lx-chart-h' }, h('div', { class: 'lx-sec' }, h('h3', null, 'Day by day')), legend([hasSales ? { name: 'Sales', lead: true } : null, { name: 'Ad spend' }].filter(Boolean))),
     lineChart({
       series: [hasSales ? { name: 'Sales', values: days.map(r => r.sales), lead: true, points: rep.period === 'weekly' } : null,
         { name: 'Ad spend', values: days.map(r => r.spend), points: rep.period === 'weekly' }].filter(Boolean),
@@ -160,15 +160,18 @@ function chartOf(rep, pickAt) {
     h('p', { class: 'rp-src' }, 'Sales: Triple Whale. Ad spend: every ad platform added together.'));
 }
 
-/** Best ads: equal cards (square picture, two line name, the same two numbers), each opens the shared ad detail. */
+/** Best ads: equal cards (square picture showing the whole ad, two line name, Spend, Sales, ROAS: the same core
+    cells as Home and Meta), each opens the shared ad detail. */
 function adsOf(rep, ctx) {
   const ads = rep.ads || [];
   if (!ads.length) return null;
   const cur = rep.currency;
   const win = { from: rep.period_start, to: rep.period_end, label: span(rep.period_start, rep.period_end) };
+  /* the card's own numbers go with it, so the detail never reads a different cost per sale than the card implies */
   const open = a => openAdDetail(ctx, {
     id: a.id, name: a.name, thumb: a.thumb, media_type: a.video ? 'video' : 'image', spend: a.spend,
-    roas: a.roas, revenue: a.roas != null && a.spend ? a.roas * a.spend : null,
+    roas: a.roas, revenue: a.revenue != null ? a.revenue : a.roas != null && a.spend ? a.roas * a.spend : null,
+    purchases: a.purchases, cpa: a.cpa, lc_orders: a.purchases,
   }, { act: ctx.brand && ctx.brand.id, window: win, currency: cur });
   return h('section', { class: 'cr-sect' }, heading('Best ads', null, 'tap one to see it and its numbers'),
     h('div', { class: 'rp-ads' }, ads.map(a => h('article', { class: 'rp-ad', role: 'button', tabindex: '0', title: noDash(a.name), 'aria-label': 'Open the ad ' + noDash(a.name),
@@ -179,9 +182,10 @@ function adsOf(rep, ctx) {
         platformChip(a.platform || 'meta', { chip: true }),
         h('b', { class: 'rp-adn' }, noDash(a.name)),
         h('dl', { class: 'rp-adv' },
-          h('div', null, h('dt', null, 'Spend'), h('dd', null, money(a.spend, { cur }))),
+          h('div', null, h('dt', null, 'Spend'), h('dd', null, money(Math.round(a.spend || 0), { cur }))),
+          h('div', null, h('dt', null, 'Sales'), h('dd', null, a.revenue != null ? money(Math.round(a.revenue), { cur }) : 'not read')),
           h('div', null, h('dt', null, defLabel('ROAS', PLAT_ROAS_DEF)), h('dd', null, a.roas != null ? x(a.roas) : 'not read'))))))),
-    h('p', { class: 'rp-src' }, 'Spend: Meta. ROAS: Triple Whale, last platform click, ' + win.label + '.'));
+    h('p', { class: 'rp-src' }, 'Spend: Meta. Sales and ROAS: Triple Whale, last platform click, ' + win.label + '.'));
 }
 
 /** Where the "This week" lines came from, in plain words. */
@@ -201,7 +205,6 @@ function plansOf(rep, ctx) {
 
 /* Platform and ad numbers: what each column counts (the overlap note lives here, not in a footer). */
 const AMER_DEF = { name: 'New customer MER', definition: 'Sales from first time buyers divided by all ad spend in the period.', formula: 'New customer sales / Ad spend', source: 'Triple Whale' };
-const PLAT_SALES_DEF = { name: 'Sales (platform)', definition: 'The sales Triple Whale credits to this platform on the last platform click. A shopper can touch more than one platform, so these add up to more than the store\'s sales.', source: 'Triple Whale, last platform click' };
 const PLAT_ROAS_DEF = { name: 'ROAS', definition: 'One platform or one ad: the sales Triple Whale credits to it (last platform click) divided by what it spent. Store-wide efficiency is Store MER, not ROAS. Platform sales overlap, so they add up to more than the store\'s sales.', formula: 'Attributed sales / Spend', source: 'Triple Whale, last platform click' };
 
 /** The period before a report: the week before, or the month before. */
@@ -431,8 +434,6 @@ select.rp-sel{height:36px;min-width:220px;max-width:100%;padding:0 32px 0 12px;b
 .rp-card .lx-sec .act{margin-left:auto}
 .rp-src{margin:var(--gap-2,8px) 0 0;font-size:var(--fs-small,12.5px);line-height:var(--lh-body,1.5);color:var(--muted)}
 .rp-src-top{margin:var(--gap-1,4px) 0 var(--gap-4,16px)}
-/* one card title size on the page (14/600): How we read it, This week, We need from you, the day card, the groups */
-.rp-card .lx-sec h3,.rp-plan .lx-sec h3,.rp-day .lx-sec h3{font-size:var(--fs-card,14px);font-weight:600;line-height:var(--lh-head,1.25)}
 .rp-read{display:grid;gap:var(--gap-3,12px);max-width:72ch}
 .rp-p{margin:0;font-size:var(--fs-body,14px);line-height:1.6;color:var(--ink)}
 .rp-ul{margin:0;padding-left:20px;display:grid;gap:var(--gap-2,8px);font-size:var(--fs-body,14px);line-height:var(--lh-body,1.5);color:var(--ink)}
@@ -472,12 +473,13 @@ textarea.rp-ta{min-height:200px;font-size:var(--fs-body,14px);line-height:1.6;wi
 .rp-ad{display:flex;flex-direction:column;min-width:0;height:100%;border-radius:var(--r-card,16px);background:var(--surface,#fff);box-shadow:var(--sh-1);overflow:hidden;cursor:pointer;user-select:none;transition:box-shadow var(--t,.15s) var(--ease,ease),transform var(--t,.15s) var(--ease,ease)}
 .rp-ad:hover{box-shadow:var(--sh-2,var(--sh-1));transform:translateY(-1px)}
 .rp-ad:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+/* the same media as the Meta cards: square, the whole ad shown on the sunk background (1:1, 4:5 and 9:16 never cropped) */
 .rp-pic{flex:none;aspect-ratio:1/1;background:var(--bg-sunk);display:grid;place-items:center;color:var(--muted);font-size:var(--fs-small,12.5px);position:relative;overflow:hidden}
-.rp-pic img{width:100%;height:100%;object-fit:cover;display:block}
+.rp-pic img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center top;display:block}
 .rp-vid{position:absolute;left:10px;top:10px;padding:2px 8px;border-radius:var(--r-chip,6px);background:rgba(0,0,0,.6);color:#fff;font-size:var(--fs-small,12.5px);font-weight:600}
 .rp-adb{flex:1;display:flex;flex-direction:column;align-items:flex-start;gap:var(--gap-2,8px);padding:var(--gap-3,12px) var(--gap-4,16px) var(--gap-4,16px);min-width:0}
 .rp-adn{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:calc(2 * 1.35em);font-size:var(--fs-card,14px);font-weight:600;line-height:1.35;color:var(--ink);overflow-wrap:anywhere}
-.rp-adv{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap-3,12px);width:100%;margin:auto 0 0;padding-top:var(--gap-3,12px);border-top:1px solid var(--line)}
+.rp-adv{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--gap-3,12px);width:100%;margin:auto 0 0;padding-top:var(--gap-3,12px);border-top:1px solid var(--line)}
 .rp-adv div{display:grid;gap:2px;min-width:0}
 .rp-adv dt{font-size:var(--fs-small,12.5px);color:var(--muted)}
 .rp-adv dd{margin:0;font-size:var(--num-s,14px);font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
@@ -485,9 +487,11 @@ textarea.rp-ta{min-height:200px;font-size:var(--fs-body,14px);line-height:1.6;wi
 .rp-loading{display:grid;gap:var(--gap-4,16px)}
 .rp-every .cr-row.sel{box-shadow:inset 3px 0 0 var(--brand);background:var(--row-hover)}
 .rp-every .cr-row.click:hover{background:var(--row-hover)}
+/* phone: the selected row keeps its words and status off the orange bar */
+@media (max-width:759px){.rp-every .cr-row.sel{padding-left:14px;padding-right:10px;border-radius:var(--r-chip,6px)}.rp-every .cr-row.sel .cr-cell{padding-left:0}}
 .rp-day .lx-kpis{gap:var(--gap-4,16px)}
 
-@media (max-width:759px){.rp-skip{margin-left:0;width:100%}.rp-skip .lx-btn{width:100%}.rp-acts .lx-btn{min-height:44px;flex:1 1 auto}.rp-title{font-size:var(--fs-section,17px)}.rp-ctrl{gap:var(--gap-2,8px)}.rp-ctrl .lx-seg{width:100%}.rp-ctrl .lx-seg button{flex:1;min-width:0}.rp-per{width:100%}select.rp-sel{flex:1;min-width:0}.rp-grp{padding:var(--gap-3,12px) var(--gap-4,16px) var(--gap-1,4px)}.rp-ads{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--gap-3,12px)}.rp-adb{padding:var(--gap-2,8px) var(--gap-3,12px) var(--gap-3,12px)}.rp-head{padding:var(--gap-4,16px);border-radius:var(--r-card,16px)}}`;
+@media (max-width:759px){.rp-skip{margin-left:0;width:100%}.rp-skip .lx-btn{width:100%}.rp-acts .lx-btn{min-height:44px;flex:1 1 auto}.rp-title{font-size:var(--fs-section,17px)}.rp-ctrl{gap:var(--gap-2,8px)}.rp-ctrl .lx-seg{width:100%}.rp-ctrl .lx-seg button{flex:1;min-width:0}.rp-per{width:100%}select.rp-sel{flex:1;min-width:0}.rp-grp{padding:var(--gap-3,12px) var(--gap-4,16px) var(--gap-1,4px)}.rp-ads{grid-template-columns:minmax(0,1fr);gap:var(--gap-3,12px)}.rp-ad{display:grid;grid-template-columns:112px minmax(0,1fr)}.rp-pic{aspect-ratio:auto;min-height:112px;height:100%}.rp-pic img{object-position:center}.rp-adb{padding:var(--gap-2,8px) var(--gap-3,12px) var(--gap-3,12px)}.rp-adn{min-height:0}.rp-head{padding:var(--gap-4,16px);border-radius:var(--r-card,16px)}}`;
 
 /* ---------- the page ---------- */
 /* What the page keeps beside the data (never on it: the data object is the saved copy):
@@ -649,6 +653,7 @@ function draw(el, d, ctx) {
     ctx.askContext = (type === 'daily' ? 'Daily numbers for ' + short(pick.day || rep.period_end) + ' from the ' : '') + NAME[rep.period] + ' for ' + ctx.brand.name + ', ' + span(rep.period_start, rep.period_end) + '. '
       + (t.sales > 0 ? 'Sales ' + money(t.sales, { cur: rep.currency }) + ', ad spend ' + money(t.spend, { cur: rep.currency }) + ', store MER ' + x(t.mer) + ' (Triple Whale). ' : '')
       + (rep.status === 'sent' ? 'Sent to the client ' + dayOf(rep.sent_at) + '.' : 'Not sent yet; How we read it is ' + (((c.states[key] || {}).read || {}).status || 'not started') + '.');
+    ctx.askWindow = type === 'daily' ? short(pick.day || rep.period_end) : span(rep.period_start, rep.period_end);
   } else ctx.askContext = 'The Reports page for ' + ctx.brand.name + ': the weekly and monthly reports we send the client.';
 
   /* ---- every report: pick one in place ---- */
@@ -687,6 +692,7 @@ export default {
   title: (ctx) => ctx.isClient ? ['How did the ', em('last report read?')] : ['How do we ', em('read this one?')],
   eyebrow: 'Reports',
   ranges: false,                 /* a report is a fixed week or month: the period picker on the page chooses it */
+  stamp: false,                  /* the page draws its own "Updated" stamp with a refresh button beside the headline */
   async load(ctx) {
     const act = encodeURIComponent(ctx.brand.id);
     const list = await ctx.api('/api/reports?act=' + act, { worker: 'ah', signal: ctx.signal });

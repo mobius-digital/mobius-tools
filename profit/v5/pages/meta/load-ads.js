@@ -239,7 +239,7 @@ function loadSheet(r, ctx, loadable = true) {
         h('li', null, 'Every approved ad on the card goes into one ad set, in one go.'),
         h('li', null, 'The headline, the words and the link come from the brief. An ad with no headline in its brief is held back.'),
         h('li', null, 'Each ad goes in switched off. Nothing spends until someone turns it on.'),
-        h('li', null, 'The change is written to Changes made, with an undo.'))),
+        h('li', null, 'The change is written to Changes, with an undo.'))),
     h('section', null,
       loadable && canWrite(ctx) ? null : h('div', { class: 'la-box' }, h('b', null, loadable ? 'Loading is for the team' : 'Turning ads on still runs from old ' + APP_NAME + ' for now'),
         h('p', null, loadable ? 'You can see what is ready and where it would go. The team loads it.'

@@ -1,6 +1,7 @@
 /* PER-PERSON PREFERENCES (2026-10-11, session D). One settings row per person, `userPrefs:<email>`:
  *   { morning_dm: bool,                      the morning line as a Slack DM (morning.js)
- *     nudge: { <item key>: { state: 'snoozed' | 'done', until: ms } } }   the nudge card's Not now (24h) and Done
+ *     nudge: { <item key>: { state: 'snoozed' | 'done', until: ms } },  the nudge card's Not now (24h) and Done
+ *     home_tiles: [tile id] }               the Home tiles this person keeps (v5 Home, Edit tiles), max 16
  * Stored in the worker, never localStorage, so a snooze follows the person to every device. The client and the team
  * use the same routes; the email comes from the session (or the client scope), never from the body.
  *   GET /api/me/prefs            -> { email, prefs }
@@ -9,7 +10,7 @@
 const KEEP_MS = 7 * 86400e3;
 const keyOf = email => `userPrefs:${String(email || '').trim().toLowerCase()}`;
 const clean = (p, now = Date.now()) => {
-  const out = { morning_dm: !!(p && p.morning_dm), nudge: {} };
+  const out = { morning_dm: !!(p && p.morning_dm), nudge: {}, home_tiles: Array.isArray(p && p.home_tiles) ? [...new Set(p.home_tiles.filter(id => typeof id === 'string' && /^[a-z0-9_.:-]{1,40}$/i.test(id)))].slice(0, 16) : [] };
   for (const [k, v] of Object.entries((p && p.nudge) || {})) {
     if (!v || !['snoozed', 'done'].includes(v.state) || !(+v.until > now - KEEP_MS)) continue;
     out.nudge[k] = { state: v.state, until: +v.until };
@@ -24,6 +25,7 @@ export async function prefsFor(env, email) {
 export async function updatePrefs(env, email, patch, now = Date.now()) {
   const cur = await prefsFor(env, email);
   if (patch && 'morning_dm' in patch) cur.morning_dm = !!patch.morning_dm;
+  if (patch && Array.isArray(patch.home_tiles)) cur.home_tiles = patch.home_tiles;
   if (patch && patch.nudge && typeof patch.nudge === 'object') {
     for (const [k, v] of Object.entries(patch.nudge)) {
       if (typeof k !== 'string' || k.length > 200) continue;

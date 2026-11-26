@@ -47,10 +47,10 @@
        --num-xl  the ONE hero number on a page (36px at most). Nothing on any page is bigger.
        --num-l   a kpi tile figure (26px at most)          --num-m  a figure inside a card, tile or sheet (20px)
        --num-s   a figure in a list or a small tile (16px)
-       --fs-body 14px text, --fs-cell 13px table cells, --fs-meta 12px notes, --fs-micro 11px caps labels
+       --fs-body 14px text, --fs-table 13px table text (rows, cells, list rows; --fs-cell is the old name for it), --fs-meta 12px notes, --fs-micro 11px caps labels
        --row-h 36px a table row (--row-h-roomy 48px), spacing on a 4px grid: --sp-4 16px inside, --sp-6 24px between */
   --num-xl:clamp(30px,27px + .5vw,34px); --num-l:clamp(22px,20px + .4vw,26px); --num-m:18px; --num-s:14px;
-  --fs-micro:11px; --fs-meta:12px; --fs-cell:13px; --fs-body:14px; --fs-h3:17px;
+  --fs-micro:11px; --fs-meta:12px; --fs-table:13px; --fs-cell:var(--fs-table); --fs-body:14px; --fs-h3:17px;
   /* the type scale (decision 6): page title 26/600, section title 17/600, card title 14/600, body 14/400,
      small 12.5 muted, column head 11.5/600 muted in sentence case. Headings 1.25 line height, body 1.5. */
   --fs-page:26px; --fs-section:17px; --fs-card:14px; --fs-small:12.5px; --fs-colhead:11.5px; --lh-head:1.25; --lh-body:1.5;
@@ -113,10 +113,10 @@ h1,h2,h3,p{margin:0}
 .lx-top .lx-mark{display:none}
 .lx-swatch{display:inline-block;width:16px;height:16px;border-radius:5px;background:var(--dot,var(--muted));flex:none}
 /* the brand marker in the switcher and the brand list: a small gray circle with the first letter, tokens only so it follows the theme */
-.lx-bmark{display:inline-grid;place-items:center;flex:none;width:20px;height:20px;border-radius:50%;background:var(--bg-sunk);box-shadow:inset 0 0 0 1px var(--line);color:var(--muted);font-size:11px;font-weight:650;line-height:1;letter-spacing:0}
+.lx-bmark{display:inline-grid;place-items:center;flex:none;width:20px;height:20px;border-radius:50%;background:var(--bg-sunk);box-shadow:inset 0 0 0 1px var(--line);color:var(--muted);font-size:11px;font-weight:600;line-height:1;letter-spacing:0}
 .lx-bmark .lx-ic,.lx-item .lx-bmark .lx-ic,.lx-switch .lx-bmark .lx-ic{width:11px;height:11px;color:var(--muted)}
 .lx-item.on .lx-bmark{background:var(--surface);color:var(--ink-2)}
-.lx-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:var(--r-chip);background:var(--bg-sunk);color:var(--muted);font-size:12px;font-weight:550;white-space:nowrap}
+.lx-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:var(--r-chip);background:var(--bg-sunk);color:var(--muted);font-size:12px;font-weight:500;white-space:nowrap}
 /* the assistant button: the one jewel. White pill, ember gem, a soft ember glow. */
 .lx-ask{display:inline-flex;align-items:center;gap:10px;height:38px;min-width:232px;padding:0 9px 0 6px;border-radius:999px;border:1.5px solid transparent;cursor:pointer;text-decoration:none;
   font-size:13px;font-weight:500;color:var(--ink-2);
@@ -128,7 +128,7 @@ h1,h2,h3,p{margin:0}
 .lx-gem{display:inline-flex;align-items:center;justify-content:center;flex:none;width:30px;height:30px;border-radius:50%;background:var(--grad);box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 6px 14px -6px rgba(255,100,30,.75)}
 .lx-gem .lx-ic{width:15px;height:15px;fill:#fff;stroke:#fff;stroke-width:1.2}
 .lx-gem.sm{width:22px;height:22px}.lx-gem.sm .lx-ic{width:11px;height:11px}
-.lx-avatar{display:inline-flex;align-items:center;justify-content:center;flex:none;width:34px;height:34px;border-radius:999px;background:var(--ink);color:#fff;font-weight:650;font-size:13px;overflow:hidden;border:0;padding:0;cursor:default}
+.lx-avatar{display:inline-flex;align-items:center;justify-content:center;flex:none;width:34px;height:34px;border-radius:999px;background:var(--ink);color:#fff;font-weight:600;font-size:13px;overflow:hidden;border:0;padding:0;cursor:default}
 button.lx-avatar{cursor:pointer}
 .lx-avatar img{width:100%;height:100%;object-fit:cover;display:block}
 .lx-bell{position:relative;width:34px;padding:0}
@@ -167,14 +167,14 @@ button.lx-avatar{cursor:pointer}
 /* tabs: sub pages across the top of a page */
 .lx-tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
 .lx-tabs::-webkit-scrollbar{display:none}
-.lx-tabs a{display:inline-flex;gap:6px;align-items:center;flex:none;padding:10px 12px;margin-bottom:-1px;font-size:13.5px;font-weight:550;color:var(--muted);text-decoration:none;white-space:nowrap}
+.lx-tabs a{display:inline-flex;gap:6px;align-items:center;flex:none;padding:10px 12px;margin-bottom:-1px;font-size:13.5px;font-weight:500;color:var(--muted);text-decoration:none;white-space:nowrap}
 .lx-tabs a:hover{color:var(--ink)}
 .lx-tabs a.on{color:var(--ink);font-weight:600;background:linear-gradient(90deg,var(--e1),var(--e3)) left bottom/100% 2.5px no-repeat}
 .lx-tabs .n{font-size:11.5px;font-weight:600;background:var(--bg-sunk);border-radius:999px;padding:0 7px;color:var(--ink-2)}
 .lx-tabs .lock{width:12px;height:12px;color:var(--faint)}
 .lx-team-tag{display:inline-flex;align-items:center;height:18px;padding:0 7px;margin-left:2px;border-radius:999px;background:var(--bg-sunk);color:var(--muted);font-size:10.5px;font-weight:600;letter-spacing:0;white-space:nowrap}
 .lx-seg{display:inline-flex;background:var(--bg-sunk);border-radius:var(--r-btn);padding:3px;gap:2px}
-.lx-seg button{padding:5px 11px;border:0;border-radius:7px;background:transparent;font-size:13px;font-weight:550;color:var(--muted);cursor:pointer}
+.lx-seg button{padding:5px 11px;border:0;border-radius:7px;background:transparent;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer}
 .lx-seg .on{background:#fff;color:var(--ink);box-shadow:0 0 0 1px rgba(28,20,10,.05),0 1px 3px rgba(28,20,10,.10)}
 
 /* phone tab bar (shown under 760px) */
@@ -182,7 +182,7 @@ button.lx-avatar{cursor:pointer}
 
 /* ---------- 4. buttons: one ember primary, everything else quiet ---------- */
 .lx-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:var(--ctl-h);padding:0 13px;border:0;border-radius:var(--r-btn);
-  font-size:13px;font-weight:550;line-height:1;white-space:nowrap;cursor:pointer;text-decoration:none;color:var(--ink);background:#fff;
+  font-size:13px;font-weight:500;line-height:1;white-space:nowrap;cursor:pointer;text-decoration:none;color:var(--ink);background:#fff;
   box-shadow:0 0 0 1px rgba(28,20,10,.10),0 1px 2px rgba(28,20,10,.05);
   transition:background var(--t-fast) var(--ease),box-shadow var(--t-fast) var(--ease),transform var(--t-fast) var(--ease),filter var(--t-fast) var(--ease)}
 .lx-btn:hover{background:var(--surface-2);box-shadow:0 0 0 1px rgba(28,20,10,.16),0 2px 6px rgba(28,20,10,.07)}
@@ -208,12 +208,15 @@ button.lx-avatar{cursor:pointer}
 .lx-card.flush>.lx-pad{padding:4px var(--pad-card) clamp(16px,12px + .8vw,20px)}
 .lx-sec{display:flex;align-items:center;gap:var(--sp-3)}
 .lx-sec h2,.lx-sec h3{font-size:var(--fs-section);font-weight:600;letter-spacing:-.015em;line-height:var(--lh-head)}
+/* a card's own title (kit card(), and a chart card's head) is the card title token, 14/600; the 17/600 section
+   title is for the heads above groups of cards */
+.lx-card .lx-sec h3,.lx-card .lx-chart-h h3,.lx-card-t{font-size:var(--fs-card);font-weight:600;letter-spacing:-.01em;line-height:var(--lh-head)}
 .lx-sec .note{font-size:var(--fs-small);color:var(--muted)}
 /* a small card's own title (an ad card, a tile): 14/600 */
 .lx-card-t{font-size:var(--fs-card);font-weight:600;line-height:var(--lh-head);letter-spacing:-.01em}
 .lx-small{font-size:var(--fs-small);color:var(--muted)}
 .lx-sec .act{margin-left:auto;display:flex;align-items:center;gap:var(--sp-4);font-size:var(--fs-meta)}
-.lx-sec .act a:not(.lx-btn){color:var(--ink);font-weight:550;text-decoration:none}
+.lx-sec .act a:not(.lx-btn){color:var(--ink);font-weight:500;text-decoration:none}
 .lx-sec .act a:not(.lx-btn):hover{text-decoration:underline}
 .lx-cap{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);white-space:nowrap}
 .lx-band{background:var(--band);border-radius:var(--r-hero);padding:clamp(16px,8px + 1.7vw,24px);min-width:0}
@@ -242,7 +245,7 @@ button.lx-avatar{cursor:pointer}
 
 /* the takeaway strip: one sentence from the assistant. The gem is the only ember. */
 .lx-take{display:flex;align-items:center;gap:14px;padding:12px 14px 12px 12px;border-radius:var(--r-card);font-size:var(--fs-body);color:var(--ink-2);background:#fff;box-shadow:var(--sh-1)}
-.lx-take b{color:var(--ink);font-weight:650;font-variant-numeric:tabular-nums}
+.lx-take b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
 .lx-take .by{flex:none;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--brand-ink)}
 .lx-take .say{min-width:0}
 .lx-take .lx-btn{margin-left:auto;flex:none}
@@ -285,17 +288,49 @@ button.lx-avatar{cursor:pointer}
 .lx-spark-ax{display:flex;align-items:baseline;gap:8px;font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap;min-width:0}
 .lx-spark-ax .m{margin:0 auto;overflow:hidden;text-overflow:ellipsis}
 .lx-spark-ax span:empty{display:none}
-.lx-src{margin-left:auto;font-size:11px;font-weight:550;color:var(--faint);border:1px solid var(--line);border-radius:var(--r-chip);padding:0 7px;line-height:18px;white-space:nowrap}
+/* a narrow screen: Low and High on their own line under the first and last dates, never cut short */
+@media (max-width:519px){
+  .lx-spark-ax{flex-wrap:wrap;row-gap:2px}
+  .lx-spark-ax .m{order:3;flex-basis:100%;margin:0;overflow:visible;white-space:normal;text-overflow:clip}
+  .lx-spark-ax span:last-child:not(.m){margin-left:auto}
+}
+/* tiles(): the one tile look for every page (Home, Meta, Reports, the agency pages). A card per number: label as a
+   card title, the figure at --num-l, the change, the window and source line, the orange sparkline with its scale. */
+.lx-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--gap-4,16px);min-width:0}
+.lx-tiles.c4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.lx-tiles.c2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.lx-tiles>.lx-kpi{display:flex;flex-direction:column;position:relative;gap:6px;min-width:0;padding:18px 20px 16px;border-radius:var(--r-card);background:var(--surface);box-shadow:var(--sh-1)}
+.lx-tiles>a.lx-kpi:hover,.lx-tiles>.lx-kpi.ads-open:hover{box-shadow:var(--sh-2)}
+.lx-tiles .lx-kpi .v,.lx-tiles .lx-kpi.lg .v{font-size:var(--num-l);letter-spacing:-.03em;line-height:1.12}
+.lx-tiles .lx-kpi .v small{font-size:13px}
+.lx-tiles .lx-kpi .l{white-space:normal;font-size:var(--fs-card);font-weight:600;color:var(--ink)}
+.lx-tiles .lx-kpi .s{flex-wrap:wrap;align-items:baseline;gap:2px 6px;font-size:var(--fs-small);white-space:normal}
+.lx-tiles .lx-srcline{font-size:var(--fs-small)}
+.lx-tiles .lx-spark-box{margin-top:auto;padding-top:6px}
+.lx-tiles .lx-gauge{margin-top:10px}
+.lx-tiles .lx-spark-ax{flex-wrap:wrap;row-gap:2px}
+.lx-tiles .lx-spark-ax .m{order:3;flex-basis:100%;margin:0;text-align:center;overflow:visible;white-space:normal}
+.lx-tiles .lx-spark-ax span:last-child:not(.m){margin-left:auto}
+@media (max-width:1199px){.lx-tiles.c4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:1100px){.lx-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.lx-tiles>.lx-kpi:last-child:nth-child(odd){grid-column:1/-1}}
+@media (max-width:759px){
+  .lx-tiles{gap:10px}
+  .lx-tiles>.lx-kpi{padding:14px 14px 12px}
+  .lx-tiles .lx-kpi .v,.lx-tiles .lx-kpi.lg .v{font-size:var(--num-m)}
+  .lx-tiles .lx-kpi .l{font-size:13px}
+}
+@media (max-width:359px){.lx-tiles,.lx-tiles.c4,.lx-tiles.c2{grid-template-columns:minmax(0,1fr)}}
+.lx-src{margin-left:auto;font-size:11px;font-weight:500;color:var(--faint);border:1px solid var(--line);border-radius:var(--r-chip);padding:0 7px;line-height:18px;white-space:nowrap}
 .lx-big{font-size:var(--fs-hero);font-weight:600;letter-spacing:-.04em;line-height:1.02;font-variant-numeric:tabular-nums;white-space:nowrap}
 /* the one number that matters: ink numerals on a short ember underline */
 .lx-hero-num{display:inline-block;font-size:var(--fs-hero);font-weight:600;letter-spacing:-.04em;line-height:1.02;font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap;padding-bottom:0;background:none}
-.lx-delta{display:inline-flex;align-items:baseline;gap:3px;font-size:var(--fs-meta);font-weight:550;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+.lx-delta{display:inline-flex;align-items:baseline;gap:3px;font-size:var(--fs-meta);font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
 .lx-delta::before{font-size:.62em;line-height:1;transform:translateY(-.12em)}
 .lx-delta.up::before{content:"\25B2"}.lx-delta.down::before{content:"\25BC"}
 .lx-delta.is-good{color:var(--good)}.lx-delta.is-bad{color:var(--bad)}.lx-delta.plain{color:var(--ink-2)}
 
 /* ---------- 7. pills, counts and status ---------- */
-.lx-pill{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:var(--r-chip);font-size:var(--fs-meta);font-weight:550;line-height:1;white-space:nowrap;font-variant-numeric:tabular-nums;background:var(--bg-sunk);color:var(--ink-2)}
+.lx-pill{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:var(--r-chip);font-size:var(--fs-meta);font-weight:500;line-height:1;white-space:nowrap;font-variant-numeric:tabular-nums;background:var(--bg-sunk);color:var(--ink-2)}
 .lx-pill.good{background:var(--good-bg);color:var(--good)}
 .lx-pill.bad{background:var(--bad-bg);color:var(--bad)}
 .lx-pill.warn::before,.lx-pill.ai::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--watch);flex:none}
@@ -305,7 +340,7 @@ button.lx-avatar{cursor:pointer}
 .lx-count.ink{background:var(--ink);color:#fff}
 .lx-count.bad{background:var(--bad-bg);color:var(--bad)}
 .lx-count.sm{height:20px;min-width:20px;padding:0 6px}
-.lx-stat{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-meta);font-weight:550;line-height:1.3;color:var(--ink-2);white-space:nowrap}
+.lx-stat{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-meta);font-weight:500;line-height:1.3;color:var(--ink-2);white-space:nowrap}
 .lx-stat::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--faint);flex:none}
 .lx-stat.good{color:var(--good)}.lx-stat.good::before{background:var(--good)}
 .lx-stat.warn::before{background:var(--watch);box-shadow:0 0 0 3px rgba(232,181,0,.20)}
@@ -314,7 +349,7 @@ button.lx-avatar{cursor:pointer}
 .lx-stat.off{color:var(--muted)}.lx-stat.off::before{background:transparent;box-shadow:inset 0 0 0 1.5px var(--faint)}
 
 /* platform: a small ink glyph plus the name in ink. At most a 6px dot. */
-.lx-plat{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;font-weight:550;color:var(--ink);white-space:nowrap;text-decoration:none}
+.lx-plat{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;font-weight:500;color:var(--ink);white-space:nowrap;text-decoration:none}
 .lx-plat .lx-ic{width:17px;height:17px;stroke-width:1.7}
 .lx-plat i{width:6px;height:6px;border-radius:50%;background:var(--dot,var(--faint));flex:none}
 .lx-plat.chip{height:28px;padding:0 10px 0 8px;border-radius:var(--r-chip);background:#fff;box-shadow:0 0 0 1px var(--line-strong)}
@@ -322,7 +357,7 @@ button.lx-avatar{cursor:pointer}
 /* date block for list rows. now is ink, not ember. */
 .lx-date{display:inline-grid;place-items:center;width:46px;height:46px;border-radius:var(--r-tbl);background:var(--bg-sunk);line-height:1.05;text-align:center;flex:none}
 .lx-date small{display:block;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.lx-date b{display:block;font-size:17px;font-weight:650;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.lx-date b{display:block;font-size:17px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .lx-date.now{background:var(--ink)}
 .lx-date.now small{color:rgba(255,255,255,.7)}
 .lx-date.now b{color:#fff}
@@ -339,7 +374,7 @@ button.lx-avatar{cursor:pointer}
 .lx-plot .gl{stroke:var(--grid);stroke-width:1;stroke-dasharray:2 5;shape-rendering:crispEdges}
 .lx-plot .ax{stroke:var(--line-strong);stroke-width:1;shape-rendering:crispEdges}
 .lx-plot .tk{fill:var(--faint);font-size:11.5px;font-variant-numeric:tabular-nums}
-.lx-plot .win{fill:var(--muted);font-size:12px;font-weight:550}
+.lx-plot .win{fill:var(--muted);font-size:12px;font-weight:500}
 .lx-plot .tk.y{text-anchor:end}.lx-plot .tk.x{text-anchor:middle}
 .lx-plot .s1{fill:none;stroke:url(#lx-line) var(--brand);stroke-width:2.6;stroke-linejoin:round;stroke-linecap:round;filter:drop-shadow(0 6px 7px rgba(255,100,30,.32))}
 .lx-plot .area{fill:url(#lx-area) rgba(255,122,26,.10);stroke:none}
@@ -382,7 +417,7 @@ button.lx-avatar{cursor:pointer}
 /* a table put straight into a card scrolls inside the card, never the page */
 .lx-card:has(>.lx-table){overflow-x:auto}
 .lx-table-wrap.virtual{overflow-y:auto}
-.lx-table{width:100%;border-collapse:separate;border-spacing:0;font-size:var(--fs-cell);font-variant-numeric:tabular-nums}
+.lx-table{width:100%;border-collapse:separate;border-spacing:0;font-size:var(--fs-table);font-variant-numeric:tabular-nums}
 .lx-table th{height:32px;padding:0 var(--sp-3);text-align:left;font-size:var(--fs-colhead);font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted);white-space:nowrap;border-bottom:1px solid var(--line);background:#fff}
 .lx-table-wrap.virtual th{position:sticky;top:0;z-index:1}
 .lx-table td{height:var(--rh,var(--row-h));padding:0 var(--sp-3);border-bottom:1px solid var(--line);vertical-align:middle;color:var(--ink);white-space:nowrap}
@@ -393,9 +428,9 @@ button.lx-avatar{cursor:pointer}
 .lx-card.flush .lx-table th:last-child,.lx-card.flush .lx-table td:last-child{padding-right:var(--pad-card)}
 .lx-table tbody tr:last-child td{border-bottom:0}
 .lx-table .num{text-align:right;letter-spacing:-.01em}
-.lx-table .name{font-weight:550;white-space:normal}
+.lx-table .name{font-weight:500;white-space:normal}
 .lx-table .sub{display:block;font-size:var(--fs-meta);font-weight:400;color:var(--muted)}
-.lx-table .dim{color:var(--muted)}.lx-table .neg{color:var(--bad)}.lx-table .pos{color:var(--good)}.lx-table .strong{font-weight:650}
+.lx-table .dim{color:var(--muted)}.lx-table .neg{color:var(--bad)}.lx-table .pos{color:var(--good)}.lx-table .strong{font-weight:600}
 /* the row under the pointer: a soft tint with rounded ends that reaches 10px past the first and last words
    (drawn as shadows, so nothing moves), and the row's own lines fade so it reads as one soft piece, never a box.
    The wrap has 10px of room each side for those ends; a flush card's edge cells already have their padding. */
@@ -415,7 +450,7 @@ button.lx-avatar{cursor:pointer}
 /* any row a page writes itself: add lx-hover for the one row tint */
 .lx-hover:hover{background:var(--row-hover)}
 .lx-table tr.click{cursor:pointer}
-.lx-table tr.total td{border:0;background:var(--band);font-weight:650}
+.lx-table tr.total td{border:0;background:var(--band);font-weight:600}
 .lx-table tr.spacer:hover td,.lx-table tr.empty:hover td{background:none}
 .lx-table tr.empty td{height:96px;text-align:center;color:var(--muted)}
 .lx-table th.can-sort{cursor:pointer}
@@ -455,7 +490,7 @@ select.lx-input{appearance:none;padding-right:34px;background:#fff url("data:ima
 .lx-skel-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:var(--sp-6)}
 @keyframes lx-shim{to{background-position:-200% 0}}
 .lx-toasts{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:90;display:grid;gap:8px;justify-items:center;pointer-events:none}
-.lx-toast{padding:10px 16px;border-radius:999px;background:var(--ink);color:#fff;font-size:13.5px;font-weight:550;box-shadow:var(--sh-3);animation:lx-pop var(--t-slow) var(--ease);transition:opacity .2s,transform .2s}
+.lx-toast{padding:10px 16px;border-radius:999px;background:var(--ink);color:#fff;font-size:13.5px;font-weight:500;box-shadow:var(--sh-3);animation:lx-pop var(--t-slow) var(--ease);transition:opacity .2s,transform .2s}
 .lx-toast.bad{background:var(--bad)}.lx-toast.good{background:var(--good)}
 .lx-toast.out{opacity:0;transform:translateY(6px)}
 /* THE detail pattern (kit sheet()): a centered modal sheet on desktop, a bottom sheet on a phone. No side panels. */
@@ -563,9 +598,9 @@ html:has(body > .lx-overlay){overflow:hidden}
   .lx-empty{padding:24px 20px}
   .lx-empty .lx-btn{width:100%;height:48px;font-size:15.500px}
   .lx-tabbar{position:fixed;left:0;right:0;bottom:0;z-index:40;display:grid;grid-template-columns:repeat(5,1fr);background:var(--surface,#fff);border-top:1px solid var(--line-strong);padding-bottom:env(safe-area-inset-bottom,0px)}
-  .lx-tabbar a,.lx-tabbar button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:var(--tabbar-h);padding:6px 0 4px;border:0;background:none;font-size:10.500px;font-weight:550;color:var(--muted);text-decoration:none;cursor:pointer}
+  .lx-tabbar a,.lx-tabbar button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:var(--tabbar-h);padding:6px 0 4px;border:0;background:none;font-size:10.500px;font-weight:500;color:var(--muted);text-decoration:none;cursor:pointer}
   .lx-tabbar .lx-ic{width:22px;height:22px;stroke-width:1.8}
-  .lx-tabbar .on{color:var(--ink);font-weight:650}
+  .lx-tabbar .on{color:var(--ink);font-weight:600}
   .lx-tabbar .ask{color:var(--ink)}
   .lx-tabbar .ask .lx-ic{width:30px;height:30px;padding:6px;border-radius:999px;background:var(--grad);stroke:#fff;fill:#fff;stroke-width:1.2;box-shadow:var(--sh-ember);margin-top:-2px}
   .lx-tabbar .badge{position:relative}
@@ -596,13 +631,13 @@ html:has(body > .lx-overlay){overflow:hidden}
 .lx-head-tools:empty,.lx-asof-slot:empty,.lx-range-slot:empty{display:none}
 .lx-range .lx-ic:last-child{width:14px;height:14px;color:var(--faint)}
 .lx-range-custom{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 6px 6px;margin-top:6px;border-top:1px solid var(--line)}
-.lx-range-custom label{display:grid;gap:4px;font-size:12px;font-weight:550;color:var(--muted);min-width:0}
+.lx-range-custom label{display:grid;gap:4px;font-size:12px;font-weight:500;color:var(--muted);min-width:0}
 .lx-range-custom .lx-input{height:36px;padding:0 8px;font-size:13px;border-radius:10px}
 .lx-range-custom .lx-btn{grid-column:1/-1}
 .lx-switch.still{box-shadow:none;cursor:default;padding-left:0;background:none}
 .lx-hero-t{font-size:20px;font-weight:600;letter-spacing:-.02em;line-height:1.2;margin-top:6px}
 /* "See as client": one bar on every screen size until switched back */
-.lx-asbar{display:flex;align-items:center;justify-content:center;gap:10px;min-height:40px;padding:5px 14px;background:var(--ink);color:#fff;font-size:13px;font-weight:550}
+.lx-asbar{display:flex;align-items:center;justify-content:center;gap:10px;min-height:40px;padding:5px 14px;background:var(--ink);color:#fff;font-size:13px;font-weight:500}
 .lx-asbar .lx-ic{width:16px;height:16px;flex:none}
 .lx-asbar .lx-btn{height:28px;margin-left:6px;flex:none}
 
@@ -610,11 +645,11 @@ html:has(body > .lx-overlay){overflow:hidden}
 .lx-pop.lx-bell-pop{padding:0;max-width:calc(100vw - 24px);max-height:min(82vh,720px);border-radius:var(--r-card);display:flex;flex-direction:column;overflow:hidden}
 .lx-bell-h{display:flex;align-items:center;padding:22px 24px 10px;flex:none}
 .lx-bell-h h2{flex:1;font-size:18px;font-weight:600;letter-spacing:-.02em}
-.lx-bell-h a,.lx-bell-f a{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:550;color:var(--ink);text-decoration:none}
+.lx-bell-h a,.lx-bell-f a{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--ink);text-decoration:none}
 .lx-bell-h a:hover,.lx-bell-f a:hover{text-decoration:underline}
 .lx-bell-f .lx-ic{width:15px;height:15px}
 .lx-bell-tabs{display:flex;gap:6px;padding:0 14px;border-bottom:1px solid var(--line);flex:none;overflow-x:auto;scrollbar-width:none}
-.lx-bell-tabs button{display:inline-flex;align-items:center;gap:7px;flex:none;padding:10px 10px;margin-bottom:-1px;border:0;background:none;font-size:13.5px;font-weight:550;color:var(--muted);white-space:nowrap;cursor:pointer}
+.lx-bell-tabs button{display:inline-flex;align-items:center;gap:7px;flex:none;padding:10px 10px;margin-bottom:-1px;border:0;background:none;font-size:13.5px;font-weight:500;color:var(--muted);white-space:nowrap;cursor:pointer}
 .lx-bell-tabs button:hover{color:var(--ink)}
 .lx-bell-tabs button.on{color:var(--ink);font-weight:600;background:linear-gradient(90deg,var(--e1),var(--e3)) left bottom/100% 2.5px no-repeat}
 .lx-bell-tabs .n{min-width:20px;padding:0 6px;border-radius:999px;background:var(--bg-sunk);color:var(--ink-2);font-size:11.5px;font-weight:600;line-height:18px;text-align:center;font-variant-numeric:tabular-nums}
@@ -624,7 +659,7 @@ html:has(body > .lx-overlay){overflow:hidden}
 .lx-bell-row:first-child{border-top:0}
 .lx-bell-row .t{flex:1;min-width:0}
 .lx-bell-row p{font-size:13.5px;line-height:1.4;color:var(--ink-2)}
-.lx-bell-row p b{color:var(--ink);font-weight:650;font-variant-numeric:tabular-nums}
+.lx-bell-row p b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
 .lx-bell-row .m{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:3px;font-size:12px;color:var(--muted)}
 .lx-bell-row .m b{color:var(--ink);font-weight:600}
 .lx-bell-row .m i{width:3px;height:3px;border-radius:50%;background:var(--faint)}
@@ -644,7 +679,7 @@ html:has(body > .lx-overlay){overflow:hidden}
 .lx-plot .mk{fill:var(--ink);stroke:#fff;stroke-width:2}
 .lx-plot .halo{paint-order:stroke;stroke:#fff;stroke-width:3.5px;stroke-linejoin:round}
 .lx-plot .dl{fill:var(--ink)}
-.lx-plot .dl.sub{fill:var(--slate);font-size:11.5px;font-weight:550}
+.lx-plot .dl.sub{fill:var(--slate);font-size:11.5px;font-weight:500}
 .lx-plot .nt.on{fill:var(--ink-2)}
 .lx-plot .tk.on{fill:var(--ink);font-weight:600}
 .lx-plot .hit{fill:transparent}
@@ -811,7 +846,7 @@ button.lx-info:focus-visible{outline:2px solid var(--ink-2);outline-offset:2px}
 .lx-help:focus-visible{outline:2px solid var(--ink-2);outline-offset:2px}
 .lx-help-sheet .lx-sheet-b p{margin:0;font-size:14px;line-height:1.55;color:var(--ink-2)}
 .lx-help-sheet .lx-sheet-b section{display:grid;gap:6px}
-.lx-help-sheet .lx-sheet-b h3{margin:0;font-size:14px;font-weight:650;color:var(--ink)}
+.lx-help-sheet .lx-sheet-b h3{margin:0;font-size:14px;font-weight:600;color:var(--ink)}
 /* a dark theme, if one is ever switched on: the bubbles keep their look and get a lighter edge */
 :root[data-theme="dark"]{--tip-bg:#2A2521;--tip-sh:0 0 0 1px rgba(255,255,255,.12),0 10px 28px -8px rgba(0,0,0,.6);--row-hover:#2A2622}
 /* ---------- 17. foundation pass (2026-11-26): refresh stamp, the Locus calendar, Ask Locus AI docked ---------- */
@@ -841,7 +876,7 @@ button.lx-info:focus-visible{outline:2px solid var(--ink-2);outline-offset:2px}
 .lx-cal-g .d.today{font-weight:700;text-decoration:underline;text-decoration-color:var(--brand);text-underline-offset:4px;text-decoration-thickness:2px}
 .lx-cal-g .d.in{background:#FFF1E6;border-radius:0}
 .lx-cal-g .d.pre{background:#FFF6EF}
-.lx-cal-g .d.start,.lx-cal-g .d.end{background:var(--brand);color:#fff;font-weight:650}
+.lx-cal-g .d.start,.lx-cal-g .d.end{background:var(--brand);color:#fff;font-weight:600}
 .lx-cal-g .d.start{border-radius:var(--r-btn) 0 0 var(--r-btn)}
 .lx-cal-g .d.end{border-radius:0 var(--r-btn) var(--r-btn) 0}
 .lx-cal-g .d.start.end{border-radius:var(--r-btn)}

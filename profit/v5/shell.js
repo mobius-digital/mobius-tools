@@ -88,7 +88,9 @@ export function askContextNow() {
   const route = currentRoute(); if (!route) return null;
   const brand = route.view === 'brand' ? brandBySlug(route.brand) : null;
   const ctx = currentContext();
-  return { route, brand, range: S.range, title: headTitle ? headTitle.textContent.trim() : '', context: ctx && ctx.askContext ? String(ctx.askContext) : null,
+  /* a page with no date control (ranges: false) sends no dates; a page's own window (ctx.askWindow) wins over the head's */
+  return { route, brand, range: ctx && ctx.noRange ? null : S.range, window: ctx && ctx.askWindow ? String(ctx.askWindow) : null,
+    title: headTitle ? headTitle.textContent.trim() : '', context: ctx && ctx.askContext ? String(ctx.askContext) : null,
     href: href(normalise({ ...route, line: 'ask', tab: 'index' })) };
 }
 function askHere() {

@@ -24,7 +24,7 @@ export function view(d, ctx) {
   return [
     head,
     h('section', { style: { display: 'grid', gap: '20px' } },
-      h('div', { class: 'tt-bar' }, h('h3', null, 'Top videos on TikTok, ' + (d.range ? d.range.label : 'these dates')), d.source === 'sample' ? h('span', { class: 'lx-pill' }, 'Sample videos') : null, h('label', null, 'Sort by', sel)),
+      h('div', { class: 'tt-bar' }, h('h3', null, 'Best videos on TikTok, ' + (d.range ? d.range.label : 'these dates')), d.source === 'sample' ? h('span', { class: 'lx-pill' }, 'Sample videos') : null, h('label', null, 'Sort by', sel)),
       grid),
     card({ title: 'Every video', note: rows.length + ' with spend', flush: true, class: 'tt-top' },
       table({ roomy: true, rows, sort: { key: 'spend', dir: 'desc' }, onRow: v => videoSheet(v, d), cols: [

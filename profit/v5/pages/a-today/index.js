@@ -7,12 +7,11 @@
 
 import { put } from '../../kit.js';
 import { helpBar, dl } from '../home/_biz.js';
-import { h, em, money, pct, x, pill, statusDot, delta, button, card, table, gauge, empty, kpi, addStyles, sourceLine } from '../../kit.js';
+import { h, em, money, pct, x, pill, statusDot, delta, button, card, table, gauge, empty, kpi, addStyles, sourceLine, tiles } from '../../kit.js';
 import { rangeOf } from '../../data.js';
 import { primeRead, loadWaiting } from '../../bell.js';
 import { liveNote } from '../my-day/_waiting.js';
 import { waitingYes } from '../home/_yes.js';
-import { tileStyles } from '../home/_tiles.js';
 import { rangeWords } from '../home/_biz.js';
 import { style, world, readBrands, soft, paceOf, plat, ok, sumOf, figs, figures, brandName, brandHref, quiet, exampleChip, longDay, shortDay } from './_ag.js';
 
@@ -57,8 +56,7 @@ async function sample(ctx) {
 
 /* ---------- the page ---------- */
 function render(el, d, ctx) {
-  style(); tileStyles(); addStyles('at-css', '.hm-tiles.four{grid-template-columns:repeat(4,minmax(0,1fr))}@media (max-width:1100px){.hm-tiles.four{grid-template-columns:repeat(2,minmax(0,1fr))}}'
-    + '.at-behind{display:grid;gap:4px;margin-top:4px}.at-behind a{color:var(--ink);font-size:13.5px;font-weight:550;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.at-behind a:hover{text-decoration:underline}.at-behind .ag-q{font-size:13px}'
+  style(); addStyles('at-css', '.at-behind{display:grid;gap:4px;margin-top:4px}.at-behind a{color:var(--ink);font-size:13.5px;font-weight:500;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.at-behind a:hover{text-decoration:underline}.at-behind .ag-q{font-size:13px}'
     + '.at-src{padding:0 28px 12px}@media (max-width:759px){.at-src{padding:0 16px 10px}}');
   if (!d || !d.brands || !d.brands.length) return put(el, empty({ title: 'No brands yet', text: 'When a brand is added it gets a card here.', action: button('Open agency settings', { href: ctx.href('a-settings', 'clients'), icon: 'arrow' }) }));
   const behindPct = d.rules.behind_pct;
@@ -86,12 +84,12 @@ function render(el, d, ctx) {
   const chg = (v, p, o = {}) => ok(v) && p > 0 ? [delta(v / p - 1, o.plain ? o : v < p ? { bad: true } : {}), h('span', { class: 'hm-vs' }, ' ' + cmpWin)] : null;
   const mer = sSpend > 0 && ok(sales) ? sales / sSpend : null, pMer = pSpend > 0 && ok(pSales) ? pSales / pSpend : null;
   const usd = v => money(v), xx = v => x(v);
-  const hero = h('div', { class: 'hm-tiles four' },
+  const hero = tiles([
     kpi({ label: 'Sales, all brands', value: ok(sales) ? usd(sales) : 'not tracked yet', delta: chg(sales, pSales), window: win, source: 'Triple Whale', spark: dSales, sparkLabels: lab, sparkFormat: usd, href: ctx.href('a-month', 'pace') }),
     kpi({ label: 'Ad spend, all brands', value: usd(spendAll), delta: chg(spendAll, pAll, { plain: true }), window: win, source: 'All ad platforms', spark: dSpend, sparkLabels: lab, sparkFormat: usd, href: ctx.href('a-platforms', 'side-by-side') }),
     kpi({ label: h('span', null, dl('MER', 'mer'), ', all brands'), value: mer != null ? xx(mer) : 'not tracked yet', delta: chg(mer, pMer), window: win, source: 'Triple Whale', spark: dSales.map((v, i) => ok(v) && dSpendS[i] > 0 ? v / dSpendS[i] : null), sparkLabels: lab, sparkFormat: xx, href: ctx.href('a-month', 'pace') }),
     /* the brands behind, by name, each a link to its Home (the tile itself is not a link, so the names can be) */
-    kpi({ label: 'Brands behind plan', value: String(behind.length), sub: `of ${withStore.length} with a store connected`, window: win, source: 'Month plans' }));
+    kpi({ label: 'Brands behind plan', value: String(behind.length), sub: `of ${withStore.length} with a store connected`, window: win, source: 'Month plans' })], { cols: 4 });
   const behindTile = hero.lastElementChild;
   if (behindTile) behindTile.append(h('div', { class: 'at-behind' }, behind.length
     ? behind.slice(0, 4).map(b => h('a', { href: brandHref(b.id, 'home', 'index'), title: 'Open ' + b.name + ' Home' }, b.name))

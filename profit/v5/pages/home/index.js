@@ -26,10 +26,12 @@ import { askWhy, helpBar, dl, rangeWords } from './_biz.js';
 import { monthWord } from '../a-today/_ag.js';
 import { liveNote } from '../my-day/_waiting.js';
 import { openAdDetail } from '../_addetail.js';
+import { picture, css as pictureCss } from '../production/_ui.js';
 import { fixture } from '../../data.js';
 import { refresh } from '../../router.js';
 import { h, money, num, pct, x, card, em, button, platformChip, statusDot, pill, delta, gauge, lineChart,
   dateBlock, table, empty, addStyles, staleStamp, tipRow, svgNode, sourceLine, toast } from '../../kit.js';
+import { tiles } from '../../kit.js';
 import { CATALOG, tileOf, tileNode, tileStyles, savedTiles, saveTiles, editTiles, feedsFor, cleanTiles, tilePrefsSupported } from './_tiles.js';
 import { waitingYes } from './_yes.js';
 
@@ -54,8 +56,6 @@ const CSS = `
 .hm-why{display:flex;align-items:center;gap:8px 16px;flex-wrap:wrap;margin:18px 0 0;padding:12px 16px;border-radius:var(--r-tbl,12px);background:var(--band)}
 .hm-why p{flex:1;min-width:0;margin:0;font-size:var(--fs-card,14px);line-height:1.5;color:var(--ink-2)}
 .hm-why p b{color:var(--ink);font-weight:600}
-/* one "updated" stamp on Home: the one with the refresh button beside Your numbers (the head's copy is hidden here) */
-body:has(.hm-numhead) .lx-asof-slot{display:none}
 .hm-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--gap-5,24px);align-items:stretch}
 .hm-pair>.lx-card{display:flex;flex-direction:column;min-width:0}
 .hm-up{padding:4px 28px 14px}
@@ -84,13 +84,17 @@ body:has(.hm-numhead) .lx-asof-slot{display:none}
 .hm-ad:hover{background:var(--row-hover)}
 .hm-ad:focus-visible{outline:2px solid var(--ink-2);outline-offset:2px}
 .hm-ad-m{position:relative;display:grid;place-items:center;aspect-ratio:1/1;background:var(--bg-sunk);color:var(--faint);overflow:hidden}
-.hm-ad-m img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.hm-ad-m img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center top}
+.hm-ad-m>.pd-pic{position:absolute;inset:0;width:100%;height:100%;border-radius:0;aspect-ratio:auto!important}
+.hm-ad-m.art>svg{display:none}
+.hm-ad-m>.pd-pic>svg{width:100%;height:100%}
 .hm-ad-m svg{width:26px;height:26px}
-.hm-ad-m .c{position:absolute;right:8px;top:8px;display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:var(--r-chip,6px);background:var(--surface);color:var(--ink);font-size:11px;font-weight:600;box-shadow:0 1px 2px rgba(20,16,12,.18)}
-.hm-ad-m .c.good{color:var(--good)}
-.hm-ad-m .c.warn{color:var(--warn)}
-.hm-ad-m .c.bad{color:var(--bad)}
-.hm-ad-m .k{position:absolute;left:8px;top:8px;display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:var(--r-chip,6px);background:rgba(20,16,12,.72);color:#fff;font-size:11px;font-weight:600}
+.hm-ad-t{display:flex;align-items:center;gap:6px;min-height:20px}
+.hm-ad-t .c{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:var(--r-chip,6px);border:1px solid var(--line);color:var(--ink);font-size:11px;font-weight:600}
+.hm-ad-t .c.good{color:var(--good)}
+.hm-ad-t .c.warn{color:var(--warn)}
+.hm-ad-t .c.bad{color:var(--bad)}
+.hm-ad-t .k{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:var(--r-chip,6px);background:var(--surface-2);color:var(--ink-2);font-size:11px;font-weight:600}
 .hm-ad-b{display:grid;gap:4px;padding:12px 14px 14px;min-width:0}
 .hm-ad-b h4{margin:0;font-size:13.5px;font-weight:600;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hm-ad-b .w{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -117,8 +121,6 @@ body:has(.hm-numhead) .lx-asof-slot{display:none}
   .hm-ads{grid-template-columns:minmax(0,1fr);gap:10px;padding:4px 16px 18px}
   .hm-ad{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:stretch}
   .hm-ad-m{aspect-ratio:auto;min-height:96px}
-  .hm-ad-m .c{right:auto;left:6px;top:auto;bottom:6px}
-  .hm-ad-m .k{left:6px;top:6px}
   .hm-ad-b{padding:10px 12px 12px}
   .hm-ad-n{margin-top:6px;padding-top:8px}
   .hm-byp>.lx-sec .note{display:none}
@@ -262,7 +264,7 @@ function extraFor(data) {
 function tilesBlock(data, ctx, host) {
   const F = bundle(data, ctx), extra = extraFor(data);
   let ids = savedTiles(ctx);
-  const grid = h('div', { class: 'hm-tiles' });
+  const grid = tiles([], { class: 'hm-tiles' });
   const paint = () => grid.replaceChildren(...ids.map(id => tileOf(id)).filter(Boolean).map(t => tileNode(t, F, ctx, { extra })));
   paint();
   const edit = button('Edit tiles', { onclick: () => editTiles(ctx, ids, async next => {
@@ -441,7 +443,7 @@ async function readAds(ctx, range) {
     const [f, x2] = await Promise.all([fixture('meta/_sample/top-ads.json'), fixture('_sample/addetail.json').catch(() => null)]);
     const calls = (x2 && x2.calls) || {};
     return f ? { ...f, calls: Object.fromEntries(Object.entries(calls).map(([id, c]) => [id, { call: c.call, kind: c.tone === 'bad' ? 'cut' : '' }])),
-      ads: (f.ads || []).map(a => ({ ...a, thumb: a.thumb || sampleArt(a.id) })), window: { from: range.from, to: range.to, label: rangeWords(ctx, range) } } : null;
+      ads: (f.ads || []).map(a => ({ ...a, thumb: a.thumb || (a.art ? null : sampleArt(a.id)) })), window: { from: range.from, to: range.to, label: rangeWords(ctx, range) } } : null;
   }
   const act = encodeURIComponent(ctx.brand.id), w = { from: ctx.range.from, to: ctx.range.to, label: rangeWords(ctx) };
   const r = await ctx.api(`/api/hub/creative?act=${act}&from=${w.from}&to=${w.to}&model=lastPlatformClick`, { worker: 'profit' });
@@ -480,14 +482,16 @@ function bestAdsCard(ctx, range, adCalls) {
     }
     const cur = d.currency, g = d.goals || {}, calls = ctx.isClient ? {} : (ctx.sample ? d.calls : adCalls) || {};
     const one = a => {
-      const media = h('span', { class: 'hm-ad-m' }, svgNode(a.video ? PLAY : PIC), h('span', { class: 'k' }, a.video ? 'Video' : 'Image'), callPill(calls[a.id]));
+      const media = h('span', { class: 'hm-ad-m' }, svgNode(a.video ? PLAY : PIC));
       if (a.thumb) { const img = h('img', { src: a.thumb, alt: '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' }); img.addEventListener('error', () => img.remove(), { once: true }); media.prepend(img); }
+      /* sample mode: the same stand-in drawing the Meta Best ads card shows for this ad (production/_ui.js picture) */
+      else if (a.art) { pictureCss(); media.prepend(picture({ art: a.art, video: false, ratio: 'auto' })); media.classList.add('art'); }
       const under = g.roas && ok(a.roas) && a.roas < g.roas * 0.8;
       const open = () => openAdDetail(ctx, { ...a, media_type: a.media_type || (a.video ? 'video' : 'image') }, { window: d.window, goals: d.goals, currency: cur,
         adsetAds: a.adset ? all.filter(o => o.adset === a.adset) : undefined });
       return h('button', { type: 'button', class: 'hm-ad', onclick: open, 'aria-label': 'Open ' + (a.name || 'ad') },
         media,
-        h('span', { class: 'hm-ad-b' }, h('h4', { title: a.name || '' }, a.name || 'Unnamed ad'), h('span', { class: 'w', title: a.adset || '' }, a.adset ? 'Ad set: ' + a.adset : 'Meta'),
+        h('span', { class: 'hm-ad-b' }, h('span', { class: 'hm-ad-t' }, h('span', { class: 'k' }, a.video ? 'Video' : 'Image'), callPill(calls[a.id])), h('h4', { title: a.name || '' }, a.name || 'Unnamed ad'), h('span', { class: 'w', title: a.adset || '' }, a.adset ? 'Ad set: ' + a.adset : 'Meta'),
           h('span', { class: 'hm-ad-n' },
             h('span', null, h('small', null, 'Spend'), h('b', null, money(Math.round(a.spend || 0), { cur }))),
             h('span', null, h('small', null, 'Sales'), h('b', null, ok(a.revenue) ? money(Math.round(a.revenue), { cur }) : 'not tracked')),
@@ -531,6 +535,8 @@ export default {
   /* the plain question, drawn by the shell above the tabs */
   title: ctx => (ctx.brand ? ['How is ' + ctx.brand.name + ' doing ', em(WORDS[ctx.range.preset] || WORDS.custom)] : 'Home'),
   eyebrow: 'Home',
+  /* one "updated" stamp on Home: the one with the refresh button beside Your numbers (the shell leaves its copy out) */
+  stamp: false,
 
   async load(ctx) {
     if (!ctx.brand) return null;
@@ -570,6 +576,7 @@ export default {
     const host = { at: ctx.sample ? Date.now() - 4 * 60e3 : Date.now() };
     const win = rangeWords(ctx, data.range);
     let waiting = null;
+    ctx.askWindow = win;
     ctx.askContext = `${ctx.brand.name} Home, ${win}: sales ${money(t.sales, { cur: data.currency })}, ad spend ${money(t.spend, { cur: data.currency })}, MER ${mer != null ? x(mer) : 'not tracked'}`
       + (g.mer ? ` against a ${x(g.mer)} goal.` : '. No goal set.') + (data.plan && data.plan.month_sales ? ` Month sales goal ${money(data.plan.month_sales, { cur: data.currency })}.` : '');
     const noSource = !data.source ? empty({

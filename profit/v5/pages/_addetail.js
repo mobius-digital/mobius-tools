@@ -33,6 +33,7 @@
 import { h, svgNode, money, num, pct, x as xx, pill, button, sheet, lineChart, legend, put, addStyles, safeHref, noDash, toast } from '../kit.js';
 import { fixture } from '../data.js';
 import { defLabel } from '../defs.js';
+import { picture, css as pictureCss } from './production/_ui.js';
 
 const ok = n => n != null && isFinite(n);
 const div = (a, b) => (ok(a) && ok(b) && b > 0 ? a / b : null);
@@ -76,7 +77,7 @@ async function readMore(ctx, a, opts, w, step) {
   const act = opts.act || (ctx.brand && ctx.brand.id) || '';
   const key = [act, a.id, w.from, w.to].join('|');
   if (ctx.sample) {
-    if (!EXTRA.has(key)) EXTRA.set(key, sampleExtra(a));
+    if (!EXTRA.has(key)) EXTRA.set(key, sampleExtra(a, w));
     step(await EXTRA.get(key));
     return;
   }
@@ -141,15 +142,52 @@ async function readMore(ctx, a, opts, w, step) {
 }
 const TONE = { scale: 'good', raise: 'good', keep: 'good', cut: 'bad', pause: 'bad', trim: 'warn', refresh: 'warn', watch: 'warn' };
 
-async function sampleExtra(a) {
+async function sampleExtra(a, w) {
   FIX = FIX || fixture('_sample/addetail.json').catch(() => null);
   const f = await FIX;
   if (!f) return { notes: ['no_fixture'] };
-  const row = f.ads.find(r => r.id === a.id) || f.ads.find(r => r.name === a.name) || null;
-  const sibs = row ? f.ads.filter(r => r.adset_id === row.adset_id) : null;
-  const c = row && f.calls[row.id];
-  return { row, sibs, goals: f.goals, currency: f.currency, window: f.window, days: row ? row.days : null,
-    call: c ? { label: c.call, tone: c.tone, why: c.why } : null, notes: row ? [] : ['no_row'] };
+  const row = f.ads.find(r => r.id === a.id && (!a.name || r.name === a.name)) || f.ads.find(r => r.name === a.name) || null;
+  if (row) {
+    const sibs = f.ads.filter(r => r.adset_id === row.adset_id);
+    const c = f.calls[row.id];
+    return { row, sibs, goals: f.goals, currency: f.currency, window: f.window, days: row.days,
+      call: c ? { label: c.call, tone: c.tone, why: c.why } : null, notes: [] };
+  }
+  /* a page with its own sample ads (Reports): borrow the shape of the fixture ad with the same id, but every number,
+     day and ad set row is made from the card's own numbers and dates, so one modal never shows two ads */
+  const base = f.ads.find(r => r.id === a.id) || null;
+  if (!base || !ok(a.spend)) return { goals: f.goals, currency: f.currency, notes: ['no_row'] };
+  return { ...borrow(base, a, f, w), goals: f.goals, currency: f.currency, notes: [] };
+}
+function borrow(base, a, f, w) {
+  const k = a.spend / (base.spend || 1);
+  const rev = ok(a.revenue) ? a.revenue : ok(a.roas) ? a.roas * a.spend : base.revenue * k;
+  const kr = base.revenue > 0 ? rev / base.revenue : k;
+  const ord = ok(a.purchases) ? a.purchases : Math.round(base.purchases * kr);
+  const ko = base.purchases > 0 ? ord / base.purchases : kr;
+  const n = (v, m) => ok(v) ? Math.round(v * m) : v;
+  const row = { ...base, id: a.id, name: a.name || base.name, spend: a.spend, revenue: rev, purchases: ord, lc_rev: rev, lc_orders: ord,
+    roas: div(rev, a.spend), cpa: div(a.spend, ord), impressions: n(base.impressions, k), clicks: n(base.clicks, k), atc: n(base.atc, ko), checkouts: n(base.checkouts, ko),
+    fc_rev: ok(base.fc_rev) ? base.fc_rev * kr : null, fc_orders: n(base.fc_orders, ko), nc: n(base.nc, ko), nc_fc: n(base.nc_fc, ko),
+    platform_purchases: n(base.platform_purchases, ko), platform_revenue: ok(base.platform_revenue) ? base.platform_revenue * kr : null };
+  row.media_type = a.media_type || base.media_type;
+  /* days inside the card's window, shaped like the borrowed ad's days and adding up to the card's spend and sales */
+  let days = null;
+  if (w && w.from && w.to && base.days && base.days.length) {
+    const dates = []; for (let d = new Date(w.from + 'T12:00:00'); d <= new Date(w.to + 'T12:00:00') && dates.length < 92; d.setDate(d.getDate() + 1)) dates.push(d.toLocaleDateString('en-CA'));
+    const src = dates.map((_, i) => base.days[i % base.days.length]);
+    const sS = src.reduce((t, d) => t + (+d.spend || 0), 0) || 1, sR = src.reduce((t, d) => t + (+d.revenue || 0), 0) || 1;
+    days = dates.map((date, i) => ({ date, spend: Math.round(100 * a.spend * (+src[i].spend || 0) / sS) / 100, revenue: Math.round(100 * rev * (+src[i].revenue || 0) / sR) / 100 }));
+  }
+  row.days = days;
+  /* its ad set: the other ads of the borrowed set, scaled to the card's window length */
+  const len = w && w.from && w.to ? Math.round((new Date(w.to) - new Date(w.from)) / 864e5) + 1 : null;
+  const flen = f.window ? Math.round((new Date(f.window.to) - new Date(f.window.from)) / 864e5) + 1 : null;
+  const kt = len && flen ? len / flen : 1;
+  const sibs = f.ads.filter(r => r.adset_id === base.adset_id && r.id !== base.id)
+    .map(r => ({ ...r, spend: Math.round(r.spend * kt), revenue: r.revenue * kt, purchases: Math.round(r.purchases * kt), roas: null, cpa: null }))
+    .concat([{ id: row.id, name: row.name, spend: row.spend, revenue: rev, purchases: ord, video: row.media_type === 'video', status: row.status }]);
+  return { row, sibs, days, window: w ? { from: w.from, to: w.to, label: w.label } : null };
 }
 
 /* ---------- one shape for whatever came in ---------- */
@@ -158,8 +196,14 @@ function shape(a, e, opts) {
   const setObj = (a.set && typeof a.set === 'object' && a.set) || (a.adset && typeof a.adset === 'object' && a.adset) || (e.row && e.row.adset && typeof e.row.adset === 'object' && e.row.adset) || null;
   r.adsetName = (typeof a.adset === 'string' && a.adset) || a.adset_name || (setObj && setObj.name) || (e.row && e.row.adset_name) || null;
   r.video = a.video != null ? !!a.video : e.video != null ? e.video : (r.media_type || '') === 'video';
-  r.thumb = a.thumb || a.image || e.thumb || r.thumb || null;
+  r.thumb = a.thumb || a.cover || a.image || e.thumb || r.thumb || null;
+  /* sample mode: the same stand-in drawing the opening card showed (meta/_rest.js adTile), never a real ad's */
+  r.art = a.art && typeof a.art === 'object' ? a.art : null;
   r.preview = a.preview || e.preview || null;
+  /* the caller's own numbers are Triple Whale last click: they win over a fetched row, so the card, the grid, the
+     last click column and the ad set row all read one figure */
+  if (ok(a.revenue) && a.lc_rev == null) r.lc_rev = a.revenue;
+  if (ok(a.purchases) && a.lc_orders == null) r.lc_orders = a.purchases;
   if (r.lc_rev == null && ok(r.revenue)) r.lc_rev = r.revenue;
   if (r.lc_orders == null) r.lc_orders = e.lc ? e.lc.orders : ok(r.purchases) ? r.purchases : null;
   if (r.fc_orders == null && e.fc) r.fc_orders = e.fc.orders;
@@ -177,6 +221,7 @@ function shape(a, e, opts) {
   /* the ad set: its other ads ranked by spend, this ad among them */
   let sibs = (opts.adsetAds && opts.adsetAds.length ? opts.adsetAds : e.sibs) || [];
   sibs = sibs.map(o => ({ ...o, roas: ok(o.roas) ? o.roas : div(o.revenue, o.spend), cpa: ok(o.cpa) ? o.cpa : div(o.spend, o.purchases) }));
+  sibs = sibs.map(o => String(o.id) === String(r.id) ? { ...o, name: r.name, spend: r.spend, revenue: r.revenue, purchases: r.purchases, roas: r.roas, cpa: r.cpa } : o);
   if (sibs.length && !sibs.some(o => String(o.id) === String(r.id))) sibs.push({ id: r.id, name: r.name, spend: r.spend, revenue: r.revenue, purchases: r.purchases, roas: r.roas, cpa: r.cpa, video: r.video, thumb: r.thumb, status: r.status });
   sibs.sort((p, q) => (q.spend || 0) - (p.spend || 0));
   r.sibs = sibs;
@@ -215,9 +260,13 @@ function media(ctx, A, state) {
       const img = h('img', { src: A.thumb, alt: (A.video ? 'Cover of the video ad ' : 'The image ad ') + (A.name || ''), decoding: 'async', referrerpolicy: 'no-referrer' });
       img.addEventListener('error', () => { img.remove(); box.classList.add('none'); }, { once: true });
       kids.push(img);
+    } else if (A.art) {
+      /* sample mode: the card's own stand-in picture (production/_ui.js picture), so the detail matches the card */
+      pictureCss();
+      kids.push(picture({ art: A.art, video: false, ratio: 'auto', alt: A.name || '' }));
     } else kids.push(h('span', { class: 'ph' }, svgNode(PIC), h('span', null, A.video ? 'No cover yet' : 'No picture yet')));
     if (A.video) kids.push(h('button', { class: 'adx-play', type: 'button', 'aria-label': 'Play this video ad', title: 'Play', onclick: () => play() }, svgNode(PLAY), 'Play'));
-    box.classList.toggle('none', !A.thumb);
+    box.classList.toggle('none', !A.thumb && !A.art);
     put(box, kids);
   };
   async function play() {
@@ -289,8 +338,8 @@ function metrics(A) {
     t('Spend', null, ok(A.spend) ? money(Math.round(A.spend), { cur }) : null, 'Meta'),
     lead ? t('Leads', null, ok(A.leads) ? num(A.leads) : null, 'Meta') : t('Sales', null, ok(A.revenue) ? money(Math.round(A.revenue), { cur }) : null, TW + ', last click'),
     lead ? t('Cost per lead', null, ok(A.cpl) ? money(A.cpl, { cur, cents: true }) : null, 'Meta') : t('ROAS', 'roas', ok(A.roas) ? xx(A.roas) : ok(A.spend) ? 'no sales yet' : null, g.roas ? 'goal ' + xx(g.roas) : TW + ', last click', roasTone),
-    lead ? null : t('Purchases', null, ok(A.purchases) ? num(A.purchases) : null, TW + ', last click'),
-    lead ? null : t('CPA', 'cpa', ok(A.cpa) ? money(A.cpa, { cur }) : ok(A.spend) ? 'no sales yet' : null, g.cpa ? 'goal ' + money(g.cpa, { cur }) : 'cost per sale', cpaTone),
+    lead ? null : t('Orders', null, ok(A.purchases) ? num(A.purchases) : null, TW + ', last click'),
+    lead ? null : t('Cost per sale', 'cpa', ok(A.cpa) ? money(A.cpa, { cur }) : ok(A.spend) ? 'no sales yet' : null, g.cpa ? 'goal ' + money(g.cpa, { cur }) : TW + ', last click', cpaTone),
     lead ? null : t('New customers', DEF.nc, ok(A.nc) ? num(A.nc) : null, ok(A.nc) && ok(A.spend) && A.nc > 0 ? money(A.spend / A.nc, { cur }) + ' each' : TW + ', last click'),
     t('CTR', 'ctr', ok(A.ctr) ? pct(A.ctr, { digits: 2 }) : null, ok(A.clicks) ? num(A.clicks) + ' link clicks' : null),
     t('CPC', DEF.cpc, ok(A.cpc) ? money(A.cpc, { cur, cents: true }) : null),
@@ -308,7 +357,7 @@ function funnel(A) {
     ['Link clicks', A.clicks, 'Meta'],
     ['Add to cart', A.atc, 'Meta'],
     ['Checkout', A.checkouts, 'Meta'],
-    ['Purchases', A.purchases, TW],
+    ['Orders', A.purchases, TW],
   ];
   const top = ok(A.impressions) && A.impressions > 0 ? A.impressions : null;
   const rateWord = ['', 'click rate', 'add to cart', 'reach checkout', 'buy'];
@@ -358,7 +407,7 @@ function clicks(A, e) {
       ok(pp) ? h('span', null, 'Purchases ', h('b', null, num(pp))) : null,
       ok(pr) ? h('span', null, 'Sales ', h('b', null, money(Math.round(pr), { cur }))) : null,
       ok(pr) && ok(A.spend) && A.spend > 0 ? h('span', null, 'ROAS ', h('b', null, xx(pr / A.spend))) : null),
-    ok(pp) && ok(A.purchases) && pp !== A.purchases ? h('p', null, 'Meta counts ' + num(pp) + ' purchases where ' + TW + ' credits ' + num(A.purchases) + ' on last click. Meta counts views and clicks over 7 days, so it usually reads higher.') : null)
+    ok(pp) && ok(A.purchases) && pp !== A.purchases ? h('p', null, 'Meta counts ' + num(pp) + ' purchases where ' + TW + ' credits ' + num(A.purchases) + ' orders on last click. Meta counts views and clicks over 7 days, so it usually reads higher.') : null)
     : h('p', { class: 'adx-na' }, "Meta's own count is not tracked yet for this ad.");
   const capped = e && ((e.lc && e.lc.capped) || (e.fc && e.fc.capped));
   return h('section', { class: 'adx-sec' },
@@ -384,9 +433,9 @@ function adset(ctx, A, opts, sheetRef) {
   const kv = (label, key, v, tone, sub) => h('div', null, h('span', null, key ? defLabel(label, key) : label), h('b', { class: tone || '' }, v), sub ? h('small', null, sub) : null);
   const score = set ? h('div', { class: 'adx-score' },
     kv('Spend', null, ok(set.spend) ? money(Math.round(set.spend), { cur }) : 'not tracked yet'),
-    kv('Purchases', null, ok(set.purchases) ? num(set.purchases) : 'not tracked yet'),
+    kv('Orders', null, ok(set.purchases) ? num(set.purchases) : 'not tracked yet'),
     kv('ROAS', 'roas', ok(set.roas) ? xx(set.roas) : 'no sales yet', roasTone, g.roas ? 'goal ' + xx(g.roas) : null),
-    kv('CPA', 'cpa', ok(set.cpa) ? money(set.cpa, { cur }) : 'no sales yet', cpaTone, g.cpa ? 'goal ' + money(g.cpa, { cur }) : null),
+    kv('Cost per sale', 'cpa', ok(set.cpa) ? money(set.cpa, { cur }) : 'no sales yet', cpaTone, g.cpa ? 'goal ' + money(g.cpa, { cur }) : null),
     kv('Ads', null, ok(set.ads) ? num(set.ads) : 'not tracked yet')) : null;
   /* the ad's role in its set (ad set first, Cole 2026-10-08): the anchor opens the funnel for the others */
   let roleTxt = null;
@@ -415,19 +464,20 @@ function adset(ctx, A, opts, sheetRef) {
     return tr;
   };
   const tbl = sibs.length > 1 ? h('div', { class: 'adx-sibs' }, h('table', null,
-    h('thead', null, h('tr', null, h('th', null, 'Ads in this set, by spend'), h('th', { class: 'num' }, 'Spend'), h('th', { class: 'num' }, 'Share'), h('th', { class: 'num' }, defLabel('ROAS', 'roas')), h('th', { class: 'num hide-sm' }, defLabel('CPA', 'cpa')))),
+    h('thead', null, h('tr', null, h('th', null, 'Ads in this set, by spend'), h('th', { class: 'num' }, 'Spend'), h('th', { class: 'num' }, 'Share'), h('th', { class: 'num' }, defLabel('ROAS', 'roas')), h('th', { class: 'num hide-sm' }, defLabel('Per sale', 'cpa')))),
     h('tbody', null, sibs.map(row)))) : null;
   const more = tbl && !showAll ? button('Show all ' + sibs.length + ' ads', { ghost: true, onclick: ev => { tbl.classList.add('all'); ev.currentTarget.remove(); } }) : null;
   return h('section', { class: 'adx-sec' },
     h('h3', null, 'Its ad set', set && set.name ? h('span', { class: 'note', title: set.name }, set.name) : null, onGoal ? pill(onGoal[0], onGoal[1]) : null),
     h('p', { class: 'adx-sub' }, 'The set is judged first: Meta spends an ad set as one system.'),
     score, roleTxt ? h('p', { class: 'adx-role' }, roleTxt) : null, tbl, more,
-    sibs.length > 1 ? h('p', { class: 'adx-na' }, 'ROAS and CPA ' + TW + ' last click. Pick another ad to open it.') : null);
+    sibs.length > 1 ? h('p', { class: 'adx-na' }, 'ROAS and cost per sale ' + TW + ' last click. Pick another ad to open it.') : null);
 }
 
-function history(A, e) {
+function history(A, e, w) {
   const cur = A.currency;
-  const days = (A.days || []).filter(d => d && d.date && (+d.spend > 0 || +d.revenue > 0));
+  const inWin = d => !w || !w.from || !w.to || (d.date >= w.from && d.date <= w.to);
+  const days = (A.days || []).filter(d => d && d.date && inWin(d) && (+d.spend > 0 || +d.revenue > 0));
   if (!A.days && !(e && e.done)) return h('section', { class: 'adx-sec' }, h('h3', null, 'Day by day'), h('p', { class: 'adx-na' }, 'Reading the days...'));
   if (days.length < 2) return h('section', { class: 'adx-sec' }, h('h3', null, 'Day by day'), h('p', { class: 'adx-na' }, 'Not enough days of spend to draw a trend yet.'));
   const roas = days.map(d => (ok(d.roas) ? d.roas : div(d.revenue, d.spend)));
@@ -466,7 +516,7 @@ export function openAdDetail(ctx, ad, opts = {}) {
     if (ctx.sample && extra.window && !opts.window && !a.window) win = { ...extra.window, label: extra.window.label || span(extra.window.from, extra.window.to) };
     put(headBox, head(ctx, A, win, mediaBox));
     const gone = extra.notes.includes('no_id') ? h('p', { class: 'adx-na' }, 'This ad has no Meta id here, so only the numbers the page passed are shown.') : null;
-    put(restBox, gone, metrics(A), funnel(A), clicks(A, extra), adset(ctx, A, opts, ref), history(A, extra));
+    put(restBox, gone, metrics(A), funnel(A), clicks(A, extra), adset(ctx, A, opts, ref), history(A, extra, win));
   };
   const ref = sheet({ title: a.name || 'Ad', body: h('div', { class: 'adx' }, headBox, restBox), class: 'adx-wide',
     onClose: () => { const v = state.video; if (v) { try { v.pause(); v.removeAttribute('src'); v.load(); } catch {} } } });
@@ -485,6 +535,8 @@ const CSS = `
 .adx-mcol{display:grid;gap:8px;min-width:0}
 .adx-media{position:relative;display:grid;place-items:center;aspect-ratio:4/5;width:100%;overflow:hidden;border-radius:var(--r-tbl,12px);background:var(--bg-sunk);color:var(--faint)}
 .adx-media img,.adx-media video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
+.adx-media>.pd-pic{position:absolute;inset:0;width:100%;height:100%;border-radius:0;aspect-ratio:auto!important}
+.adx-media>.pd-pic>svg{width:100%;height:100%}
 .adx-media video{object-fit:contain}
 .adx-media.frame{aspect-ratio:auto;height:560px;background:var(--surface)}
 .adx-media iframe{width:100%;height:100%;border:0}

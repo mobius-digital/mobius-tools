@@ -101,6 +101,10 @@ function ctxFor(route, line, tab, signal, frame) {
         it with every question asked from this page (askpanel.js). Leave it unset and only the title, route, brand
         and dates go. */
     askContext: null,
+    /** A page may set ctx.askWindow = 'Nov 17 to 23', the real window of its numbers, when that is not the head's dates. */
+    askWindow: null,
+    /** true on a page that says ranges: false (set by the router); Ask then sends no dates. */
+    noRange: false,
   };
 }
 const SAMPLE_AGE = 4 * 60e3;       // a fixture reads "updated 4 min ago"
@@ -122,16 +126,29 @@ async function show(route, { soft = false, fresh = false } = {}) {
   const val = (v, data) => typeof v === 'function' ? v(ctx, data) : v;
   /* the title and the small line above it come from the page: text, nodes, or (ctx, data) => either */
   const head = (m, data) => frame.setTitle(val(m.title, data), { eyebrow: val(m.eyebrow, data) });
-  const paint = (m, data, method = 'render') => { if (my !== ticket) return; head(m, data); if (method === 'render') el.replaceChildren(); (m[method] || m.render)(el, data, ctx); };
+  const paint = (m, data, method = 'render') => { if (my !== ticket) return; head(m, data); if (method === 'render') el.replaceChildren(); dataWindow(m, data); (m[method] || m.render)(el, data, ctx); };
+  /* the Ask panel gets the window the numbers really cover (data.window or data.range) unless the page sets its own */
+  const dataWindow = (m, data) => {
+    if (m.ranges === false || !data || typeof data !== 'object') return;
+    const w = data.window || data.range;
+    if (!w || typeof w !== 'object') return;
+    const md = v => { const d = new Date(v + 'T12:00:00'); return isNaN(d) ? null : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); };
+    const f = w.from && md(w.from), t = w.to && md(w.to);
+    const lab = f && t ? (f === t ? f : f.slice(0, 3) === t.slice(0, 3) ? `${f} to ${t.slice(4)}` : `${f} to ${t}`) : typeof w.label === 'string' ? w.label : null;
+    if (lab) ctx.askWindow = lab;
+  };
   if (!mod) { frame.setRanges(false); frame.setAsOf(null); const c = await coming(); if (my !== ticket) return; frame.setTitle(null); el.replaceChildren(); c.render(el, null, ctx); if (!soft) scrollTop(); return; }
   const ranged = mod.ranges !== false;
+  ctx.noRange = !ranged;
+  /* a page that draws its own freshness stamp says stamp: false, and the head's copy stays empty */
+  const asOf = mod.stamp === false ? () => frame.setAsOf(null) : (ts, busy) => frame.setAsOf(ts, busy);
   frame.setRanges(ranged);
   head(mod, null);
   /* one stamp for every page: a page may say when its numbers were read (asOf), else it is when they were fetched */
-  const stamp = (data, at) => frame.setAsOf((mod.asOf && mod.asOf(data)) || at || null);
+  const stamp = (data, at) => asOf((mod.asOf && mod.asOf(data)) || at || null);
   try {
     const still = SAMPLE ? (mod.sample === null || (mod.sample === undefined && !mod.load)) : !mod.load;   // a page with no data
-    if (still) { paint(mod, null); frame.setAsOf(null); }
+    if (still) { paint(mod, null); asOf(null); }
     else if (SAMPLE) {
       const data = typeof mod.sample === 'function' ? await mod.sample(ctx) : mod.sample !== undefined ? mod.sample : await fixture(`${line.id}/_sample/${tab.id}.json`);
       paint(mod, data); stamp(data, Date.now() - SAMPLE_AGE);
@@ -153,11 +170,11 @@ async function show(route, { soft = false, fresh = false } = {}) {
       }
       const saved = await getSaved(key);
       if (my !== ticket) return;
-      if (!saved) { el.replaceChildren(); (mod.skeleton || defaultSkeleton)(el, ctx); frame.setAsOf(null, true); }   // first ever visit only
-      else frame.setAsOf(saved.asOf, Date.now() - saved.asOf > 20e3);
+      if (!saved) { el.replaceChildren(); (mod.skeleton || defaultSkeleton)(el, ctx); asOf(null, true); }   // first ever visit only
+      else asOf(saved.asOf, Date.now() - saved.asOf > 20e3);
       const onFresh = rec => { if (my !== ticket) return; paint(mod, rec.data, mod.update ? 'update' : 'render'); stamp(rec.data, rec.asOf); shownAt = rec.asOf; };
-      onFresh.touch = asOf => { if (my === ticket) { frame.setAsOf(asOf); shownAt = asOf; } };
-      onFresh.error = () => { if (my === ticket) frame.setAsOf(saved ? saved.asOf : null); };
+      onFresh.touch = at => { if (my === ticket) { asOf(at); shownAt = at; } };
+      onFresh.error = () => { if (my === ticket) asOf(saved ? saved.asOf : null); };
       const rec = await cached(key, () => mod.load(ctx), onFresh);
       if (my !== ticket) return;
       paint(mod, rec.data);
@@ -167,7 +184,7 @@ async function show(route, { soft = false, fresh = false } = {}) {
   } catch (e) {
     if (my !== ticket || (e && e.name === 'AbortError')) return;
     (await coming()).error(el, e, ctx, () => show(route));
-    frame.setAsOf(null);
+    asOf(null);
   }
   if (!soft) scrollTop();
 }

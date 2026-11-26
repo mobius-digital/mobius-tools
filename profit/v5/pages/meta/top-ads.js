@@ -8,7 +8,7 @@
      GET /api/ad-creatives?act=&ads=                                account-health: the pictures for the ads shown first */
 
 import { put } from '../../kit.js';
-import { h, card, kpi, takeaway, button, segmented, gauge, table, empty, skeleton, money, num, pct } from '../../kit.js';
+import { h, card, kpi, tiles, takeaway, button, segmented, gauge, table, empty, skeleton, money, num, pct } from '../../kit.js';
 import { ok, usd, sum, soft, judge, adTile, gate, oldLink, styles, statusDot, x, adSheet, opener } from './_rest.js';
 import { def, headRow } from '../platforms/_ads.js';
 import { askWhy } from '../home/_biz.js';
@@ -21,7 +21,7 @@ const CSS = `
 /* Meta creatives are 1:1, 4:5 and 9:16: show the whole of it on the sunk background, never crop the headline */
 .mt-ad .mr-tile img{object-fit:contain;object-position:center top}
 .mt-ad .mr-tile svg{width:30px;height:30px}
-.mt-kind{position:absolute;top:10px;left:10px;z-index:1;padding:2px 8px;border-radius:var(--r-chip,6px);background:rgba(20,16,12,.62);color:#fff;font-size:11.5px;font-weight:550}
+.mt-kind{position:absolute;top:10px;left:10px;z-index:1;padding:2px 8px;border-radius:var(--r-chip,6px);background:rgba(20,16,12,.62);color:#fff;font-size:11.5px;font-weight:500}
 .mt-media{position:relative}
 .mt-b{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--gap-3,12px);padding:var(--gap-4,16px) 18px 18px;min-width:0}
 .mt-b h4{margin:0;font-size:var(--fs-card,14px);font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -96,14 +96,14 @@ function figures(d, ctx) {
   const winners = judged.filter(j => j.v && j.v[0] === 'good' && j.a.purchases >= 3);
   const best = sales.filter(a => a.purchases >= 3 && ok(a.cpa)).sort((p, q) => p.cpa - q.cpa)[0];
   const none = h('small', null, 'No sales source connected');
-  const bestTile = kpi({ size: 'lg', label: def('Best cost per sale', 'cpa'), value: !d.sales_source ? none : best ? usd(best.cpa, cur) : h('small', null, 'No ad has 3 sales yet'),
+  const bestTile = kpi({ label: def('Best cost per sale', 'cpa'), value: !d.sales_source ? none : best ? usd(best.cpa, cur) : h('small', null, 'No ad has 3 orders yet'),
     sub: d.sales_source && best ? h('span', { class: 'mt-best', title: best.name }, best.name + (g.cpa ? '. Goal ' + usd(g.cpa, cur) : '')) : '', window: wl, source: d.sales_source ? TW : null });
   if (best) opener(bestTile, () => open(best, d, ctx), 'Open ' + best.name);
-  return h('div', { class: 'mr-kp mt-kp' },
-    kpi({ size: 'lg', label: 'Ads that spent', value: num(ads.length), sub: usd(sum(ads, 'spend'), cur) + ' spent', window: wl, source: 'Meta' }),
-    kpi({ size: 'lg', label: def('Winners', 'winners'), value: d.sales_source ? num(winners.length) : none,
-      sub: d.sales_source ? (g.roas ? `${x(g.roas)} ROAS or better, 3+ sales` : g.cpa ? `${usd(g.cpa, cur)} a sale or less, 3+ sales` : 'No goal set for this brand') : '', window: wl, source: d.sales_source ? TW : null }),
-    bestTile);
+  return tiles([
+    kpi({ label: 'Ads that spent', value: num(ads.length), sub: usd(sum(ads, 'spend'), cur) + ' spent', window: wl, source: 'Meta' }),
+    kpi({ label: def('Winners', 'winners'), value: d.sales_source ? num(winners.length) : none,
+      sub: d.sales_source ? (g.roas ? `${x(g.roas)} ROAS or better, 3+ orders` : g.cpa ? `${usd(g.cpa, cur)} a sale or less, 3+ orders` : 'No goal set for this brand') : '', window: wl, source: d.sales_source ? TW : null }),
+    bestTile], { class: 'mt-kp' });
 }
 function sentence(d, ctx) {
   if (!d.sales_source) return null;
@@ -120,8 +120,9 @@ function sentence(d, ctx) {
 const SORTS = {
   roas: ['ROAS', a => a.roas, 'roas', a => x(a.roas)],
   spend: ['Spend', a => a.spend, 'spend'],
-  sales: ['Sales', a => a.purchases, 'purchases'],
-  cpa: ['Cost per sale', a => a.cpa, 'cpa'],
+  revenue: ['Sales', a => a.revenue, 'revenue'],
+  sales: ['Orders', a => a.purchases, 'purchases'],
+  cpa: ['Cost per sale', a => a.cpa, 'cpa', (a, cur) => 'Cost per sale ' + usd(a.cpa, cur)],
   nc_roas: ['New customer ROAS', a => a.nc_roas, 'nc_roas', a => 'New customer ROAS ' + x(a.nc_roas)],
   ctr: ['CTR', a => a.ctr, 'ctr', a => 'CTR ' + pct(a.ctr, { digits: 2 })],
   cpm: ['CPM', a => a.cpm, 'cpm', (a, cur) => 'CPM ' + money(a.cpm, { cur, cents: true })],
@@ -140,11 +141,11 @@ function adCard(a, d, ctx, sort) {
   const nums = a.lead
     ? [cell('Spend', usd(a.spend, cur)), cell('Leads', num(a.leads || 0)), cell('Per lead', ok(a.cpl) ? money(a.cpl, { cur }) : '-'), cell('CTR', ok(a.ctr) ? pct(a.ctr, { digits: 2 }) : '-')]
     : [cell('Spend', usd(a.spend, cur)),
-       cell('Sales', d.sales_source ? num(a.purchases || 0) : '-'),
+       cell('Sales', !d.sales_source ? '-' : ok(a.revenue) ? usd(a.revenue, cur) : usd(0, cur)),
        cell('ROAS', !d.sales_source ? '-' : ok(a.roas) ? x(a.roas) : 'none', ok(a.roas) ? roasTone : 'na'),
-       cell('Per sale', ok(a.cpa) ? usd(a.cpa, cur) : '-')];
+       cell('Orders', d.sales_source ? num(a.purchases || 0) : '-')];
   /* the number the list is sorted by, when it is not one of the four already on the card */
-  const s = SORTS[sort], by = s && s[3] && !['roas', 'spend', 'sales', 'cpa'].includes(sort) && ok(s[1](a)) ? h('span', { class: 'mt-by' }, s[3](a, cur)) : null;
+  const s = SORTS[sort], by = s && s[3] && !['roas', 'spend', 'revenue', 'sales'].includes(sort) && ok(s[1](a)) ? h('span', { class: 'mt-by' }, s[3](a, cur)) : null;
   const bar = !a.lead && d.sales_source && g.roas ? gauge({ value: a.roas || 0, max: Math.max(g.roas * 1.6, (a.roas || 0) * 1.05), goal: g.roas, thin: true, tone: !v || early ? '' : v[0] }) : null;
   const where = [a.adset, a.campaign].filter(Boolean).join(' · ');
   return opener(h('article', { class: 'mt-ad' + (early ? ' early' : '') },
@@ -188,7 +189,8 @@ function gridCard(d, ctx) {
           { key: 'name', label: 'Ad', render: a => h('span', { class: 'name', title: a.name }, adTile(a, 'xs'), h('span', null, a.name)) },
           { key: 'adset', label: 'Ad set', class: 'hide-md' },
           { key: 'spend', label: 'Spend', num: true, sortable: true, render: a => usd(a.spend, cur) },
-          { key: 'purchases', label: 'Sales', num: true, sortable: true, class: 'hide-sm', render: a => ok(a.purchases) ? num(a.purchases) : '' },
+          { key: 'revenue', label: 'Sales', num: true, sortable: true, class: 'hide-sm', render: a => ok(a.revenue) ? usd(a.revenue, cur) : '' },
+          { key: 'purchases', label: 'Orders', num: true, sortable: true, class: 'hide-sm', render: a => ok(a.purchases) ? num(a.purchases) : '' },
           { key: 'roas', label: def('ROAS', 'roas'), num: true, sortable: true, render: a => ok(a.roas) ? x(a.roas) : h('span', { class: 'mr-dim' }, 'none') },
           { key: 'cpa', label: def('Cost per sale', 'cpa'), num: true, sortable: true, class: 'hide-sm', render: a => ok(a.cpa) ? usd(a.cpa, cur) : '' },
           { key: 'nc_roas', label: def('New cust. ROAS', 'new_customer_roas'), num: true, sortable: true, class: 'hide-md', render: a => ok(a.nc_roas) ? x(a.nc_roas) : '' },
@@ -271,8 +273,9 @@ export default {
     if (stop) return put(el, stop);
     if (!(d.ads || []).length) return put(el, empty({ title: 'No Meta ads spent on these dates', text: `Nothing spent ${d.window ? d.window.label : 'on these dates'}. Pick a longer date range at the top.`, action: oldLink(ctx) }));
     const g = d.goals || {}, sales = (d.ads || []).filter(a => !a.lead && a.purchases >= 3 && ok(a.roas)).sort((p, q) => q.roas - p.roas);
+    ctx.askWindow = d.window && d.window.label ? d.window.label : null;
     ctx.askContext = `Best Meta ads for ${ctx.brand.name || 'this brand'}, ${d.window ? d.window.label : 'these dates'}: ${(d.ads || []).length} ads spent ${usd(sum(d.ads || [], 'spend'), d.currency)}`
-      + (sales[0] ? `; the best with 3 or more sales is "${sales[0].name}" at ${x(sales[0].roas)} ROAS` : '') + (g.roas ? ` against a ${x(g.roas)} goal.` : '.') + ' Sales are Triple Whale last click, spend is Meta.';
+      + (sales[0] ? `; the best with 3 or more orders is "${sales[0].name}" at ${x(sales[0].roas)} ROAS` : '') + (g.roas ? ` against a ${x(g.roas)} goal.` : '.') + ' Sales are Triple Whale last click, spend is Meta.';
     put(el, ...[headRow({ help: HELP }), figures(d, ctx), sentence(d, ctx), ...gridCard(d, ctx)].filter(Boolean));
   },
 };

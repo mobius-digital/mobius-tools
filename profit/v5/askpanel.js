@@ -18,6 +18,8 @@
    campaigns under break-even since 8am.' in its render. One or two plain sentences of what is on screen now, no
    client names beyond the brand on screen. It goes with every question asked while that page is open, as
    screen.page_summary. Leave it unset and only the title, route, brand and dates go.
+   ctx.askWindow (string): the real window of the page's numbers ("Nov 17 to 23"). When set it replaces the head's
+   dates on the context line and goes as screen.window. A page with ranges: false sends no dates at all.
 
    The request is the Ask page's own (pages/ask/index.js askOnce: POST /api/ask on account-health, the same body),
    with screen = { screen: <page title>, screen_id: <line/tab>, route, brand_selected, act_id, range, from, to,
@@ -81,13 +83,14 @@ export async function openAskPanel(opts = {}) {
       route: r ? '#/' + [r.view, r.brand, r.line, r.tab || 'index'].join('/') : null,
       brand_selected: c.brand ? c.brand.name : 'Agency view (every client)', act_id: c.brand ? c.brand.id : null,
       range: range && range.preset, from: range && range.from, to: range && range.to,
-      page_summary: c.context || null,
+      window: c.window || null, page_summary: c.context || null,
     };
   }
   function paintHead() {
     const c = now();
     sub.textContent = ' · about ' + pageName(c);
-    const when = c.range && c.range.label ? c.range.label + (c.range.dates && c.range.dates !== c.range.label ? ' (' + c.range.dates + ')' : '') : null;
+    /* the page's own data window (ctx.askWindow) wins over the head's dates; a page with no dates (ranges: false) says none */
+    const when = c.window ? String(c.window) : c.range && c.range.label ? c.range.label + (c.range.dates && c.range.dates !== c.range.label ? ' (' + c.range.dates + ')' : '') : null;
     put(ctxLine, svgNode(icon('eye')), h('span', null, 'Asking with this page: ', h('b', null, pageName(c)), ', ', whoOf(c), when ? ', ' + when : '', c.context ? '. ' + c.context : ''));
     const tries = (c.route && SUGGEST[c.route.line]) || general(c.brand);
     put(sug, h('span', { class: 'lab' }, 'Try asking'), tries.map(t => h('button', { type: 'button', onclick: () => ask(t) }, t)));

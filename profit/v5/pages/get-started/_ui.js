@@ -92,7 +92,7 @@ const CSS = `
 .gs-step{border-radius:16px;background:var(--surface);box-shadow:0 0 0 1px var(--line);min-width:0}
 .gs-step>summary{list-style:none;display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:14px;align-items:center;padding:18px 22px;cursor:pointer}
 .gs-step>summary::-webkit-details-marker{display:none}
-.gs-step .dot{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:650;font-size:14px;background:var(--bg-sunk);color:var(--ink-2)}
+.gs-step .dot{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:600;font-size:14px;background:var(--bg-sunk);color:var(--ink-2)}
 .gs-step.done .dot{background:var(--good-bg);color:var(--good)}
 .gs-step .dot svg{width:18px;height:18px}
 .gs-step .t b{display:block;font-size:16px;font-weight:600}
@@ -130,7 +130,7 @@ const CSS = `
 .gs-q{display:grid;gap:8px;padding:16px 0;border-top:1px solid var(--line);min-width:0}
 .gs-q:first-of-type{border-top:0;padding-top:0}
 .gs-q .qt{display:flex;gap:10px;align-items:baseline}
-.gs-q .qt i{font-style:normal;font-size:12px;font-weight:650;color:var(--faint);min-width:18px}
+.gs-q .qt i{font-style:normal;font-size:12px;font-weight:600;color:var(--faint);min-width:18px}
 .gs-q .qt b{font-size:14.5px;font-weight:600;line-height:1.4}
 .gs-q textarea{min-height:76px}
 .gs-draft{display:grid;gap:6px;padding:10px 12px;border-radius:12px;background:var(--bg-sunk);color:var(--muted);font-size:13.5px;line-height:1.45}

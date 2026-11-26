@@ -148,7 +148,7 @@ export function openLoad(ctx, { act, card, onDone } = {}) {
       h('div', { class: 'ld-top' }, picture({ src: card.thumb, art: card.art, video: card.format === 'Video' || card.format === 'UGC', ratio: '1/1' }),
         h('div', null, h('b', null, card.title || 'Untitled card'), h('small', null, [card.num && 'Card ' + card.num, plural(P.ads.length, 'approved ad')].filter(Boolean).join(', ')))),
       h('div', { class: 'ld-box' }, h('b', null, 'Every picked ad goes into one ad set, switched off (paused).'),
-        h('p', null, 'Nothing spends until someone turns it on. The headline and words come from the brief. Each ad is written to Changes made, with an undo.')),
+        h('p', null, 'Nothing spends until someone turns it on. The headline and words come from the brief. Each ad is written to Changes, with an undo.')),
       (P.warnings || []).length ? h('div', { class: 'ld-warn' }, P.warnings.map(w => h('p', null, w))) : null,
       P.can === false ? h('p', { class: 'ld-msg bad' }, 'Our Meta login can read this ad account but cannot change it, so loading is off until that is fixed in Meta.') : null,
       h('div', { class: 'ld-where' },
@@ -248,7 +248,7 @@ const CSS = `
 .ld-new{display:grid;gap:6px;padding-left:18px;font-size:13.5px}
 .ld-new li.bad{color:var(--bad)}
 .ld-msg{font-size:13.5px;min-height:1em}
-.ld-msg.bad{color:var(--bad);font-weight:550}
+.ld-msg.bad{color:var(--bad);font-weight:500}
 .ld-msg.ok{color:var(--good)}
 .ld-foot{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;position:sticky;bottom:0;padding:12px 0 4px;background:var(--surface,#fff)}
 .ld-old{font-size:12.5px;color:var(--muted);text-align:right}

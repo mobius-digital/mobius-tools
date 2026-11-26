@@ -36,7 +36,7 @@ function person(ctx) {
 }
 
 function cleanPrefs(p, now) {
-  const out = { morning_dm: !!(p && p.morning_dm), nudge: {} };
+  const out = { morning_dm: !!(p && p.morning_dm), nudge: {}, home_tiles: Array.isArray(p && p.home_tiles) ? [...new Set(p.home_tiles.filter(id => typeof id === 'string' && /^[a-z0-9_.:-]{1,40}$/i.test(id)))].slice(0, 16) : [] };
   for (const [k, v] of Object.entries((isPlainObject(p) && isPlainObject(p.nudge) && p.nudge) || {})) {
     if (!v || !NUDGE_STATES.includes(v.state) || !(+v.until > now - KEEP_MS)) continue;
     out.nudge[k] = { state: v.state, until: +v.until };
@@ -72,6 +72,7 @@ export async function savePrefs(ctx, input) {
   const now = Date.now();
   const cur = await prefsFor(ctx, who.key, now);
   if (isPlainObject(patch) && 'morning_dm' in patch) cur.morning_dm = !!patch.morning_dm;
+  if (isPlainObject(patch) && Array.isArray(patch.home_tiles)) cur.home_tiles = patch.home_tiles;
   if (isPlainObject(patch) && isPlainObject(patch.nudge)) {
     for (const [k, v] of Object.entries(patch.nudge)) mergeNudge(cur.nudge, k, v, now);
   }

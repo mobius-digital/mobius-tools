@@ -21,7 +21,7 @@ const CSS = `
 .ms-h{display:block;margin:0;padding:0;border:0;background:none;font:inherit;font-size:16px;font-weight:600;letter-spacing:-.015em;color:var(--ink);text-align:left;cursor:pointer}
 .ms-h:hover{text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
 .ms-pic{padding:0;border:0;background:none;cursor:pointer;border-radius:var(--r-tbl,12px)}
-.ms-t .o{margin-top:6px;display:flex;align-items:center;gap:8px;font-size:13px;min-width:0;overflow-wrap:anywhere}.ms-t .o b{font-weight:550}
+.ms-t .o{margin-top:6px;display:flex;align-items:center;gap:8px;font-size:13px;min-width:0;overflow-wrap:anywhere}.ms-t .o b{font-weight:500}
 .ms-t .o2{margin-top:2px;color:var(--muted);font-size:12.5px;overflow-wrap:anywhere}
 .ms-per{display:block;margin-top:6px;color:var(--muted);font-size:12px}
 .ms-sh{display:grid;gap:16px}.ms-sh .top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -136,7 +136,7 @@ function openRow(r, d, ctx) {
   const kv = (label, key, value) => h('div', null, h('span', { class: 'l' }, def(label, key)), h('b', null, value));
   return sheet({ title: w.name, body: h('div', { class: 'ms-sh' },
     h('div', { class: 'top' }, levelChip(LEVEL[r.level] || 'Ad set'), h('span', { class: 'mr-dim' }, 'Meta ' + (LEVEL[r.level] || 'ad set').toLowerCase() + (w.campaign ? ' in ' + w.campaign : '') + ', numbers for the ' + PERIOD)),
-    h('div', { class: 'g' }, kv('Spend', 'ad_spend', ok(r.spend) ? usd(r.spend, cur) : 'not read'), kv('Sales', 'sales', ok(r.results) ? num(r.results) : 'not read'),
+    h('div', { class: 'g' }, kv('Spend', 'ad_spend', ok(r.spend) ? usd(r.spend, cur) : 'not read'), kv('Orders', 'purchases_last_click', ok(r.results) ? num(r.results) : 'not read'),
       kv('Cost per sale', 'cpa', ok(r.cpa) ? usd(r.cpa, cur) + (r.goal ? ', goal ' + usd(r.goal, cur) : '') : 'no sales'), kv('ROAS', 'roas', ok(r.roas) ? x(r.roas) + (r.goal_roas ? ', goal ' + x(r.goal_roas) : '') : 'no sales')),
     measure(r, d),
     (r.facts || []).length ? h('div', { class: 'ms-f' }, r.facts.map(factOf)) : null,
@@ -214,12 +214,12 @@ export default {
   skeleton(el) { put(el, skeleton('row', 6)); },
   render(el, d, ctx) {
     styles('ms-css', CSS);
-    if (ctx.isClient) return put(el, empty({ title: 'Suggestions are for the team', text: 'Nothing for you to decide here. The changes we make are under Changes made.', action: button('Open changes made', { href: ctx.href('meta', 'changes') }) }));
+    if (ctx.isClient) return put(el, empty({ title: 'Suggestions are for the team', text: 'Nothing for you to decide here. The changes we make are under Changes.', action: button('Open Changes', { href: ctx.href('meta', 'changes') }) }));
     const stop = gate(d, ctx, 'Suggestions');
     if (stop) return put(el, stop);
     const help = [
       { title: 'What it is for', text: "Today's calls on this brand's Meta ads, from the agency's ad rules. Each row names the ad, ad set or campaign, the call, why, and the numbers for the last 7 days. Tap the picture or the call for every number." },
-      { title: 'Yes and No', text: 'Yes makes the change in Meta after a look at the before and after, and logs it under Changes made, where it can be undone for 24 hours. No changes nothing and keeps your reason as a lesson.' },
+      { title: 'Yes and No', text: 'Yes makes the change in Meta after a look at the before and after, and logs it under Changes, where it can be undone for 24 hours. No changes nothing and keeps your reason as a lesson.' },
       { title: 'Where the numbers come from', text: 'Sales and cost per sale are Triple Whale, last click per platform. Spend is Meta\'s. An ad is judged once it has spent twice the goal cost per sale and run 3 days.' },
       ctx.legacy && canWrite(ctx) ? h('p', null, h('a', { href: ctx.legacy, target: '_blank', rel: 'noopener' }, 'Open this list in old ' + APP_NAME)) : null,
     ].filter(Boolean);

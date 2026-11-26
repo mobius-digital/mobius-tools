@@ -666,7 +666,7 @@ const CSS = `
 .lx-co-line .p{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .lx-co-line .v{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .lx-co-total{display:flex;align-items:baseline;gap:12px;padding:14px 28px;border-top:1px solid var(--line);background:var(--band);border-radius:0 0 var(--r-xl) var(--r-xl);font-size:13.5px;color:var(--ink-2)}
-.lx-co-total b{font-size:17px;font-weight:650;color:var(--ink);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.lx-co-total b{font-size:17px;font-weight:600;color:var(--ink);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .lx-co-none{font-size:13.5px;color:var(--muted);max-width:64ch;line-height:1.5}
 .lx-co-use{display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;padding:4px 28px 16px}
 .lx-co-use .k{font-size:12.5px;color:var(--muted)}
@@ -676,7 +676,7 @@ const CSS = `
 .lx-co-fine{padding:12px 28px 16px;border-top:1px solid var(--line);font-size:12.5px;line-height:1.5;color:var(--muted);margin:0}
 .lx-co-acts{display:inline-flex;gap:8px;flex-wrap:wrap}
 .lx-co-ro{gap:10px}
-.lx-co-ro b{font-weight:650;color:var(--ink);font-variant-numeric:tabular-nums}
+.lx-co-ro b{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
 .lx-co-ro small{font-size:12.5px;color:var(--muted)}
 .lx-co-ok{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13.5px;color:var(--ink-2)}
 .lx-co-miss{display:grid}
@@ -696,7 +696,7 @@ const CSS = `
 .lx-co-err:empty{display:none}
 .lx-co-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:4px}
 .lx-co-foot .lx-co-rm{color:var(--bad);padding-left:0}
-.lx-co-ask{font-size:13.5px;font-weight:550;max-width:38ch;line-height:1.4}
+.lx-co-ask{font-size:13.5px;font-weight:500;max-width:38ch;line-height:1.4}
 .lx-co-tbl{display:grid;gap:8px}
 .lx-co-tbl .hint{margin:0;font-size:12.5px;color:var(--muted)}
 .lx-co-tbl>.lx-btn{justify-self:start}

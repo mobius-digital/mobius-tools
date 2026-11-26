@@ -46,7 +46,7 @@ const CSS = `
   button.pl-item{display:grid;gap:12px;width:100%;padding:16px 18px;border:0;border-top:1px solid var(--line);background:transparent;font:inherit;color:inherit;text-align:left;cursor:pointer}
   .pl-item.total{background:var(--band)}
   .pl-item-h{display:flex;align-items:center;gap:10px;min-width:0}
-  .pl-item-h>b{font-size:15px;font-weight:650}
+  .pl-item-h>b{font-size:15px;font-weight:600}
   .pl-item-h .lx-stat{font-size:12.5px}
   .pl-item-h .pl-open{margin-left:auto;margin-right:-6px}
   .pl-figs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}

@@ -32,7 +32,7 @@ function render(el, d, ctx) {
   const n = g => rows.filter(r => GROUP(r.category) === g).length;
   const brands = new Set(rows.map(r => r.brand_id));
   const hero = figures([
-    { label: 'Changes made', value: String(rows.length), lead: true, sub: `across ${brands.size} brand${brands.size === 1 ? '' : 's'}` },
+    { label: 'Changes', value: String(rows.length), lead: true, sub: `across ${brands.size} brand${brands.size === 1 ? '' : 's'}` },
     { label: 'Budgets moved', value: String(n('budget')) },
     { label: 'Turned off or on', value: String(n('onoff')) },
     { label: 'New ads and sets', value: String(n('new')) },
@@ -55,7 +55,7 @@ function render(el, d, ctx) {
     segmented([{ id: 'all', label: 'All' }, { id: 'budget', label: 'Budgets' }, { id: 'onoff', label: 'Off and on' }, { id: 'new', label: 'New' }], 'all', draw));
   const help = headRow({ left: rangeChips(ctx), help: [
     { title: 'What it is for', text: 'What changed in every brand\'s ad accounts, newest first, and why.' },
-    { title: 'What is listed', text: `Changes made in Meta, and in Google or TikTok through ${APP_NAME}.${d.other ? ` ${d.other} small edits (renames, Meta's own housekeeping) are not listed.` : ''} A brand's own Changes made tab is where a reason is added.` },
+    { title: 'What is listed', text: `Changes made in Meta, and in Google or TikTok through ${APP_NAME}.${d.other ? ` ${d.other} small edits (renames, Meta's own housekeeping) are not listed.` : ''} A brand's own Changes tab is where a reason is added.` },
   ] });
   put(el, h('div', { class: 'ag' }, help, hero, h('div', { class: 'ag', style: { gap: '16px' } }, filter, list)));
 }

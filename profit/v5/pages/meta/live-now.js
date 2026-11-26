@@ -32,7 +32,7 @@ const CSS = `
 .ml-r .nm{display:flex;align-items:center;gap:10px;min-width:0}
 .ml-r .nm b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .ml-r .nm small{color:var(--muted);font-size:12.5px;white-space:nowrap}
-.ml-r.set .nm{padding-left:22px}.ml-r.set .nm b{font-weight:550}
+.ml-r.set .nm{padding-left:22px}.ml-r.set .nm b{font-weight:500}
 .ml-r.set{background:var(--surface-2)}
 .ml-r.off{opacity:.6}
 button.ml-r{width:100%;border:0;border-top:1px solid var(--line);background:transparent;font:inherit;color:inherit;text-align:left;cursor:pointer;border-radius:0}
@@ -44,7 +44,7 @@ button.ml-r:hover{background:var(--bg-sunk)}
 .ml-ad{display:grid;gap:5px;min-width:0;font-size:12.5px;padding:6px;margin:-6px;border-radius:var(--r-tbl,12px)}
 .ml-ad:hover{background:var(--bg-sunk)}
 .ml-ad .mr-tile{width:100%;height:auto;aspect-ratio:1/1;max-height:150px}
-.ml-ad b{font-weight:550;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ml-ad b{font-weight:500;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ml-ad .s{display:flex;justify-content:space-between;gap:6px;color:var(--muted);font-variant-numeric:tabular-nums}
 .ml-ad .s b{font-size:12.5px;color:var(--ink);font-weight:600}
 .ml-none{padding:16px var(--pad-card,24px);background:var(--surface-2);border-top:1px solid var(--line);color:var(--muted);font-size:13px}

@@ -27,7 +27,7 @@ const CSS = `
 .lv-kpis .lx-kpi .s{flex-wrap:wrap}
 .lv-flush .lv-head{padding:20px 28px 6px;margin:0}
 .lv-young{color:var(--faint)}
-.lv-lab{font-size:13.5px;color:var(--ink-2);font-weight:550}
+.lv-lab{font-size:13.5px;color:var(--ink-2);font-weight:500}
 .lv-num{font-size:var(--num-l);font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 @media (max-width:759px){
   .lv-pad{padding:18px}

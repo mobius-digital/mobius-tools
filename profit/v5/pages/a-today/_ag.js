@@ -124,7 +124,7 @@ const CSS = `
 .ag-bc-n{display:flex;align-items:baseline;gap:10px;min-height:38px;flex-wrap:wrap}
 .ag-bc-n .lx-big{font-size:var(--num-l)}
 .ag-bc-n small{font-size:13px;color:var(--muted)}
-.ag-bc-n .w{font-size:15px;font-weight:550;color:var(--ink-2)}
+.ag-bc-n .w{font-size:15px;font-weight:500;color:var(--ink-2)}
 .ag-bc-g{min-height:25px}
 .ag-figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,112px),1fr));gap:10px;padding-top:14px;border-top:1px solid var(--line)}
 .ag-figs>span{display:grid;gap:2px;min-width:0;align-content:start}
@@ -134,7 +134,7 @@ const CSS = `
 .ag-figs b.ag-q{font-size:13px;font-weight:400;letter-spacing:0;white-space:normal}
 .ag-bc-a{display:flex;flex-wrap:wrap;align-items:center;gap:10px;min-height:34px;align-self:end}
 .ag-bc-a .lx-sp{flex:1}
-.ag-name{display:inline-flex;align-items:center;gap:10px;min-width:0;color:inherit;text-decoration:none;font-weight:550}
+.ag-name{display:inline-flex;align-items:center;gap:10px;min-width:0;color:inherit;text-decoration:none;font-weight:500}
 .ag-name:hover b,a.ag-name:hover{text-decoration:underline}
 .ag-wide .lx-table .g{padding-left:22px}
 .ag-wide tr.total .lx-gauge-track{background:var(--line-strong)}
@@ -152,7 +152,7 @@ const CSS = `
   .ag-item{display:grid;gap:12px;padding:16px 18px;border-top:1px solid var(--line);color:inherit;text-decoration:none;min-width:0}
   .ag-item.total{background:var(--band)}
   .ag-item-h{display:flex;align-items:center;gap:10px;min-width:0}
-  .ag-item-h b{font-size:15px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ag-item-h b{font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .ag-item-h>:last-child:not(:first-child){margin-left:auto;flex:none}
   .ag-item .ag-figs{padding-top:0;border-top:0}
   .ag-chart{padding:18px 14px 12px}

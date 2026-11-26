@@ -132,9 +132,9 @@ const CSS = `
 .ms{display:grid;gap:var(--sp-4,16px);min-width:0}
 .ms-intro{font-size:13.5px;line-height:1.5;color:var(--ink-2);max-width:760px}
 .ms-filters{display:flex;flex-wrap:wrap;gap:6px}
-.ms-fb{font:inherit;font-size:12.5px;font-weight:550;padding:6px 11px;border-radius:999px;border:0;background:var(--surface);color:var(--ink-2);box-shadow:inset 0 0 0 1px var(--line-strong);cursor:pointer}
+.ms-fb{font:inherit;font-size:12.5px;font-weight:500;padding:6px 11px;border-radius:999px;border:0;background:var(--surface);color:var(--ink-2);box-shadow:inset 0 0 0 1px var(--line-strong);cursor:pointer}
 .ms-fb.on{background:var(--ink);color:var(--surface);box-shadow:none}
-.ms-fb .n{margin-left:6px;font-weight:650;opacity:.6;font-variant-numeric:tabular-nums}
+.ms-fb .n{margin-left:6px;font-weight:600;opacity:.6;font-variant-numeric:tabular-nums}
 .ms-list{display:grid;gap:28px;min-width:0}
 .ms-g{display:grid;gap:12px;min-width:0}
 .ms-e{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:16px 24px;padding:18px 20px;border-radius:14px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);min-width:0}
@@ -155,7 +155,7 @@ const CSS = `
 .ms-av{width:20px;height:20px;border-radius:5px;background:var(--ink-2);color:var(--surface);font-size:11px;font-weight:700;display:grid;place-items:center;flex:none}
 .ms-av.app{background:var(--ink)}
 .ms-top b{font-size:13.5px}
-.ms-app{font-size:9.5px;font-weight:650;color:var(--muted);background:var(--bg-sunk);border-radius:3px;padding:0 4px}
+.ms-app{font-size:9.5px;font-weight:600;color:var(--muted);background:var(--bg-sunk);border-radius:3px;padding:0 4px}
 .ms-tm{font-size:11.5px;color:var(--muted)}
 .ms-body{display:grid;gap:6px;min-width:0}
 .ms-h{font-size:15px;font-weight:700;line-height:1.3}

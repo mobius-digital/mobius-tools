@@ -31,7 +31,7 @@ let n = 0, bad = 0;
 const check = async (name, fn) => { try { await fn(); n++; console.log('PASS ', name); } catch (e) { bad++; console.log('FAIL ', name, '\n   ', e.message); } };
 
 await check('prefs: empty by default, the switch and a snooze round-trip, a done key, a removed key', async () => {
-  assert.deepEqual(await prefsFor(env, 'Cole@Go-Mobius-Digital.com'), { morning_dm: false, nudge: {} });
+  assert.deepEqual(await prefsFor(env, 'Cole@Go-Mobius-Digital.com'), { morning_dm: false, nudge: {}, home_tiles: [] });
   const now = Date.parse('2026-10-11T13:00:00Z');
   const p = await updatePrefs(env, 'cole@go-mobius-digital.com', { morning_dm: true, nudge: { 'cut|b|1|': { state: 'snoozed', until: now + 86400e3 }, 'x': { state: 'bogus' } } }, now);
   assert.equal(p.morning_dm, true); assert.deepEqual(Object.keys(p.nudge), ['cut|b|1|']);

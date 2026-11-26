@@ -9,14 +9,13 @@
      GET /api/ad-updates?act=&from=&to=           account-health: only the changes with a note written for the client (client view) */
 
 import { put } from '../../kit.js';
-import { h, card, kpi, segmented, empty, skeleton, num } from '../../kit.js';
+import { h, card, kpi, tiles, segmented, empty, skeleton, num } from '../../kit.js';
 import { addDays, gate, styles } from './_rest.js';
 import { undoneSet, writeOf } from './_write.js';
 import { def, info, headRow } from '../platforms/_ads.js';
 import { dayCards, changesCss } from '../platforms/changes.js';
 
 const CSS = `
-.mc-kp{grid-template-columns:repeat(4,minmax(0,1fr))}
 .mc-bar{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap}
 .mc-bar h3{margin:0;font-size:var(--fs-section,17px);font-weight:600;line-height:1.25}
 .mc-sec{margin:0;padding:0}
@@ -24,7 +23,6 @@ const CSS = `
 .mc-mode{display:inline-flex;align-items:center;gap:6px}
 .mc-days{display:grid;gap:16px}
 @media (max-width:759px){
-  .mc-kp{grid-template-columns:repeat(2,minmax(0,1fr))}
   .mc-bar .lx-seg{max-width:100%;overflow-x:auto}
   .mc-bar .lx-seg button{white-space:nowrap}
 }`;
@@ -67,12 +65,12 @@ const KINDS = [['all', 'All'], ['budget', 'Budgets', c => c === 'budget' || c ==
 const SRC = 'Locus change log';
 function figures(d) {
   const r = d.rows || [], n = f => r.filter(f).length, wl = d.window && d.window.label ? d.window.label : null;
-  const tile = (label, value, sub) => kpi({ size: 'lg', label, value: num(value), sub, window: wl, source: SRC });
-  return h('div', { class: 'mr-kp mc-kp' },
+  const tile = (label, value, sub) => kpi({ label, value: num(value), sub, window: wl, source: SRC });
+  return tiles([
     tile('Changes', r.length, d.client_view ? 'made for you' : [num(n(a => a.matters)), ' ', def('that matter', 'matters')]),
     tile('Budget changes', n(a => a.cat === 'budget')),
     tile('Turned off', n(a => a.cat === 'campaign_paused' || a.cat === 'ad_paused')),
-    tile('New ads', n(a => a.cat === 'new_creative')));
+    tile('New ads', n(a => a.cat === 'new_creative'))], { cols: 4, class: 'mc-kp' });
 }
 function listCard(d, ctx) {
   const all = d.rows || [], key = all.filter(r => r.matters);
@@ -102,7 +100,7 @@ export default {
   skeleton(el) { put(el, h('div', { class: 'lx-skel-grid' }, skeleton('kpi', 4)), skeleton('row', 8)); },
   render(el, d, ctx) {
     styles('mc-css', CSS); changesCss();
-    const stop = gate(d, ctx, 'Changes made');
+    const stop = gate(d, ctx, 'Changes');
     if (stop) return put(el, stop);
     /* sample numbers seen as a client: only the changes that carry a written reason, and no names */
     if (ctx.isClient && !d.client_view) d = { ...d, client_view: true, rows: (d.rows || []).filter(r => r.matters && r.why).map(r => ({ ...r, who: null, via: '' })) };
@@ -111,6 +109,7 @@ export default {
         { title: 'Where it comes from', text: 'Meta\'s own activity log plus every change made in the app. A change made in the app can be undone from its detail for 24 hours.' }];
     const top = headRow({ help });
     const r = d.rows || [];
+    ctx.askWindow = d.window && d.window.label ? d.window.label : null;
     ctx.askContext = `Changes on Meta for ${ctx.brand && ctx.brand.name ? ctx.brand.name : 'this brand'}, ${d.window && d.window.label ? d.window.label : 'these dates'}: ${r.length} changes, ${r.filter(a => a.cat === 'budget').length} to budgets, ${r.filter(a => a.cat === 'campaign_paused' || a.cat === 'ad_paused').length} turned off, ${r.filter(a => a.cat === 'new_creative').length} new ads.`;
     if (!(d.rows || []).length) return put(el, top, empty({ title: 'No changes on these dates', text: d.client_view ? 'When we change your Meta ads, the change and the reason show here.' : `Nothing changed on Meta ${d.window && d.window.label ? d.window.label : 'on these dates'}. Pick a longer range at the top.` }));
     put(el, top, figures(d), ...listCard(d, ctx));

@@ -4,7 +4,7 @@
    load() returns one plain object (the same shape as _sample/overview.json); render() only draws it. */
 
 import { put } from '../../kit.js';
-import { h, svgNode, money, num, pct, x, card, kpi, button, statusDot, delta, count, gauge, legend, lineChart, table, empty, skeleton, addStyles, sheet } from '../../kit.js';
+import { h, svgNode, money, num, pct, x, card, kpi, tiles, button, statusDot, delta, count, gauge, legend, lineChart, table, empty, skeleton, addStyles, sheet } from '../../kit.js';
 import { adSheet, adTile, opener, styles } from './_rest.js';
 import { def, headRow } from '../platforms/_ads.js';
 import { icon } from '../../icons.js';
@@ -38,22 +38,19 @@ function costRead(cost, goal) {
 const CSS = `
 /* the tabs row must not set the page width on a phone (six tabs are wider than the screen) */
 .mo-figs,.mo-two,.mo-chart,.mo-camps,.mo-checks{min-width:0}
-.mo-figs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--sp-8)}
-.mo-figs .lx-gauge{margin-top:14px}
+.mo-figs .lx-kpi>.lx-gauge{margin-top:auto;padding-top:10px}
 .mo-ret{display:grid;gap:var(--gap-3,12px);min-width:0;container-type:inline-size}
-@container (max-width:1000px){.mo-figs{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:var(--gap-6,32px)}}
 .mo-sec h2{margin:0;font-size:var(--fs-section,17px);font-weight:600;line-height:1.25}
 .mo-l{display:block;font-size:var(--fs-colhead,11.5px);font-weight:600;color:var(--muted)}
 .mo-best{display:flex;flex-direction:column;flex:1}
 .mo-best:hover{background:var(--row-hover)}
 .mo-top .mr-tile{border-radius:var(--r-tbl,12px)}
-.mo-figs .lx-kpi .v{font-size:var(--num-xl)}
 .mo-chart .lx-legend span.sq::before{width:8px;height:8px;border:0;border-radius:2px;background:var(--line-strong)}
 .mo-read{margin:10px 0 0 -13px}
 .mo-counts{display:flex;gap:44px;align-items:baseline;flex-wrap:wrap;padding:8px 28px 14px}
 .mo-counts span{display:inline-flex;gap:10px;align-items:baseline;color:var(--muted);font-size:13px}
 .mo-n{font-size:var(--num-l);font-weight:600;letter-spacing:-.03em;line-height:1.1;color:var(--ink);font-variant-numeric:tabular-nums}
-.mo-n.xl{font-size:var(--num-xl);letter-spacing:-.04em;line-height:1}
+.mo-n.xl{font-size:var(--num-l);letter-spacing:-.03em;line-height:1.1}
 .mo-camps .lx-gauge{min-width:150px}
 .mo-camps .mo-bar{padding-left:28px}
 .mo-camps td.mo-bar{width:220px}
@@ -62,14 +59,14 @@ const CSS = `
 .mo-two>.lx-card{display:flex;flex-direction:column}
 .mo-sug{padding:6px 28px 0;display:flex;gap:14px;align-items:baseline;color:var(--muted);font-size:13.5px}
 .mo-sug-rows{padding:10px 28px 0}
-.mo-sug-rows a{display:flex;align-items:center;height:44px;border-bottom:1px solid var(--line);color:inherit;text-decoration:none;font-weight:550}
+.mo-sug-rows a{display:flex;align-items:center;height:44px;border-bottom:1px solid var(--line);color:inherit;text-decoration:none;font-weight:500}
 .mo-sug-rows a:last-child{border-bottom:0}
 .mo-sug-rows .lx-count{margin-left:auto}
 .mo-go{margin-top:auto;padding:14px 28px 24px}
 .mo-quiet{padding:6px 28px 24px;color:var(--muted)}
 .mo-top{display:flex;gap:18px;align-items:center;padding:18px 28px 22px}
 .mo-top-b{min-width:0;flex:1;display:grid;gap:6px}
-.mo-top-b .nm{font-size:13.5px;font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mo-top-b .nm{font-size:13.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mo-top-b .r{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;color:var(--muted);font-size:13px}
 .mo-top-b .r .lx-stat{margin-left:auto}
 .mo-thumb{width:76px;height:95px;border-radius:var(--r-tbl,12px);background:var(--bg-sunk);display:inline-flex;align-items:center;justify-content:center;flex:none}
@@ -97,19 +94,13 @@ button.mo-open:hover{background:var(--row-hover)}
 .mo-sh .g .l{font-size:12px;color:var(--muted)}.mo-sh .g b{font-size:var(--num-s);font-variant-numeric:tabular-nums}
 .mo-sh h3{margin:0 0 8px;font-size:13px;font-weight:600;color:var(--muted)}
 .mo-sh-ads{display:grid;border-radius:var(--r-tbl,12px);box-shadow:inset 0 0 0 1px var(--line);overflow:hidden}
-.mo-sh-ads>div{display:flex;justify-content:space-between;gap:12px;padding:10px 14px;border-top:1px solid var(--line);font-size:13px}
+.mo-sh-ads>div{display:flex;justify-content:space-between;gap:12px;padding:10px 14px;border-top:1px solid var(--line);font-size:var(--fs-table)}
 .mo-sh-ads>div:first-child{border-top:0}
 @media (max-width:759px){.mo-sh .g{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:1040px){
-  .mo-figs{grid-template-columns:repeat(2,minmax(0,1fr))}
   .mo-checks-g{grid-template-columns:repeat(2,minmax(0,1fr));gap:28px}
 }
 @media (max-width:759px){
-  .mo-figs{gap:var(--sp-5)}
-  .mo-figs .lx-kpi .v{font-size:var(--num-l)}
-  .mo-figs .lx-kpi .s{flex-wrap:wrap;white-space:normal}
-  .mo-figs .lx-spark-ax{flex-wrap:wrap;row-gap:2px}
-  .mo-figs .lx-spark-ax .m{order:3;flex-basis:100%;margin:0;overflow:visible;white-space:normal}
   .mo-camps .lx-table{table-layout:auto;width:100%}
   .mo-camps th.mo-cn{width:auto}
   .mo-camps .lx-table th,.mo-camps .lx-table td{padding-left:6px;padding-right:6px}
@@ -127,6 +118,12 @@ button.mo-open:hover{background:var(--row-hover)}
   .mo-top{padding:14px 18px 18px;gap:14px}
   .mo-three{padding:16px 18px 18px}
   .mo-checks-g{gap:22px 18px}
+}
+@media (max-width:519px){
+  .mo-camps .lx-table td.mo-st,.mo-camps .lx-table th.mo-st{width:22px;padding-left:2px;padding-right:14px}
+  .mo-camps td.mo-st .lx-stat{font-size:0;gap:0;vertical-align:middle}
+  .mo-camps td.mo-st .lx-stat::before{margin-top:0}
+  .mo-camps .lx-table th:first-child,.mo-camps .lx-table td:first-child{min-width:0}
 }`;
 function css() {
   styles();
@@ -252,33 +249,34 @@ function figures(d, ctx) {
   const wkLine = (...kids) => h('span', { class: 'mo-wk' }, ...kids);
   const out = [];
   const sd = chg(t.spend, pv && pv.spend);
-  out.push(kpi({ size: 'lg', label: 'Spend', value: usd(t.spend, cur), href: ctx.href('meta', 'live-now'),
+  out.push(kpi({ label: 'Spend', value: usd(t.spend, cur), href: ctx.href('meta', 'live-now'),
     sub: [ok(sd) ? [delta(sd, { plain: true, text: updown(sd) }), ' vs ' + pl] : null, ok(t.spend) && t.days ? h('span', { class: 'mo-aday' }, usd(t.spend / t.days, cur) + ' a day') : null],
     window: wl, source: 'Meta', spark: rows.map(r => r.spend), sparkLabels: dates, sparkFormat: v => usd(v, cur) }));
   const rd = chg(t.revenue, pv && pv.revenue);
-  const salesTile = kpi({ size: 'lg', label: 'Sales from Meta ads', value: noSales ? none : usd(t.revenue, cur), href: ctx.href('meta', 'top-ads'),
+  const salesTile = kpi({ label: 'Sales from Meta ads', value: noSales ? none : usd(t.revenue, cur), href: ctx.href('meta', 'top-ads'),
     sub: noSales || !ok(rd) ? '' : [delta(rd, { bad: rd < 0, text: updown(rd) }), ' vs ' + pl],
     window: wl, source: noSales ? null : TWS, spark: noSales ? null : rows.map(r => r.revenue), sparkLabels: dates, sparkFormat: v => usd(v, cur) });
   if (!noSales && ok(wk.revenue_delta)) salesTile.append(wkLine('Last 7 days: ', ok(wk.revenue) ? h('b', null, usd(wk.revenue, cur)) : null, ok(wk.revenue) ? ', ' : '', updown(wk.revenue_delta) + ' vs the 7 before'));
   out.push(salesTile);
   const rr = roasRead(t.roas, g.roas);
   /* the dot judges the big number above it, for these dates; the last 7 days sit on their own labeled line */
-  const roasTile = kpi({ size: 'lg', label: def('ROAS', 'roas'), value: noSales ? none : x(t.roas), href: ctx.href('meta', 'top-ads'),
-    sub: noSales ? '' : rr ? statusDot(rr[0], `${rr[1]}, goal ${x(g.roas)}`) : 'No goal set', window: wl, source: noSales ? null : TWS });
-  if (!noSales && ok(t.roas) && g.roas) roasTile.append(gauge({ value: t.roas, max: Math.max(g.roas * 1.2, t.roas * 1.05), goal: g.roas, ticks: [{ side: 'l', text: '0' }, { at: g.roas, text: 'goal ' + x(g.roas), on: true }] }));
+  const roasTile = kpi({ label: def('ROAS', 'roas'), value: noSales ? none : x(t.roas), href: ctx.href('meta', 'top-ads'),
+    sub: noSales ? '' : rr ? statusDot(rr[0], `${rr[1]}, goal ${x(g.roas)}`) : 'No goal set', window: wl, source: noSales ? null : TWS,
+    /* day by day ROAS, the same sparkline as Spend and Sales, so the four tiles read as one row */
+    spark: noSales ? null : rows.map(r => r.spend > 0 && ok(r.revenue) ? r.revenue / r.spend : null), sparkLabels: dates, sparkFormat: v => x(v) });
   if (!noSales && ok(wk.roas)) roasTile.append(wkLine('Last 7 days: ', h('b', null, x(wk.roas))));
   out.push(roasTile);
   /* cost per new customer when the count is known; else cost per sale, which is always known */
   const nc = d.new_customers;
   const cost = nc ? nc.cost : t.cpa, goal = nc ? (nc.goal || g.ncpa) : g.cpa;
   const cr = costRead(cost, goal);
-  const costTile = kpi({ size: 'lg', label: def(nc ? 'New customer cost' : 'Cost per sale', nc ? 'new_customer_cost' : 'cpa'), value: noSales ? none : usd(cost, cur), href: ctx.href('customers', 'snapshot'),
+  const costTile = kpi({ label: def(nc ? 'New customer cost' : 'Cost per sale', nc ? 'new_customer_cost' : 'cpa'), value: noSales ? none : usd(cost, cur), href: ctx.href('customers', 'snapshot'),
     sub: noSales ? '' : [cr && statusDot(cr[0], cr[1]), nc ? ' ' + num(nc.count) + ' new customers' : ok(t.purchases) ? ' ' + num(t.purchases) + ' sales' : ''], window: wl, source: noSales ? null : TWS });
   if (!noSales && ok(cost) && goal) costTile.append(gauge({ value: cost, max: Math.max(cost, goal) * 1.1, goal, ticks: [{ side: 'l', text: usd(0, cur) }, { at: goal, text: 'goal ' + usd(goal, cur), on: true }] }));
   out.push(costTile);
   return h('section', { class: 'mo-ret' },
     h('div', { class: 'lx-sec mo-sec' }, h('h2', null, 'Return on Meta ads'), h('span', { class: 'note' }, (wl || 'These dates') + ' · sales ' + TW + ', spend Meta')),
-    h('div', { class: 'lx-hero line' }, h('div', { class: 'mo-figs' }, out)));
+    tiles(out, { cols: 4, class: 'mo-figs' }));
 }
 
 /* ---------- the daily chart: spend columns, sales (the lead line), and the sales the goal needs ---------- */
@@ -309,7 +307,7 @@ function chartCard(d, ctx) {
         h('p', null, hasSales ? 'Sales ' + TW + ', spend Meta' : 'No sales source connected, so this is spend only')),
       lg),
     plot,
-    ctx.isClient ? null : h('div', { class: 'mo-read' }, h('button', { class: 'lx-btn ghost', type: 'button', onclick: () => openAskPanel({ route: ctx.route, brand: ctx.brand || null, title: 'Meta overview', range: ctx.range, href: ctx.href('ask', 'index'), context: ctx.askContext }) }, h('span', { class: 'lx-gem sm' }, svgNode(icon('sparkle'))), 'Read this for me')));
+    ctx.isClient ? null : h('div', { class: 'mo-read' }, h('button', { class: 'lx-btn ghost', type: 'button', onclick: () => openAskPanel({ route: ctx.route, brand: ctx.brand || null, title: 'Meta overview', range: ctx.range, window: ctx.askWindow, href: ctx.href('ask', 'index'), context: ctx.askContext }) }, h('span', { class: 'lx-gem sm' }, svgNode(icon('sparkle'))), 'Read this for me')));
 }
 
 /* ---------- live campaigns ---------- */
@@ -324,7 +322,10 @@ function campaignsCard(d, ctx) {
   const t = d.totals || {};
   const total = all.length ? { total: true, name: 'All of Meta', budget: d.budget_total, spend: t.spend, revenue: t.revenue, roas: t.roas } : null;
   const live = d.live;
-  const stat = r => {
+  /* the word is also the dot's hover title: on a phone (under 520px) only the dot shows, so nothing is clipped */
+  const titled = el => { if (el) el.title = el.textContent; return el; };
+  const stat = r => titled(statInner(r));
+  const statInner = r => {
     if (r.waiting) return statusDot('off', 'Waiting');
     if (ok(r.cpl)) return statusDot('info', 'Leads');
     if (noSales) return null;
@@ -455,6 +456,7 @@ export default {
         action: ctx.legacy ? button('Open it in old ' + APP_NAME, { href: ctx.legacy }) : null }));
     }
     const t = d.totals || {}, g = d.goals || {};
+    ctx.askWindow = d.window && d.window.label ? d.window.label : null;
     ctx.askContext = `Meta for ${ctx.brand.name || 'this brand'}, ${d.window ? d.window.label : 'these dates'}: spend ${usd(t.spend, d.currency)}`
       + (d.sales_source ? `, sales from Meta ads ${usd(t.revenue, d.currency)} (Triple Whale last click), ROAS ${x(t.roas)}${g.roas ? ' against a ' + x(g.roas) + ' goal' : ''}` : ', no sales source connected')
       + `. ${(d.campaigns || []).length} live campaigns${d.suggestions ? ', ' + d.suggestions.total + ' suggestions to decide' : ''}.`;

@@ -388,6 +388,12 @@ export function kpis(list, { cols } = {}) {
   else if (std) el.style.setProperty('--kpi-em', std.toFixed(2));
   return el;
 }
+/** tiles([kpi nodes], { cols: 2 | 3 | 4 }) : the one tile grid for every page (Home, Meta, Reports, the agency
+    pages). Each kpi becomes a card: label as a card title, the figure at --num-l (never the hero size), the change,
+    the window and source line and the orange sparkline. 3 a row by default, 2 under 1100px. */
+export function tiles(list, { cols = 3, class: cls } = {}) {
+  return h('div', { class: 'lx-tiles' + (cols === 4 ? ' c4' : cols === 2 ? ' c2' : '') + (cls ? ' ' + cls : '') }, list);
+}
 /** figureEm('$63,429') : about how wide a figure draws, in ems of its font size, never less than it really is.
     Measured on the app font at the figure's letter spacing: a digit is .61, a comma .23, a percent sign .96. */
 export function figureEm(text) {
@@ -510,8 +516,14 @@ export function tipShow(owner, content, at, gap = 12, { now = false } = {}) {
   const el = tipBox();
   clearTimeout(hideT);
   const open = !el.hidden;
+  /* never while the page scrolls, even right after another bubble closed (a scroll closes the bubble, which would
+     otherwise leave it "warm" and let the next pointermove under the scrolling page open one at once) */
+  if (!now && !open && !pressedNow() && scrollingNow()) {
+    if (pend && pend.owner === owner) { clearTimeout(pend.t); pend = null; }
+    if (owner && owner._tipOff) owner._tipOff();
+    return el;
+  }
   if (!now && !open && !pressedNow() && !bubbleWarm()) {
-    if (scrollingNow()) { if (owner && owner._tipOff) owner._tipOff(); return el; }
     if (pend && pend.owner === owner) { Object.assign(pend, { content, at, gap }); return el; }
     if (pend) { clearTimeout(pend.t); if (pend.owner && pend.owner._tipOff) pend.owner._tipOff(); }
     pend = { owner, content, at, gap };

@@ -6,10 +6,11 @@
    before, its window and source ("Nov 1 to 22 · Triple Whale"), and an orange sparkline with its scale.
 
    Saved per person:
-     - always in this person's own store (ctx.saveSetting('home.tiles'), keyed by the signed-in person, data.js)
-     - and on the server once account-health GET /api/me/prefs carries a `home_tiles` key. Today the prefs row keeps only
-       morning_dm and nudge (prefs.js clean, and the engine's orgs/service.js cleanPrefs), and the door check lets a PUT
-       carry only those two fields, so nothing is sent until the server answers with home_tiles. See tilePrefsSupported.
+     - in this person's own store on this device (ctx.saveSetting('home.tiles'), data.js): the fast first paint
+     - and on the server: account-health GET/PUT /api/me/prefs keeps `home_tiles` (prefs.js clean, the engine's
+       orgs/service.js the same; the field is always there, [] when unset). Home reads the prefs once on load (team and
+       client); a non-empty home_tiles wins over this device's copy, and every save sends { home_tiles } while the
+       server carries the field (tilePrefsSupported).
 
    The numbers come from one bundle the Home page builds (index.js feeds()):
      days    the store by day, the worker's own names: sales, spend, orders, new_orders, new_rev, ret_rev, gross_profit, cm, email_rev
@@ -173,33 +174,15 @@ export function tileNode(t, F, ctx, { extra } = {}) {
 }
 
 const CSS = `
-.hm-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--gap-4,16px)}
-.hm-tiles>.lx-kpi{display:flex;flex-direction:column;position:relative;padding:18px 20px 16px;border-radius:var(--r-card,16px);background:var(--surface);box-shadow:var(--sh-1);gap:6px}
-.hm-tiles>a.lx-kpi:hover{box-shadow:var(--sh-2,0 6px 20px rgba(28,20,10,.10))}
-.hm-tiles .lx-kpi .v{font-size:var(--num-l,26px);letter-spacing:-.03em}
-.hm-tiles .lx-kpi .l{white-space:normal;font-size:var(--fs-card,14px);font-weight:600;color:var(--ink)}
-.hm-tiles .lx-kpi .s{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 6px;font-size:var(--fs-small,12.5px);color:var(--muted)}
+/* the tile look itself is the kit's (tiles() / .lx-tiles in app.css); only Home's own extras here */
 .hm-tiles .hm-more{flex-basis:100%}
-.hm-tiles .hm-words{font-size:var(--num-m,18px);font-weight:550;letter-spacing:-.01em;color:var(--muted)}
-.hm-tiles .lx-spark-box{margin-top:auto;padding-top:6px}
-.hm-tiles .lx-srcline{font-size:var(--fs-small,12.5px)}
-.hm-tiles .lx-spark-ax{flex-wrap:wrap;row-gap:2px}
-.hm-tiles .lx-spark-ax .m{order:3;flex-basis:100%;margin:0;text-align:center;overflow:visible}
-.hm-tiles .lx-spark-ax span:last-child:not(.m){margin-left:auto}
-@media (max-width:1100px){.hm-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:759px){
-  .hm-tiles{gap:10px}
-  .hm-tiles>.lx-kpi{padding:14px 14px 12px}
-  .hm-tiles .lx-kpi .v{font-size:var(--num-m,18px)}
-  .hm-tiles .lx-kpi .l{font-size:13px}
-}
-@media (max-width:359px){.hm-tiles{grid-template-columns:minmax(0,1fr)}}
+.hm-tiles .hm-words{font-size:var(--num-m,18px);font-weight:500;letter-spacing:-.01em;color:var(--muted)}
 .hm-ed{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:24px;min-width:0}
 .hm-ed h4{margin:0 0 8px;font-size:var(--fs-card,14px);font-weight:600}
 .hm-ed .hint{margin:0 0 12px;font-size:var(--fs-small,12.5px);color:var(--muted)}
 .hm-on{display:grid;gap:6px;margin:0;padding:0;list-style:none}
 .hm-on li{display:flex;align-items:center;gap:8px;min-height:44px;padding:4px 6px 4px 12px;border-radius:var(--r-btn,10px);background:var(--bg-sunk)}
-.hm-on li .nm{flex:1;min-width:0;font-size:13.5px;font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hm-on li .nm{flex:1;min-width:0;font-size:13.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hm-on li .gp{font-size:12px;color:var(--muted);white-space:nowrap}
 .hm-on .lx-btn.icon{width:32px;height:32px;padding:0;justify-content:center}
 .hm-cat{display:grid;gap:16px}

@@ -271,7 +271,7 @@ addStyles('lx-md-page-css', `
 .lx-md-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:var(--sp-4)}
 .lx-md-go2{flex-direction:column;align-items:flex-end;gap:4px}
 .lx-md-more{display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap}
-.lx-md-row .go .lx-btn.lx-md-link{height:auto;padding:0;border:0;background:none;box-shadow:none;font-size:12.5px;font-weight:550;color:var(--muted);text-decoration:underline;text-underline-offset:3px}
+.lx-md-row .go .lx-btn.lx-md-link{height:auto;padding:0;border:0;background:none;box-shadow:none;font-size:12.5px;font-weight:500;color:var(--muted);text-decoration:underline;text-underline-offset:3px}
 .lx-md-row .go .lx-btn.lx-md-link:hover{color:var(--ink)}
 .lx-md-pick{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
 .lx-md-pick select{height:34px;width:auto;min-width:200px;font-size:13.5px}

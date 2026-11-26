@@ -93,7 +93,7 @@ const CSS = `
 .lx-pf-row .v .lx-stat{font:inherit;color:var(--ink);white-space:normal}
 .lx-pf-row .n{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);text-align:right}
 .lx-pf-row .n .lx-ic{width:13px;height:13px}
-.lx-pf-row select{height:36px;border:0;border-radius:10px;padding:0 10px;background:var(--bg-sunk);font:inherit;font-size:13.5px;font-weight:550;color:var(--ink);max-width:100%}
+.lx-pf-row select{height:36px;border:0;border-radius:10px;padding:0 10px;background:var(--bg-sunk);font:inherit;font-size:13.5px;font-weight:500;color:var(--ink);max-width:100%}
 .lx-pf-band{display:grid;gap:14px}
 .lx-pf-band h3{font-size:16px;font-weight:600;letter-spacing:-.015em}
 .lx-pf-prev{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:16px;background:#fff;box-shadow:var(--sh-1);font-size:14px;min-width:0}

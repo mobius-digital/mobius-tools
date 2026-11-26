@@ -37,7 +37,7 @@ const CSS = `
 .lx-wt-row .lx-btn{flex:none;white-space:nowrap}
 .lx-wt-none{margin:0;color:var(--muted);font-size:13.5px}
 .lx-live{display:grid;gap:10px;padding:16px 20px;border:1px solid var(--line);border-radius:18px;background:var(--bg-sunk)}
-.lx-live h3{margin:0;font-size:15px;font-weight:650;letter-spacing:-.01em}
+.lx-live h3{margin:0;font-size:15px;font-weight:600;letter-spacing:-.01em}
 .lx-live p{margin:0;font-size:13.5px;line-height:1.5;color:var(--ink-2)}
 .lx-live p b{color:var(--ink);font-weight:600}
 .lx-live .acts{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
