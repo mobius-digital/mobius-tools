@@ -6693,23 +6693,30 @@ async function handleSlackInteract(request, env, ctx) {
     const tap = payload.type === 'block_actions' ? (payload.actions || []).find(a => a.action_id === 'ask_apply' || a.action_id === 'ask_cancel') : null;
     if (tap) {
       const val = safeJson(tap.value, {});
-      const { engine, h } = strategist();
+      const job = { kind: 'ask_tap', askp: String(val.askp || ''), cancel: !!val.cancel, response_url: payload.response_url || null, channel: payload.channel?.id || null,
+        user: { id: payload.user?.id || null, name: payload.user?.name || payload.user?.username || null } };
       /* 2026-10-15: applied after the ack. A grouped card (Apply all) runs several changes in a row, past Slack's 3 seconds. */
-      const say = body => payload.response_url ? xfetch(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {}) : null;
       ctx.waitUntil((async () => {
         /* Only Cole and the team apply a card (slackaccess.js); a guest or an outsider in a shared channel cannot. */
-        if (!val.cancel) {
-          const g = await whoIs(env, accessDeps(), payload.user?.id).catch(() => ({ ok: false }));
-          if (!g.ok || g.role === 'guest') { await slackWhisper(env, payload.channel?.id, payload.user?.id, 'Only the Mobius Digital team can apply this.'); return; }
+        if (!job.cancel) {
+          const g = await whoIs(env, accessDeps(), job.user.id).catch(() => ({ ok: false }));
+          if (!g.ok || g.role === 'guest') { await slackWhisper(env, job.channel, job.user.id, 'Only the Mobius Digital team can apply this.'); return; }
         }
-        const many = String(val.askp || '').includes(',') && !val.cancel;
-        if (many) await say({ replace_original: true, text: 'Applying them now...' });
-        const res = await engine.applyProposal(env, String(val.askp || ''), h(), { cancel: !!val.cancel, ctx: { ...askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), ctx), who: payload.user?.name || payload.user?.username || (payload.user?.id ? `<@${payload.user.id}>` : null), whoId: payload.user?.id || null } }).catch(e => ({ error: String(e.message || e) }));
-        /* A note that carries a Locus or share link (a saved dashboard, a scenario, a Studio batch) gets it as a button too. */
-        const done = res.group ? (res.error ? '⚠️ ' + res.error : res.note) : res.error ? '⚠️ ' + res.error : res.cancelled ? '✓ Left as it was.' : `✓ ${res.note || res.summary || 'Applied.'}`;
-        const link = !res.error && !res.cancelled ? (String(res.note || '').match(/https:\/\/(?:tools\.go-mobius-digital\.com|mobius-[a-z-]+\.mobius-digital\.workers\.dev|next\.frame\.io|f\.io)\/[^\s)]+/) || [])[0]?.replace(/[.,;]+$/, '') : null;
-        await say({ replace_original: true, text: done, ...(link || res.group ? { blocks: [{ type: 'section', text: { type: 'mrkdwn', text: done.slice(0, 2900) } },
-          ...(link ? [{ type: 'actions', elements: [{ type: 'button', action_id: 'noop_open', style: 'primary', text: { type: 'plain_text', text: /\?open=dash/.test(link) ? 'Open the dashboard' : 'Open it' }, url: link }] }] : [])] } : {}) });
+        /* 2026-11-26: every Apply tap goes through IDEA_Q like a normal answer, since waitUntil after Slack's ack dies
+           after about thirty seconds. A held tool (an image, a Studio batch, an analysis) runs for minutes, and so can an
+           action: an "Apply all" group of Meta changes, or a new video ad waiting on Meta's processing. applyProposal
+           drops the card before apply, so an apply cut short there would leave a dead card and a half-done change. The
+           card is only dropped inside the queue run, so a failed send leaves it there to tap again. */
+        if (!job.cancel && env.IDEA_Q) {
+          try {
+            await env.IDEA_Q.send(job);
+            await askTapSay(job, { replace_original: true, text: 'Working on it now. The result lands here when it is done.' });
+          } catch (e) {
+            await askTapSay(job, { replace_original: false, response_type: 'ephemeral', text: `⚠️ Could not start it (${e.message}). Nothing ran and the card is still here: tap Apply again.` });
+          }
+          return;
+        }
+        await runAskTap(env, job, ctx);
       })());
       return ACK();
     }
@@ -6722,6 +6729,24 @@ async function handleSlackInteract(request, env, ctx) {
       `That did not work: ${e.message}`).catch(() => {});
   }
   return ACK();
+}
+
+/* The Strategist's Apply / No thanks tap, run (2026-11-26: shared by the button request and the IDEA_Q consumer, where
+   a held tool gets minutes instead of the thirty seconds waitUntil has after the ack). job: { askp, cancel,
+   response_url, channel, user: { id, name } }. */
+const askTapSay = (job, body) => job.response_url ? xfetch(job.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {}) : null;
+async function runAskTap(env, job, execCtx) {
+  const { engine, h } = strategist();
+  const many = String(job.askp || '').includes(',') && !job.cancel;
+  if (many) await askTapSay(job, { replace_original: true, text: 'Applying them now...' });
+  const who = job.user?.name || (job.user?.id ? `<@${job.user.id}>` : null);
+  const res = await engine.applyProposal(env, String(job.askp || ''), h(), { cancel: !!job.cancel, ctx: { ...askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), execCtx), who, whoId: job.user?.id || null } }).catch(e => ({ error: String(e.message || e) }));
+  /* A note that carries a Locus or share link (a saved dashboard, a scenario, a Studio batch) gets it as a button too. */
+  const done = res.group ? (res.error ? '⚠️ ' + res.error : res.note) : res.error ? '⚠️ ' + res.error : res.cancelled ? '✓ Left as it was.' : `✓ ${res.note || res.summary || 'Applied.'}`;
+  const link = !res.error && !res.cancelled ? (String(res.note || '').match(/https:\/\/(?:tools\.go-mobius-digital\.com|mobius-[a-z-]+\.mobius-digital\.workers\.dev|next\.frame\.io|f\.io)\/[^\s)]+/) || [])[0]?.replace(/[.,;]+$/, '') : null;
+  await askTapSay(job, { replace_original: true, text: done, ...(link || res.group ? { blocks: [{ type: 'section', text: { type: 'mrkdwn', text: done.slice(0, 2900) } },
+    ...(link ? [{ type: 'actions', elements: [{ type: 'button', action_id: 'noop_open', style: 'primary', text: { type: 'plain_text', text: /\?open=dash/.test(link) ? 'Open the dashboard' : 'Open it' }, url: link }] }] : [])] } : {}) });
+  return res;
 }
 
 /* A brand by any id it has had: Slack buttons posted before phase 3 carry the old act_ id. */
@@ -7929,7 +7954,8 @@ async function strategistSlackAnswer(env, ev, screen) {
   /* who: the asker's Slack name, so a change made straight from a message is logged as theirs in the Change Log. */
   const u = ev.user ? await slackApi(env, 'users.info', { user: ev.user }).catch(() => null) : null;
   const who = u?.user?.real_name || u?.user?.profile?.real_name || u?.user?.name || (ev.user ? `<@${ev.user}>` : null);
-  /* A guest (an outside person on the Slack access list) reads only: no call, so nothing applies straight from a message. */
+  /* Nothing applies straight from a message for anyone (2026-11-25, always a tap: ask/engine.js). A guest (an outside
+     person on the Slack access list) and a tap-only channel also get no caller, so their answer reads only. */
   return engine.answerSlack(env, ev, h(), { findings: findings.slice(0, 6), ...(screen ? { screen } : {}), who, call: screen?.guest || screen?.tapOnly ? null : askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), null).call });
 }
 
@@ -8110,6 +8136,8 @@ const AH_APP = {
     for (const m of batch.messages) {
       if (m.body?.kind === 'welcome') await welcomeOnJoinByChannel(env, m.body.channel).catch(e => console.log('welcome job: ' + e.message));
       else if (m.body?.kind === 'strategist') await strategistSlackAnswer(env, m.body.ev, m.body.screen).catch(e => console.log('strategist job: ' + e.message));
+      /* An Apply tap on a held tool (an image, a Studio batch, an analysis): minutes here, not waitUntil's thirty seconds. */
+      else if (m.body?.kind === 'ask_tap') await runAskTap(env, m.body, null).catch(async e => { console.log('ask tap job: ' + e.message); await askTapSay(m.body, { replace_original: true, text: `⚠️ ${e.message}` }); });
       /* The Strategist pressed Make (studiomake.js): plan, make, post the ads in the thread. */
       else if (m.body?.kind === 'studio_make') await runStudioMake(env, strategistDeps(), m.body).catch(async e => { console.log('studio make job: ' + e.message); if (m.body.channel) await slackApi(env, 'chat.postMessage', { channel: m.body.channel, thread_ts: m.body.thread, text: `Making the ads failed: ${e.message}` }).catch(() => {}); });
       else if (env.IDEAS_BOT !== 'off') await runIdeaJob(env, m.body).catch(e => console.log('idea job: ' + e.message));
@@ -9017,7 +9045,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (path === '/api/ask/todo/shopify-sent' && request.method === 'POST') { const o = await markShopifySent(env, String(body.run || '')); return o.error ? json(o, 404) : json(o); }
       if (path === '/api/ask/todo/skip' && request.method === 'POST') { try { return json(await todoSkip(env, body.run, String(body.key || ''))); } catch (e) { return json({ error: e.message }, e.status || 500); } }
       /* Check now (Cole's button): every look at once, for one brand or all. */
-      if (path === '/api/ask/connect/check') return json(await connectNow(env, 'all', body.act || null));
+      /* POST only (the screen button posts): it assigns Meta users, writes connections and sends Google link requests. */
+      if (path === '/api/ask/connect/check' && request.method === 'POST') return json(await connectNow(env, 'all', body.act || null));
       if (path === '/api/ask/access' && request.method === 'POST' && (body.sweep || body.dry)) return json(await partnerSweep(env, idxDeps(), { dry: !!body.dry }));
       if (path === '/api/ask/access') return json(request.method === 'POST' ? await grantSelf(env, idxDeps(), { act: body.act || null }) : await accessReport(env, idxDeps()));
       if (path === '/api/ask/index') {
@@ -9027,7 +9056,9 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (path === '/api/ask/reports') return json({ reports: await engine.reportsList(env, h()) });
       if (path === '/api/ask/findings') return json({ findings: await engine.openFindings(env, h()),
         briefing: safeJson(await getSetting(env, engine.keys.lastBriefing), null), memory: await engine.memory(env, h()), brief: await engine.getBrief(env, h()),
-        channel: await getSetting(env, 'strategistChannel'), playbook: await engine.getPlaybook(env, h()), pending: await engine.pendingList(env, h()) });
+        channel: await getSetting(env, 'strategistChannel'), playbook: await engine.getPlaybook(env, h()),
+        /* The card words only (2026-11-26): a held input (a file, a report, rows) never goes to a team screen. */
+        pending: await engine.pendingCards(env, h()) });
       if (path === '/api/ask/finding' && request.method === 'POST') {
         if (!body.key) return json({ error: 'key required' }, 400);
         return json(await engine.setFindingState(env, String(body.key), String(body.state || 'done')));

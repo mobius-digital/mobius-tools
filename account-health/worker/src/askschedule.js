@@ -106,11 +106,17 @@ export async function runSchedule(env, row, d, { dry = false } = {}) {
   if (only) { const names = accts.filter(x => only.has(x.act_id)).map(x => x.name); q = `[ACCESS RULE: this person may only see ${names.join(', ')}. Read, mention, compare or total no other brand; if asked about one, say they do not have access.] ${q}`; }
   const { engine, h } = d.strategist();
   if (!dry) await countRun(env, d);
-  const r = await engine.answerWeb(env, q, [], h(), { screen: { screen: 'Scheduled question (Slack)', brand_selected: brand ? brand.name : 'All clients' } }).catch(e => ({ error: String(e.message || e) }));
+  /* scheduled: true (2026-11-26): the run was approved by whoever scheduled it, so a report's share link is made at
+     once and the answer gets no "Tap Apply" line; every card it raised is posted below (a task) or dropped here,
+     so no proposal is left waiting with no card anyone can see. */
+  const r = await engine.answerWeb(env, q, [], h(), { scheduled: true, screen: { screen: 'Scheduled question (Slack)', brand_selected: brand ? brand.name : 'All clients' } }).catch(e => ({ error: String(e.message || e) }));
   if (r.error) { await note('error: ' + r.error); return { error: r.error }; }
+  const dropCards = async list => { for (const p of list) await engine.applyProposal(env, String(p.id), h(), { cancel: true }).catch(() => {}); };
   const reps = (r.reports || []).map(rep => toSlackText(reportText(rep)));
   const text = slackAnswer([r.answer, ...reps].filter(Boolean).join('\n\n'));
-  const proposals = kind === 'task' ? (r.proposals || []).slice(0, 6) : [];
+  const all = r.proposals || [];
+  const proposals = kind === 'task' && !dry ? all.slice(0, 6) : [];
+  await dropCards(all.filter(p => !proposals.includes(p)));
   const chunks = []; for (let i = 0; i < text.length && chunks.length < 8; i += 2900) chunks.push(text.slice(i, i + 2900));
   const blocks = [
     { type: 'section', text: { type: 'mrkdwn', text: `*${row.question.slice(0, 280)}*` } },
@@ -119,16 +125,17 @@ export async function runSchedule(env, row, d, { dry = false } = {}) {
     { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: brand ? `${LOCUS}?open=overview&act=${encodeURIComponent(brand.act_id)}` : `${LOCUS}?open=overview`, action_id: 'noop_open' }] },
   ];
   const fallback = `${row.question.slice(0, 120)}: ${text.slice(0, 200)}`;
-  if (dry) return { ok: true, dry: true, channel: row.channel, channel_name: allowed.get(row.channel), text, blocks, proposals: proposals.map(p => p.summary), model: r.model, inTok: r.inTok, outTok: r.outTok };
-  const res = await d.slackApi(env, 'chat.postMessage', { channel: row.channel, text: fallback, blocks, unfurl_links: false, username: 'Locus' });
+  if (dry) return { ok: true, dry: true, channel: row.channel, channel_name: allowed.get(row.channel), text, blocks, proposals: (kind === 'task' ? all.slice(0, 6) : []).map(p => p.summary), model: r.model, inTok: r.inTok, outTok: r.outTok };
+  const res = await d.slackApi(env, 'chat.postMessage', { channel: row.channel, text: fallback, blocks, unfurl_links: false, username: 'Locus' }).catch(e => ({ ok: false, error: e.message }));
   let posted = res;
-  if (res && res.ok === false && /missing_scope|invalid_arg|not_allowed/.test(String(res.error || ''))) posted = await d.slackApi(env, 'chat.postMessage', { channel: row.channel, text: fallback, blocks, unfurl_links: false });
-  if (!posted || posted.ok === false) { await note('error: Slack said ' + (posted?.error || 'nothing')); return { error: `Slack: ${posted?.error || 'no answer'}` }; }
-  /* A task's suggested changes: one Apply card each in the thread under the answer. Never applied here. */
+  if (res && res.ok === false && /missing_scope|invalid_arg|not_allowed/.test(String(res.error || ''))) posted = await d.slackApi(env, 'chat.postMessage', { channel: row.channel, text: fallback, blocks, unfurl_links: false }).catch(e => ({ ok: false, error: e.message }));
+  if (!posted || posted.ok === false) { await dropCards(proposals); await note('error: Slack said ' + (posted?.error || 'nothing')); return { error: `Slack: ${posted?.error || 'no answer'}` }; }
+  /* A task's suggested changes: one Apply card each in the thread under the answer. Never applied here. A card
+     Slack would not take is dropped, so nothing waits that nobody can see. */
   let cards = 0;
   for (const p of proposals) {
     const c = await d.slackApi(env, 'chat.postMessage', { channel: row.channel, thread_ts: posted.ts, text: p.summary, blocks: engine.proposalBlocks(p), unfurl_links: false, username: 'Locus' }).catch(() => null);
-    if (c?.ok) cards++;
+    if (c?.ok) cards++; else await dropCards([p]);
   }
   await note(proposals.length ? `ok, ${cards} Apply card${cards === 1 ? '' : 's'}` : 'ok');
   return { ok: true, ts: posted.ts, channel: row.channel, cards };

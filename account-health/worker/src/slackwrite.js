@@ -1,10 +1,11 @@
 /**
  * THE STRATEGIST IN SLACK, BEYOND ITS OWN ANSWER (2026-10-17). Cole: "Locus should have every Slack permission."
  * Every action keeps the extwrite.js rules (look up first, before -> after, a p_ext_write row, a Change Log line,
- * undo where Slack allows it) and the one line Cole drew: INTERNAL channels and teammates are Locus's to use at once;
- * a client's channel (a brand's brief_channel) or any channel shared with another company (Slack Connect) or a guest
- * is CLIENT-FACING, and posting there is `slack_post_client`, which always shows a card (strategist.js cardOnly) and
- * follows `settings.slackSendWho` (owner = only Cole may approve, the default).
+ * undo where Slack allows it). Since 2026-11-25 EVERY action here is a card a person taps (ask/engine.js; the rule
+ * lives in allwrite.js). The line Cole drew still decides WHO may tap: INTERNAL channels and teammates are the
+ * team's to approve; a client's channel (a brand's brief_channel) or any channel shared with another company (Slack
+ * Connect) or a guest is CLIENT-FACING, and posting there is `slack_post_client`, which follows
+ * `settings.slackSendWho` (owner = only Cole may approve, the default).
  *
  *   slack_post           post (or reply in a thread) in an internal channel, or DM a full member of the team
  *   slack_post_client    the same into a client-facing channel: ALWAYS a card; never applied straight from a message

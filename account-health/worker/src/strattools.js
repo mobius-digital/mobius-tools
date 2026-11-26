@@ -79,6 +79,35 @@ async function callLocus(env, d, ctx, method, path, body) {
   let j; try { j = JSON.parse(text); } catch { j = { text: text.slice(0, 4000) }; }
   return res.ok ? j : { error: j.error || `HTTP ${res.status}`, status: res.status };
 }
+/* GET ROUTES THAT WRITE (2026-11-26, review of ALWAYS A TAP). locus_get is the assistant's read door, but some
+   handlers act on a GET: /api/brand-asana reads its body from the query string on GET, so /monday?post=true posts
+   to Slack and /result, /tag, /results, /sync, /pause... change Asana or the brand's settings; ?post=1 on
+   /api/client-post/preview posts to the Strategist channel; /api/new-client/billing?sub= saves the Stripe link;
+   /api/daycheck/now?fresh=1 or web=1 spends on a paid re-read. Found by scanning every GET path in both workers
+   (account-health and profit) for a write with no method check; the rest of the scan hits check the method.
+   A path here is not refused: allwrite.js TAP_TOOLS.locus_get holds it as a card and it runs on the tap.
+   Returns why it writes, or null for a read. */
+const ASANA_READS = new Set(['/api/brand-asana/check', '/api/brand-asana/job', '/api/brand-asana/mins', '/api/brand-asana/tested', '/api/brand-asana/monday']);
+const WRITE_FLAGS = /^(post|send|apply|save|write|commit|confirm|publish|force|delete|remove|execute|run)$/i;
+/* Flags that write or spend on one route only. */
+const ROUTE_FLAGS = { '/api/daycheck/now': /^(fresh|web)$/i, '/api/new-client/billing': /^sub$/i };
+const WRITE_TAIL = /\/(post|send|save|save-template|write|undo|apply|tick|connect|disconnect|pause|resume|tidy-[a-z-]+|tag|sync|hook|onboard|result|results|refresh-[a-z-]+|done|decide|reply|confirm|skip|add|ingest|poll|retry|byhand|now|redo|exit|upload|fill|delete|remove|archive|move|share|invite|publish|import|push|frame-pull|reset|clear|approve|reject|create|start|finish|reopen|revoke)$/i;
+const READ_TAILS = new Set(['/api/daycheck/now']);   // a read unless a spend flag is on (ROUTE_FLAGS)
+/* Exact paths that write whatever their tail says (the reverse of ASANA_READS). /api/ask/connect/check runs
+   connectNow: Meta partner assignments, brand connections, Google manager link requests. */
+const WRITE_GETS = new Set(['/api/ask/connect/check']);
+export function getWrites(path) {
+  /* Read the path the way the worker will (new URL drops ./ and ../), so a dressed-up path cannot slip past. */
+  let u; try { u = new URL(String(path || ''), 'https://locus.internal'); } catch { return 'that path does not parse'; }
+  const base = u.pathname.replace(/\/{2,}/g, '/').replace(/\/+$/, ''), q = u.searchParams;
+  if (WRITE_GETS.has(base)) return `${base} changes Meta, Google or brand connections even on a GET`;
+  if (base.startsWith('/api/brand-asana') && !ASANA_READS.has(base)) return `${base} changes Asana or the brand's Asana settings even on a GET`;
+  /* Any of these flags, whatever its value: /api/brand-asana treats post=false as true (a non-empty string). */
+  for (const k of q.keys()) if (WRITE_FLAGS.test(k) || ROUTE_FLAGS[base]?.test(k)) return `the ${k}= flag on ${base} makes it post, save or spend`;
+  if (WRITE_TAIL.test(base) && !READ_TAILS.has(base)) return `${base} is a route that changes something`;
+  return null;
+}
+
 /* Never through the generic door: anything that reaches a client or moves money. Those keep their own
    buttons (the brief and report cards, the new-client flow), where Cole's rules already apply. */
 const CLIENT_FACING = /\/api\/(report-send|brief-send|send|newclient\/(email|invoice|stripe|send|welcome)|stripe|invoice|calendar\/client|ledger\/pay|payout)/i;
@@ -170,11 +199,15 @@ export function stratTools(d) {
         return { text: JSON.stringify(hits.map(r => ({ method: r.m, path: r.p, for: r.n || undefined, handler: r.c, screen_calls_it: r.s || undefined }))).slice(0, 16000) };
       }),
     t({ name: 'locus_get',
-      description: 'Read any Locus route (GET), exactly what the screen reads. Path from locus_routes, with its query string (act=<brand id>, dates...).',
+      description: 'Read any Locus route (GET), exactly what the screen reads. Path from locus_routes, with its query string (act=<brand id>, dates...). A few GET routes change something (Asana passes, ?post=1 previews, tidy and sync runs): those wait for a tap on a card, so use the read routes for reading.',
       input_schema: { type: 'object', properties: { path: { type: 'string', description: 'e.g. /api/amb?act=brand_ice_and_gold' } }, required: ['path'] } },
       async (env, input, ctx) => {
         const p = String(input.path || '');
         if (!p.startsWith('/api/')) return { is_error: true, text: 'Paths start with /api/.' };
+        /* The engine holds a writing GET as a card (allwrite.js TAP_TOOLS.locus_get); this is the second lock, for a
+           host that runs the tool without that map. Only the tap (ctx.tapped) gets through. */
+        const writes = getWrites(p);
+        if (writes && !ctx?.tapped) return { is_error: true, text: `Not run: ${writes}. It needs a person's tap on a card.` };
         const r = await callLocus(env, d, ctx, 'GET', p);
         const s = JSON.stringify(r);
         return { text: s.length > 20000 ? s.slice(0, 20000) + '... (trimmed: narrow it with query params)' : s, ...(r.error ? { is_error: true } : {}) };
