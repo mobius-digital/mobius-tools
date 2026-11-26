@@ -42,26 +42,28 @@ await check('the daily: title, Yesterday with its date, labeled bullets, the mon
   assert.equal(t, [
     '*Dartee Golf \u00b7 Daily update*',
     '*Yesterday, Thursday Oct 15*',
-    '\u2022 Sales: *$1,458* (plan $1,800, under plan)',
+    '\u2022 Sales: *$1,458* (goal $1,800, under goal)',
     '\u2022 Ad spend: *$519*',
     '\u2022 MER: *2.81x*',
     '\u2022 aMER (new customers): *1.95x*',
     '', '*October so far* (15 of 31 days)',
-    '\u2022 Sales: *$17.8K* of $27K planned',
+    '\u2022 Sales: *$17.8K* of $27K goal',
     '\u2022 Ad spend: *$8,100*',
     '\u2022 MER: *2.20x*',
     '', '*Next:* Ahsan steps the ads back up Monday.',
     '', '_More numbers in the thread._'].join('\n'));
   assert.ok(!/Hey Team|Meta|Google|[\u2014\u2013]/.test(t), 'no opener, no channel named, no em dashes');
+  assert.ok(!/\bplan/i.test(t), 'a client reads "goal", never "plan" (2026-11-26)');
+  assert.ok(dailyPost({ brand: 'B', date: '2026-10-15', day: { sales: 1900, spend: 500, plan: 1800 }, month: { ym: '2026-10', sales: 9000, plan: 8000, day_of_month: 15 } }).includes('(goal $1,800, on goal)'));
 });
-await check('no Next line when nobody wrote one; "best day this month" beats the plan read', () => {
+await check('no Next line when nobody wrote one; "best day this month" beats the goal read', () => {
   const t = dailyPost({ brand: 'Dartee Golf', date: '2026-10-17', day: { sales: 1500, spend: 489, mer: 3.07, plan: 1800 }, month: { ym: '2026-10', sales: 19574, plan: 30603, day_of_month: 17 }, others: [1018, 1438, 822], next: '' });
   assert.ok(!t.includes('Next'), t);
-  assert.ok(t.includes('\u2022 Sales: *$1,500* (plan $1,800, best day this month)'), t);
+  assert.ok(t.includes('\u2022 Sales: *$1,500* (goal $1,800, best day this month)'), t);
   assert.ok(!t.includes('aMER'), 'no aMER line when it is unknown');
-  assert.equal(dailyVerdict({ sales: 1900, plan: 1800, others: [2500, 2200] }), 'on plan');
-  assert.equal(dailyVerdict({ sales: 1700, plan: 1800, others: [2500, 2200] }), 'under plan');
-  assert.equal(dailyVerdict({ sales: 1700, plan: null, others: [2500, 2200] }), null, 'no plan, no word');
+  assert.equal(dailyVerdict({ sales: 1900, plan: 1800, others: [2500, 2200] }), 'on goal');
+  assert.equal(dailyVerdict({ sales: 1700, plan: 1800, others: [2500, 2200] }), 'under goal');
+  assert.equal(dailyVerdict({ sales: 1700, plan: null, others: [2500, 2200] }), null, 'no goal, no word');
   assert.equal(dailyVerdict({ sales: 1700, plan: null, others: [900] }), null, 'one other day is not a month');
   const noGoal = dailyPost({ brand: 'B', date: '2026-10-03', day: { sales: 800, spend: 300, mer: 2.67 }, month: { ym: '2026-10', sales: 2400, plan: null, day_of_month: 3 } });
   assert.ok(noGoal.includes('\u2022 Sales: *$2,400*\n'), noGoal);

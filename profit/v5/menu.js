@@ -133,7 +133,7 @@ export const AGENCY_MENU = [
   { group: null, foot: true, lines: [
     { id: 'a-settings', label: 'Agency settings', icon: 'gear', who: 'team', foot: true, tabs: [
       t('clients', 'Clients', 'settings'), t('team', 'Team', 'settings'), t('integrations', 'Integrations', 'settings'), t('ask', AI_NAME, 'settings'),
-      t('how-we-run-ads', 'How we run ads', 'settings'), t('sending', 'Sending and notifications', 'settings')] },
+      t('how-we-run-ads', 'How we run ads', 'settings'), t('sending', 'Sending and notifications', 'settings'), t('messages', 'Messages')] },
     { id: 'a-engine', label: 'Engine', icon: 'pulse', who: 'owner', foot: true, tabs: [t('compare', 'Compare'), t('switch', 'Switch')] },
   ] },
 ];
