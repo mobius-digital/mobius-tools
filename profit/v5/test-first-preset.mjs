@@ -4,7 +4,8 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
-import { CHOICES, DEFAULT_PRESET, choices, startPreset, shouldFetch, shouldShow, saveBody, knownKey } from './pages/profile/_first-preset.js';
+import { CHOICES, DEFAULT_PRESET, choices, startPreset, shouldFetch, shouldShow, saveBody, knownKey, channelChoices, startChannels,
+  reachesOutside, savedOk, closeOutcome } from './pages/profile/_first-preset.js';
 
 const here = p => fileURLToPath(new URL(p, import.meta.url));
 const sample = JSON.parse(readFileSync(here('./pages/profile/_sample/delivery.json'), 'utf8'));
@@ -46,8 +47,10 @@ ok('shows only on an explicit notify_chosen false from a server with presets', (
   assert.equal(shouldShow(null, { forced: true }), true, '?firstpreset=1 in sample');
 });
 
-ok('who is asked: not in sample, not as client preview, not on Get started, not once known', () => {
+ok('who is asked: not in sample, not a client login, not as client preview, not on Get started, not once known', () => {
   assert.equal(shouldFetch({}), true);
+  assert.equal(shouldFetch({ client: true }), false, 'client_waiting is in no preset: a client pick would change nothing');
+  assert.equal(shouldFetch({ client: true, sample: true, forced: true }), true, 'the sample still shows the client words');
   assert.equal(shouldFetch({ sample: true }), false);
   assert.equal(shouldFetch({ sample: true, forced: true }), true);
   assert.equal(shouldFetch({ asClient: true }), false);
@@ -55,12 +58,49 @@ ok('who is asked: not in sample, not as client preview, not on Get started, not 
   assert.equal(shouldFetch({ known: true }), false);
 });
 
-ok('Save sends the pick; a dismiss or anything odd sends the default', () => {
+ok('Also send to: only Slack DM and email that are ready; a client never gets Slack DM', () => {
+  const cat = { channels: [{ id: 'in_app', ready: true, always: true }, { id: 'slack_dm', name: 'Slack DM', ready: true },
+    { id: 'email', name: 'Email', ready: false }, { id: 'push', name: 'Phone', ready: false }] };
+  assert.deepEqual(channelChoices({ catalog: cat }).map(c => c.id), ['slack_dm']);
+  assert.deepEqual(channelChoices({ catalog: { channels: cat.channels.map(c => ({ ...c, ready: true })) } }).map(c => c.id), ['slack_dm', 'email'], 'never in_app or push');
+  assert.deepEqual(channelChoices({ catalog: { channels: cat.channels.map(c => ({ ...c, ready: true })) }, client: true }).map(c => c.id), ['email']);
+  assert.deepEqual(channelChoices({}), [], 'no catalog: nothing to turn on');
+  assert.deepEqual(channelChoices({ catalog: sample.catalog }).map(c => c.id), ['slack_dm'], 'the sample: Slack ready, email not yet');
+});
+
+ok('the switches open on what the server has on: a new teammate starts off, the DM list starts with Slack DM on', () => {
+  const offered = [{ id: 'slack_dm' }, { id: 'email' }];
+  assert.deepEqual(startChannels({ channels: { slack_dm: false, email: false, push: false } }, offered), { slack_dm: false, email: false });
+  assert.deepEqual(startChannels(sample.notify, offered), { slack_dm: true, email: false });
+  assert.deepEqual(startChannels(null, offered), { slack_dm: false, email: false });
+  assert.equal(reachesOutside({ slack_dm: false, email: false }), false, 'nothing on: the sheet says it stays in the app');
+  assert.equal(reachesOutside({ slack_dm: true }), true);
+});
+
+ok('Save sends the pick and the switches; anything odd sends the default', () => {
+  assert.deepEqual(saveBody('everything', { slack_dm: true, email: false }), { notify: { channels: { slack_dm: true, email: false }, preset: 'everything' } });
+  assert.deepEqual(saveBody('only_urgent', { push: true }), { notify: { preset: 'only_urgent' } }, 'push is never sent from here');
+  assert.deepEqual(saveBody('only_urgent', {}), { notify: { preset: 'only_urgent' } }, 'no switch offered: channels left as they are');
   assert.deepEqual(saveBody('only_urgent'), { notify: { preset: 'only_urgent' } });
   assert.deepEqual(saveBody('everything'), { notify: { preset: 'everything' } });
   assert.deepEqual(saveBody(DEFAULT_PRESET), { notify: { preset: 'urgent_brief' } });
   assert.deepEqual(saveBody('custom'), { notify: { preset: 'urgent_brief' } });
   assert.deepEqual(saveBody(undefined), { notify: { preset: 'urgent_brief' } });
+});
+
+ok('only an answer that says notify_chosen true counts as saved', () => {
+  assert.equal(savedOk({ ok: true, notify_chosen: true }), true);
+  assert.equal(savedOk({ ok: true }), false, 'an engine answer without notify is not a save');
+  assert.equal(savedOk({ ok: true, notify_chosen: false }), false);
+  assert.equal(savedOk(null), false);
+});
+
+ok('only Save writes; a dismiss or the Profile link stops asking here; a route change asks again', () => {
+  assert.deepEqual(closeOutcome('save'), { put: true, remember: true });
+  assert.deepEqual(closeOutcome('dismiss'), { put: false, remember: true }, 'Escape never saves a snapshot');
+  assert.deepEqual(closeOutcome('link'), { put: false, remember: true });
+  assert.deepEqual(closeOutcome('route'), { put: false, remember: false }, 'browser Back is not an answer');
+  assert.deepEqual(closeOutcome(undefined), { put: false, remember: false });
 });
 
 ok('the remembered key is per login', () => {
