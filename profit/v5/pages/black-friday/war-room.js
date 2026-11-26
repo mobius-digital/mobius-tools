@@ -1,6 +1,6 @@
-/* Brand > Black Friday > War Room (team only): this brand in the latest check-in, with Approve and what is running.
-   The work is in ../a-black-friday/live.js. Reads GET /api/standing (and /api/standing/brand on a tap);
-   Approve posts /api/standing/approve. */
+/* Brand > Black Friday > War Room (v2, team only): this brand in the latest check-in, a call per live campaign,
+   today by the hour on a tap, and the client update card (preview, Download image, Copy image, Copy link).
+   The work is in ../a-black-friday/live.js and the math in ../_warcall.js. */
 
 import { em } from '../../kit.js';
 import { readStanding, renderWarRoom } from '../a-black-friday/live.js';
