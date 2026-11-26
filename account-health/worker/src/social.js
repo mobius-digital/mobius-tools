@@ -3,7 +3,7 @@
 
    A brand follows other brands (one handle, looked up on Instagram, TikTok and YouTube) and topics ("golf short game").
    Their posts are pulled into one feed on a cadence per platform (2026-10-21, Cole: Instagram and YouTube every 2 hours
-   because they are free; TikTok and topic searches once a day because each is a ScrapeCreators credit), each labelled by platform and format (Reel, Carousel, Post, TikTok,
+   because they are free; TikTok and topic searches once a day because each is a ScrapeCreators credit), each labeled by platform and format (Reel, Carousel, Post, TikTok,
    Photos, Short, Video) with "usually X, this one Y": a followed account's median for that platform, or a topic post's
    author's followers. Breaking out = 3x usual. "Make ours" hands the post to the ideas bot (ideas.js ideaFromLocus).
 

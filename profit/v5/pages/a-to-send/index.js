@@ -1,43 +1,29 @@
 /* Agency > To send: every client message drafted and waiting for a person to read it and press Send.
-   Daily briefs (the day before, by brand) and weekly and monthly reports. The review and the Send button stay in
-   old Locus, so each row opens that brand's screen there. "Do not send" marks one row skipped, after a check:
-   nothing is deleted and no other row is touched.
+   Daily updates (the day before, by brand) and weekly and monthly reports. Each waiting row has Send, Edit and
+   Do not send, done here (_send.js holds the sheets and the exact routes, the same ones old Locus calls).
+   Send shows the brand, where it goes and the exact words, and only the second tap sends.
+   A brand with no client channel says so on the row instead of offering a Send that cannot work.
    Live data (account-health):
      GET /api/briefs?act=all    the latest briefs for every brand (status draft | sent | skipped | handled | error)
      GET /api/reports?act=all   the latest weekly and monthly reports (status draft | sent | handled | skipped),
                                 and can_skip once the server can mark one report skipped
-     POST /api/brief-skip       { act, date } marks one brief skipped
-     POST /api/report-skip      { act, period, start } marks one report skipped (only when can_skip is true) */
+   Writes: see _send.js. Sample mode simulates every write. */
 
 import { put } from '../../kit.js';
-import { h, hero, kpis, kpi, statusDot, button, segmented, em, empty, sheet, toast } from '../../kit.js';
-import { legacyUrl } from '../../config.js';
-import { css, span, short, dayOf, away, between, addDays, todayYmd, heading, row, list, brandTag, colorOf, dateOf } from '../calendar/_cr.js';
+import { h, hero, kpis, kpi, statusDot, button, segmented, em, empty } from '../../kit.js';
+import { span, short, dayOf, away, between, addDays, todayYmd, row, list, brandTag, colorOf, dateOf, css } from '../calendar/_cr.js';
+import { actions, noChannel, sampleChannels } from './_send.js';
 
 const view = { show: 'waiting' };
 
-/** "Do not send" on one unsent row: a confirm sheet, then the one skip route for that row. Never a bulk route. */
-function skipSheet(i, ctx, d, redraw) {
-  const go = button('Do not send', { primary: true, large: true });
-  const no = button('Keep it', { large: true });
-  const what = i.kind === 'brief' ? 'The daily brief for ' + short(i.day) : (i.period === 'monthly' ? 'The monthly report, ' : 'The weekly report, ') + span(i.day, i.end);
-  const sh = sheet({ title: 'Do not send this one?', side: 'center', body: h('div', { style: { display: 'grid', gap: '16px' } },
-    h('p', null, h('b', null, what + ' for ' + (i.brand || 'this brand') + '. '), 'This one will not go to the client. Nothing is deleted.'),
-    h('div', { style: { display: 'flex', gap: '10px', flexWrap: 'wrap' } }, go, no)) });
-  no.addEventListener('click', () => sh.close());
-  go.addEventListener('click', async () => {
-    go.disabled = no.disabled = true;
-    try {
-      if (ctx.sample) { toast('Sample: nothing saved'); sh.close(); return; }
-      if (i.kind === 'brief') await ctx.api('/api/brief-skip', { worker: 'ah', method: 'POST', body: { act: i.act_id, date: i.day } });
-      else await ctx.api('/api/report-skip', { worker: 'ah', method: 'POST', body: { act: i.act_id, period: i.period, start: i.day } });
-      d.items = d.items.filter(x => x !== i.src);
-      sh.close(); toast('Marked Do not send'); redraw();
-    } catch (e) {
-      go.disabled = no.disabled = false;
-      toast('Not saved: ' + ((e && e.message) || 'no answer from the server.'), { tone: 'bad', ms: 6000 });
-    }
-  });
+/** After a write: change the one row in place and draw again. */
+function changed(i, d, redraw) {
+  return (what, text) => {
+    if (what === 'sent') { i.src.status = 'sent'; i.src.sent_at = new Date().toISOString(); }
+    else if (what === 'skipped') d.items = d.items.filter(x => x !== i.src);
+    else if (what === 'edited' && i.kind === 'brief' && typeof text === 'string') { i.src.preview = text.replace(/\s+/g, ' ').trim().slice(0, 140); i.src.client = true; }
+    redraw();
+  };
 }
 const canSkip = (i, d) => i.kind === 'brief' ? (i.status === 'draft' || i.status === 'error') : i.status === 'draft' && d.can_skip === true;
 
@@ -54,7 +40,7 @@ function draw(el, d, ctx) {
   const head = hero({ line: true }, kpis([
     kpi({ label: 'Waiting to send', value: String(waiting.length), size: 'lg', lead: false,
       sub: waiting.length ? statusDot(old.length ? 'bad' : 'warn', old.length ? old.length + ' drafted before today' : 'all drafted today') : 'nothing waiting' }),
-    kpi({ label: 'Daily briefs', value: String(briefs.length), size: 'lg', sub: briefs.length ? 'to read and send' : 'all sent' }),
+    kpi({ label: 'Daily updates', value: String(briefs.length), size: 'lg', sub: briefs.length ? 'to read and send' : 'all sent' }),
     kpi({ label: 'Reports', value: String(reports.length), size: 'lg', sub: reports.length ? 'weekly and monthly' : 'all sent' }),
     kpi({ label: 'Sent today', value: String(sentToday.length), size: 'lg', sub: sentToday.length ? 'to clients' : 'none yet' }),
   ], { cols: 4 }));
@@ -66,15 +52,16 @@ function draw(el, d, ctx) {
     const rows = pick.map(i => row({
       lead: dateOf(i.day, today),
       title: i.kind === 'brief' ? 'Daily brief for ' + short(i.day) : (i.period === 'monthly' ? 'Monthly report, ' : 'Weekly report, ') + span(i.day, i.end),
-      sub: i.status === 'error' ? 'The draft failed. Open it to try again.' : i.preview || (i.status === 'sent' ? 'Sent ' + dayOf(i.sent_at) : 'Drafted ' + away(today, String(i.drafted_at || today).slice(0, 10))),
+      sub: i.status === 'error' ? 'The last send failed. Send it again, or edit it first.'
+        : i.preview ? (i.kind === 'brief' && !i.client && i.status !== 'sent' ? 'Team brief: ' : '') + i.preview
+        : (i.status === 'sent' ? 'Sent ' + dayOf(i.sent_at) : 'Drafted ' + away(today, String(i.drafted_at || today).slice(0, 10))),
       late: i.status === 'error',
       cells: [
         { w: 170, node: brandTag(i.brand, i.color) },
         { w: 150, node: i.status === 'sent' ? statusDot('good', 'Sent ' + dayOf(i.sent_at)) : i.status === 'error' ? statusDot('bad', 'Draft failed') : i.status === 'handled' ? statusDot('off', 'Team only') : statusDot('warn', 'Waiting') },
       ],
-      action: i.status === 'draft' || i.status === 'error' ? h('span', { style: { display: 'inline-flex', gap: '8px', flexWrap: 'wrap' } },
-        canSkip(i, d) ? button('Do not send', { ghost: true, onclick: () => skipSheet(i, ctx, d, () => draw(el, d, ctx)) }) : null,
-        button('Review', { href: legacyUrl(i.kind === 'brief' ? 'brief' : 'reports', i.act_id), icon: 'arrow' })) : null,
+      action: i.status === 'draft' || i.status === 'error'
+        ? actions(i, ctx, changed(i, d, () => draw(el, d, ctx)), { canSkip: canSkip(i, d), noChannel: noChannel(i, ctx, d.channels) }) : null,
     }));
     put(box, 
       h('div', { class: 'cr-bar-top', style: { paddingBottom: '6px' } },
@@ -86,6 +73,10 @@ function draw(el, d, ctx) {
 }
 
 export default {
+  async sample(ctx) {
+    const [d, channels] = await Promise.all([ctx.fixture('index.json'), sampleChannels()]);
+    return { ...d, can_skip: true, channels };
+  },
   title: ['What is waiting ', em('to go to clients?')],
   eyebrow: 'To send',
   ranges: false,                 /* today's queue */

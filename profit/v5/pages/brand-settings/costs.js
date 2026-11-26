@@ -170,7 +170,7 @@ let sampleId = 9000;
 function sampleDone(sayOk) { sampleAfter(P.d); draw(); toast(sayOk ? sayOk + ' ' + SAMPLE_SAY : SAMPLE_SAY, { ms: 4200 }); }
 
 /* ---------- the form sheet ---------- */
-/** A labelled control. f = fld('Name', input, 'hint') ; f.input is the control. */
+/** A labeled control. f = fld('Name', input, 'hint') ; f.input is the control. */
 function fld(label, input, hint) {
   const id = 'co' + Math.random().toString(36).slice(2, 8);
   input.id = id;

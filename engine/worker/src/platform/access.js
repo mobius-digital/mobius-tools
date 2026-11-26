@@ -119,8 +119,12 @@ const VIEWER_MAY = new Set([
 
 const oldPath = req => splitPath(req.url.pathname) || { worker: '', path: req.url.pathname };
 
-function clientMayWrite(caller, req) {
-  if (READS.has(req.method) || !caller.client.read_only) return true;
+/* A row with access.look_may: true writes only the caller's own rows (each statement binds :email), so a view
+   only teammate and a look and approve client may send it too. The old door for it sat above both checks. */
+const lookMay = (row, req) => !READS.has(req.method) && !!row && row.access.look_may === true;
+
+function clientMayWrite(caller, req, row) {
+  if (READS.has(req.method) || !caller.client.read_only || lookMay(row, req)) return true;
   if (caller.client.hq) return false;
   return READONLY_CLIENT_MAY.has(`${req.method} ${oldPath(req).path}`);
 }
@@ -136,7 +140,7 @@ const viewerMayWrite = req => viewerMay(req.url.pathname);
 async function checkClient(row, caller, req) {
   const a = row.access;
   if (a.client !== true || (a.hq === true && !caller.client.hq)) fail(403, WORDS.client_no);
-  if (!clientMayWrite(caller, req)) fail(403, caller.client.hq ? WORDS.client_read : WORDS.client_look);
+  if (!clientMayWrite(caller, req, row)) fail(403, caller.client.hq ? WORDS.client_read : WORDS.client_look);
   if (!caller.brand_ids.length) fail(401, WORDS.nobody);
   const act = await clientBrand(row, caller, req);
   if (a.own && !(await recordsOwned(a.own, req, caller.ids))) fail(403, WORDS.client_own);
@@ -155,7 +159,7 @@ async function checkTeam(row, caller, req) {
   const a = row.access;
   if (a.owner_only === true && caller.kind !== 'owner') fail(403, WORDS.owner);
   if (a.team === false && caller.kind !== 'owner') fail(403, WORDS.team_no);
-  if (caller.view_only && !READS.has(req.method) && !viewerMayWrite(req)) fail(403, WORDS.viewer);
+  if (caller.view_only && !READS.has(req.method) && !viewerMayWrite(req) && !lookMay(row, req)) fail(403, WORDS.viewer);
   const q = req.url.searchParams.get('act');
   const fromBody = READS.has(req.method) || !isPlainObject(req.body) ? [] : [req.body.act, req.body.act_id].filter(present);
   const fromPath = a.brand === 'path' ? req.params.id || '' : '';

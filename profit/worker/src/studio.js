@@ -5,10 +5,10 @@
  *              for this creative (not one brand font), 4:5 with everything inside the 1:1 square.
  *   2. Review  Approve (most ads end here), Redo (a new version), Delete, or Edit.
  *   3. Edit    ONLY on the first Edit: the model erases the words from the picture (the "plate")
- *              while a vision model reads where each line sat, its colour and the closest font.
+ *              while a vision model reads where each line sat, its color and the closest font.
  *              The editor then puts the words back as live text boxes, so every later move,
  *              retype, delete or restyle is free and never regenerates the picture.
- *              Title art (stylised lettering that is part of the scene) stays in the picture;
+ *              Title art (stylized lettering that is part of the scene) stays in the picture;
  *              changing its words redraws only that ("art" route).
  *
  * OpenAI (GPT Image) for everything: its strength is text inside images, which is the job.
@@ -187,7 +187,7 @@ async function imageCall(key, model, { prompt, images = [], size = '1024x1280', 
 
 /* Cole 2026-10-20: anything that should look PHOTOGRAPHED (people, lifestyle, on course, the product in a real place) must look
    like a real camera took it, never too-perfect AI. Graphic design is exempt. Memory: feedback-photoreal-not-perfect. */
-const PHOTO_REAL = 'Wherever the picture shows a real place, real people or the product in a scene, it must look PHOTOGRAPHED, not generated: a real camera or phone look with slight grain, a little softness and imperfect focus, natural uneven light, real clutter and imperfect framing. People are candid and imperfect: mid-motion or partly turned away, real skin texture, wrinkled clothes, never posed model smiles, never perfectly symmetrical faces; if a face would look fake, frame it out (back, hands, chest down, distance). No glossy CGI, no plastic skin, no over-clean colour. Flat graphic design parts (type, labels, shapes) stay clean.';
+const PHOTO_REAL = 'Wherever the picture shows a real place, real people or the product in a scene, it must look PHOTOGRAPHED, not generated: a real camera or phone look with slight grain, a little softness and imperfect focus, natural uneven light, real clutter and imperfect framing. People are candid and imperfect: mid-motion or partly turned away, real skin texture, wrinkled clothes, never posed model smiles, never perfectly symmetrical faces; if a face would look fake, frame it out (back, hands, chest down, distance). No glossy CGI, no plastic skin, no over-clean color. Flat graphic design parts (type, labels, shapes) stay clean.';
 const TYPE_RULES = 'TYPOGRAPHY like a top DTC brand\'s paid social, set by a senior designer: flat, crisp, well kerned letters on a clean grid; at most two typefaces; one clear headline; generous breathing room. NO bevels, glows, outlines, 3D text, metallic or gradient text, drop shadows, or glossy fake badges. Labels and callouts are simple flat shapes or plain text.';
 /* The brand kit (2026-10-21, Cole: "if you're going to use our foil, then use our foil ... and our actual logo"). With a
    kit on, the model draws NO button and NO logo and leaves two bands empty; the browser then draws the brand's own button
@@ -201,23 +201,23 @@ function textLines(spec) {
   if (spec.subline) lines.push(`Smaller line: "${spec.subline}"`);
   for (const c of spec.callouts || []) lines.push(`Callout (a small badge, label or pointer near the part of the product it describes): "${c}"`);
   if (spec.cta && !spec.kit) lines.push(`Button (a clean pill or label shape): "${spec.cta}"`);
-  if (spec.art && spec.art.trim().split(/\s+/).length <= 3) lines.push(`Title art: "${spec.art}" as custom stylised lettering that is part of the scene itself`);
+  if (spec.art && spec.art.trim().split(/\s+/).length <= 3) lines.push(`Title art: "${spec.art}" as custom stylized lettering that is part of the scene itself`);
   return lines;
 }
 /* A line whose photograph IS the ad (a real shot from the brand's own shoot, 2026-10-06): the picture
    is kept and only the words, and whatever small change the plan asks for, go on. Realism comes free,
    because nothing is rendered. */
-const FEED_LAYOUT = 'LAYOUT: the image is a 4:5 portrait feed ad, and Meta crops it to a centred SQUARE in some placements. Compose for the whole frame, but every word, badge and button sits inside that centre square: between 12% and 88% of the height from the top, and at least 5% in from each side. The top 12% and the bottom 12% hold NO words or buttons, only scene or background. The whole product sits fully inside the frame, ideally inside the centre square too; nothing important touches or crosses an edge. A phone screen, sign, poster, painting or frame in the ad is shown whole with space around it. People are shown as the scene needs, never cut awkwardly at the knees or the top of the head.';
+const FEED_LAYOUT = 'LAYOUT: the image is a 4:5 portrait feed ad, and Meta crops it to a centered SQUARE in some placements. Compose for the whole frame, but every word, badge and button sits inside that center square: between 12% and 88% of the height from the top, and at least 5% in from each side. The top 12% and the bottom 12% hold NO words or buttons, only scene or background. The whole product sits fully inside the frame, ideally inside the center square too; nothing important touches or crosses an edge. A phone screen, sign, poster, painting or frame in the ad is shown whole with space around it. People are shown as the scene needs, never cut awkwardly at the knees or the top of the head.';
 /* 2026-10-13 (Cole: "these aren't in safe zones"). The model ignored the 4:5 layout rule whenever it drew big title
    lettering. Designed ads are now made SQUARE, and the browser's extend() paints only the top and bottom bands, so
-   every word sits inside the centre square by construction. Photo-as-the-ad lines stay 4:5 (the photo is real). */
+   every word sits inside the center square by construction. Photo-as-the-ad lines stay 4:5 (the photo is real). */
 const SQUARE_LAYOUT = 'LAYOUT: the image is a SQUARE feed ad. Background only will later be added above and below it. Keep every word, badge and button at least 4% in from every edge. The product, any person, phone screen, sign or frame sits fully inside the square with space around it; nothing important touches or crosses an edge.';
 const SQ_ZONE = { top: 25, bottom: 975, left: 30, right: 970 };
 const STORY_LAYOUT = 'LAYOUT: TALL 9:16 for Instagram and Facebook Stories and Reels. The scene fills the whole frame top to bottom. Every word, badge and button sits between 20% and 62% of the height from the top and at least 6% in from each side; the headline near the top of that band. The top 15% and the bottom 35% hold NO words or buttons (the app draws its own there): fill them with scene, sky, floor, table or background. The whole product sits between 18% and 85% of the height, never cut by an edge.';
 function basePrompt(spec, brand) {
   const lines = textLines(spec);
   return [
-    `The attached photograph is the finished picture for a Meta feed ad for ${brand}. It is a real photo of the real product and it must stay exactly as shot: the same scene, product, people, light, colours, grain and framing. Do not restage, redraw, move, resize, recolour or add anything to the scene except what is asked below. The output is 4:5 portrait: keep the WHOLE photo, people and product uncropped; where the photo's shape differs, continue its own background naturally (same sky, ground, wall or studio backdrop), never stretch it.`,
+    `The attached photograph is the finished picture for a Meta feed ad for ${brand}. It is a real photo of the real product and it must stay exactly as shot: the same scene, product, people, light, colors, grain and framing. Do not restage, redraw, move, resize, recolor or add anything to the scene except what is asked below. The output is 4:5 portrait: keep the WHOLE photo, people and product uncropped; where the photo's shape differs, continue its own background naturally (same sky, ground, wall or studio backdrop), never stretch it.`,
     FEED_LAYOUT,
     kitRule(spec),
     spec.look ? `Change only this on the photo: ${spec.look}` : '',
@@ -245,18 +245,18 @@ function adPrompt(spec, brand, k = 0, n = 1, counts = { prod: 0, inspo: 0 }) {
     spec.square ? SQUARE_LAYOUT : FEED_LAYOUT,
     kitRule(spec),
     which,
-    spec.exact ? 'THE PRODUCT IS ALREADY IN THE IMAGE, placed exactly where it must stay: a real photograph of the real product. Build the whole ad around it. Never redraw, move, resize, rotate, recolour, cover, crop or duplicate it. Give it a natural contact shadow and reflections that match the scene light, so it sits in the scene rather than on top of it.' : '',
+    spec.exact ? 'THE PRODUCT IS ALREADY IN THE IMAGE, placed exactly where it must stay: a real photograph of the real product. Build the whole ad around it. Never redraw, move, resize, rotate, recolor, cover, crop or duplicate it. Give it a natural contact shadow and reflections that match the scene light, so it sits in the scene rather than on top of it.' : '',
     spec.dna && !spec.exact ? `THE PRODUCT, EXACTLY (its fingerprint; every point must be true in the ad, from any camera angle):\n${spec.dna}` : '',
     spec.exact ? `The product is ${names.map(t => `"${t}"`).join(', ') || 'the one already in the image'}.` : names.length
-      ? `The product${many ? 's are' : ' is'}: ${names.map(t => `"${t}"`).join(', ')}. ${many ? 'Show every one of them. ' : ''}The product photos are the real thing: reproduce ${many ? 'each product' : 'it'} exactly, with the same shape, colours, materials, logos and any words printed on ${many ? 'them' : 'it'}.`
-      : own ? 'Take the product from our earlier ad and reproduce it exactly: the same shape, colours, materials, logos and any words printed on it.'
+      ? `The product${many ? 's are' : ' is'}: ${names.map(t => `"${t}"`).join(', ')}. ${many ? 'Show every one of them. ' : ''}The product photos are the real thing: reproduce ${many ? 'each product' : 'it'} exactly, with the same shape, colors, materials, logos and any words printed on ${many ? 'them' : 'it'}.`
+      : own ? 'Take the product from our earlier ad and reproduce it exactly: the same shape, colors, materials, logos and any words printed on it.'
       : 'There is no product photo: build the image from the description and the inspiration.',
-    own ? 'Our earlier ad is a proven winner. KEEP ITS DESIGN LANGUAGE: the same level of boldness and craft, the same kind of typography (big title lettering if it has it), one strong colour world if it has one, the product as the clear hero at a similar size. CHANGE THE IDEA: a new visual metaphor or scene, a new colour world, a new composition. Do not reuse its background, props, splashes or colours. It should read as the same brand\'s next ad, not the same ad again and not a plain photo.'
+    own ? 'Our earlier ad is a proven winner. KEEP ITS DESIGN LANGUAGE: the same level of boldness and craft, the same kind of typography (big title lettering if it has it), one strong color world if it has one, the product as the clear hero at a similar size. CHANGE THE IDEA: a new visual metaphor or scene, a new color world, a new composition. Do not reuse its background, props, splashes or colors. It should read as the same brand\'s next ad, not the same ad again and not a plain photo.'
     : counts.inspo ? (spec.ref_use === 'copy'
-      ? 'Recreate the inspiration CLOSELY: its layout, composition, camera angle, typography treatment and colour grade, with our product and our words in place of theirs. Never copy its brand, products, logos, people or words.'
+      ? 'Recreate the inspiration CLOSELY: its layout, composition, camera angle, typography treatment and color grade, with our product and our words in place of theirs. Never copy its brand, products, logos, people or words.'
       : spec.ref_use === 'vibe'
-        ? 'Use the inspiration only as a loose mood reference (colour, light, energy). Make your own layout. Never copy its brand, products, logos, people or words.'
-        : 'From the inspiration take the layout, composition, typography treatment, colour mood and energy. Do NOT copy its products, brand names, logos, people or words.') : '',
+        ? 'Use the inspiration only as a loose mood reference (color, light, energy). Make your own layout. Never copy its brand, products, logos, people or words.'
+        : 'From the inspiration take the layout, composition, typography treatment, color mood and energy. Do NOT copy its products, brand names, logos, people or words.') : '',
     spec.look ? `Scene and look: ${spec.look}` : '',
     spec.who ? `It is for: ${spec.who}. Let that guide the mood, setting and casting.` : '',
     `Typography: ${STYLES[spec.style] || STYLES.auto}`,
@@ -317,7 +317,7 @@ async function readText(key, model, bytes, spec) {
     body: JSON.stringify({
       model, response_format: { type: 'json_schema', json_schema: { name: 'ad_text', strict: true, schema } },
       messages: [{ role: 'user', content: [
-        { type: 'text', text: `List every separate line of text drawn on this ad, top to bottom. One entry per visual line (a button is one entry). The words we asked for were: ${expected || 'none'}${spec.art ? `, plus title art "${spec.art}"` : ''}. Title art (stylised lettering that is part of the scene) gets role "art" and is_art true. Ignore words printed on the product itself (logos, embroidery, wordmarks). Font is the closest match from the list; judge stroke thickness carefully (thin or light letters are weight 300, not 700), and lines that share one look must get the same font and weight. The image is ${W} pixels wide and ${H} tall: give each box in those pixels, tight around the letters of that line only.` },
+        { type: 'text', text: `List every separate line of text drawn on this ad, top to bottom. One entry per visual line (a button is one entry). The words we asked for were: ${expected || 'none'}${spec.art ? `, plus title art "${spec.art}"` : ''}. Title art (stylized lettering that is part of the scene) gets role "art" and is_art true. Ignore words printed on the product itself (logos, embroidery, wordmarks). Font is the closest match from the list; judge stroke thickness carefully (thin or light letters are weight 300, not 700), and lines that share one look must get the same font and weight. The image is ${W} pixels wide and ${H} tall: give each box in those pixels, tight around the letters of that line only.` },
         { type: 'image_url', image_url: { url: `data:image/png;base64,${b64(bytes)}` } },
       ] }],
     }),
@@ -360,7 +360,7 @@ const keyOf = async (env, row, kind) => `studio/${await storagePrefix(env, row.a
 /* Where the words landed: one read-back (about a cent). Words outside the zone would be cut or hidden
    (feed edges, or the Stories / Reels buttons on the 9:16), so the card flags it.
    A flag, never an automatic redo (Cole: retries waste credits). */
-async function zoneCheck(key, m, bytes, spec, Z = FEED_ZONE, where = 'outside the centre square') {
+async function zoneCheck(key, m, bytes, spec, Z = FEED_ZONE, where = 'outside the center square') {
   const lines = await readText(key, m.vision, bytes, spec).catch(() => null);
   if (!lines) return null;
   const out = lines.filter(l => l.box[1] < Z.top || l.box[3] > Z.bottom || l.box[0] < Z.left || l.box[2] > Z.right);
@@ -409,11 +409,11 @@ function realPrompt(spec, brand, inspo = 0) {
     spec.look ? `The scene: ${spec.look} (Where these notes describe the product's position, size, angle or facing, ignore that part: it is already placed.)` : 'The scene: a real setting that suits the product, natural light.',
     'Match the scene light, perspective and scale to the product so it looks photographed there: the surface it rests on, a soft contact shadow where it touches, reflections of the surroundings on polished metal. Where the product runs off an edge of the frame, the scene continues behind it.',
     PHOTO_REAL,
-    'Keep the product exactly as it is: same shape, position, logos, marks and colours. Do not add a second product and do not draw any other club or logo.',
+    'Keep the product exactly as it is: same shape, position, logos, marks and colors. Do not add a second product and do not draw any other club or logo.',
     /* 2026-10-15: the Carver photo ends at its thin black shaft band; when the model drew the rest of the shaft it carried
        the black on (the real shaft is gold). The fingerprint tells it what the unseen part looks like. */
-    spec.dna ? `If any part of the product continues past the photo (a shaft running on to the edge of the frame), draw that part to match these facts about the real product: ${spec.dna.replace(/\s+/g, ' ').slice(0, 900)}` : 'If any part of the product continues past the photo (a shaft running on to the edge of the frame), continue it in the same material and colour as the part just before the edge of the photo, not the colour of a band or ring at that edge.',
-    inspo ? 'The last attached image is inspiration only for mood and colour; never copy its products, logos or words.' : '',
+    spec.dna ? `If any part of the product continues past the photo (a shaft running on to the edge of the frame), draw that part to match these facts about the real product: ${spec.dna.replace(/\s+/g, ' ').slice(0, 900)}` : 'If any part of the product continues past the photo (a shaft running on to the edge of the frame), continue it in the same material and color as the part just before the edge of the photo, not the color of a band or ring at that edge.',
+    inspo ? 'The last attached image is inspiration only for mood and color; never copy its products, logos or words.' : '',
     words.length ? `Words on the ad, spelled exactly, and no other words: ${words.join('; ')}. Type: ${type}; crisp and flat, no glow or 3D. Every word between ${spec.square ? '5% and 95%' : '12% and 88%'} of the height from the top, in empty space, never touching the product.` : 'No words on the ad.',
     kitRule(spec),
   ].filter(Boolean).join(' ');
@@ -443,7 +443,7 @@ async function layoutCheck(key, model, bytes, box, note = '') {
   return safeJson(j.choices?.[0]?.message?.content, null);
 }
 async function productCheck(key, model, bytes, refs, name, dna = '') {
-  const content = [{ type: 'text', text: `The first images are REFERENCE photos of the real product${name ? ` ("${name}")` : ''}. The last image is an AD. Is the product in the ad the SAME product? Compare the silhouette and outline first (for a putter or club: the head shape seen from above and the side, its cut-outs and wings), then proportions, colours, finish, logos and printed details. A different angle, light or background is fine. A redesigned or different-shaped product is NOT ok even if the colour and logo match. Be strict: when unsure, say it is not ok.${dna ? `\n\nThe product's fingerprint; check EVERY point against the ad and fail it if any point is wrong:\n${dna}` : ''}` }];
+  const content = [{ type: 'text', text: `The first images are REFERENCE photos of the real product${name ? ` ("${name}")` : ''}. The last image is an AD. Is the product in the ad the SAME product? Compare the silhouette and outline first (for a putter or club: the head shape seen from above and the side, its cut-outs and wings), then proportions, colors, finish, logos and printed details. A different angle, light or background is fine. A redesigned or different-shaped product is NOT ok even if the color and logo match. Be strict: when unsure, say it is not ok.${dna ? `\n\nThe product's fingerprint; check EVERY point against the ad and fail it if any point is wrong:\n${dna}` : ''}` }];
   for (const r of refs.slice(0, 5)) content.push({ type: 'image_url', image_url: { url: `data:${r.type};base64,${b64(r.buf)}` } });
   content.push({ type: 'image_url', image_url: { url: `data:image/png;base64,${b64(bytes)}` } });
   const res = await fetch(`${OA}/chat/completions`, {
@@ -576,8 +576,8 @@ function dressPrompt({ title, brand, n, dna, note }) {
   return [
     `Image 1 is a real photograph of a person. ${n > 1 ? `Images 2 to ${n + 1} are product photos` : 'Image 2 is a product photo'} of ${title ? `"${title}"` : 'a product'} by ${brand}.`,
     'Edit image 1 so the person is wearing that exact product. It replaces the matching item they have on (a shirt or polo replaces the top they wear, a hat replaces or adds headwear, a glove goes on the hand, and so on). If they wear nothing of that kind, put it where it is worn.',
-    'KEEP EVERYTHING ELSE EXACTLY AS SHOT: the same person, face, expression, skin, hair, body shape, pose, hands and anything they hold, the background, the light direction and softness, the colour grade, the grain and the framing. It is a real photo and must still read as the same real photo, not a render.',
-    'Reproduce the product exactly from its photos: the same colours, fabric and texture, collar, placket, buttons, seams and pattern, and every logo and printed word in its exact position and size. Fit it naturally to this body and pose, with real folds, creases and shadows that follow the scene light.',
+    'KEEP EVERYTHING ELSE EXACTLY AS SHOT: the same person, face, expression, skin, hair, body shape, pose, hands and anything they hold, the background, the light direction and softness, the color grade, the grain and the framing. It is a real photo and must still read as the same real photo, not a render.',
+    'Reproduce the product exactly from its photos: the same colors, fabric and texture, collar, placket, buttons, seams and pattern, and every logo and printed word in its exact position and size. Fit it naturally to this body and pose, with real folds, creases and shadows that follow the scene light.',
     dna ? `The product's fingerprint (every point must be true on the person):\n${dna}` : '',
     note ? `Also: ${note}` : '',
     'Add no text, no watermark and nothing that is not on the product.',
@@ -586,7 +586,7 @@ function dressPrompt({ title, brand, n, dna, note }) {
 /* Score the garment against the product photos (0-10, same scale as the ad check) and say whether the
    person and scene survived. About a cent; the result shows on the look so the team knows when to Redo. */
 async function dressCheck(key, model, bytes, base, refs, name, dna = '') {
-  const content = [{ type: 'text', text: `The FIRST image is a real photo of a person (before). The next images are REFERENCE photos of a product${name ? ` ("${name}")` : ''}. The LAST image is the same photo after an edit that should dress the person in that product. Judge two things. 1) Is the garment or accessory they now wear the SAME product as the references? Compare shape and cut first, then colours, fabric, collar, buttons, logos and printed details and where they sit. Be strict: a similar but different product is not ok. 2) Is it still the same person, face, pose and background as the first image? Small changes where the clothing changed are fine.${dna ? `\n\nThe product's fingerprint; check every point:\n${dna}` : ''}` }];
+  const content = [{ type: 'text', text: `The FIRST image is a real photo of a person (before). The next images are REFERENCE photos of a product${name ? ` ("${name}")` : ''}. The LAST image is the same photo after an edit that should dress the person in that product. Judge two things. 1) Is the garment or accessory they now wear the SAME product as the references? Compare shape and cut first, then colors, fabric, collar, buttons, logos and printed details and where they sit. Be strict: a similar but different product is not ok. 2) Is it still the same person, face, pose and background as the first image? Small changes where the clothing changed are fine.${dna ? `\n\nThe product's fingerprint; check every point:\n${dna}` : ''}` }];
   content.push({ type: 'image_url', image_url: { url: `data:${base.type};base64,${b64(base.buf)}` } });
   for (const r of refs.slice(0, 4)) content.push({ type: 'image_url', image_url: { url: `data:${r.type};base64,${b64(r.buf)}` } });
   content.push({ type: 'image_url', image_url: { url: `data:${typeOf(bytes)};base64,${b64(bytes)}` } });
@@ -800,7 +800,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
         prompt: [
           `Remove all the ad text from this image${words.length ? `: ${words.map(w => `"${w}"`).join(', ')}` : ''}, including any button, pill or label shapes and pointer lines behind those words. Fill each area with the natural background so no trace of text remains.`,
           spec.art ? `Keep the title art "${spec.art}" exactly as it is.` : '',
-          'Change nothing else: the same product with its own logos and printing, the same scene, lighting, colours and framing, pixel for pixel wherever there was no text.',
+          'Change nothing else: the same product with its own logos and printing, the same scene, lighting, colors and framing, pixel for pixel wherever there was no text.',
         ].filter(Boolean).join(' '),
       });
       await env.MEDIA.put(await keyOf(env, row, 'plate'), plate.bytes, { httpMetadata: { contentType: 'image/png' } });
@@ -827,7 +827,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
       const out = await imageCall(key, m.image, {
         images: [{ buf: full, type: 'image/png' }], fidelity: true,
         size: row.full_w && row.full_h ? `${row.full_w}x${row.full_h}` : '1024x1280',
-        prompt: `Change the stylised title lettering "${from}" so it reads "${to}", in exactly the same lettering style, size, colour, glow and position. Spell it exactly. Change nothing else in the image.`,
+        prompt: `Change the stylized title lettering "${from}" so it reads "${to}", in exactly the same lettering style, size, color, glow and position. Spell it exactly. Change nothing else in the image.`,
       });
       await env.MEDIA.put(await keyOf(env, row, 'full'), out.bytes, { httpMetadata: { contentType: 'image/png' } });
       await env.MEDIA.delete(await keyOf(env, row, 'plate')).catch(() => {});
@@ -918,7 +918,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
       const pairs = [['headline', 'The headline'], ['subline', 'The smaller line'], ['cta', 'The button']]
         .filter(([k]) => (old[k] || '') !== (spec[k] || '')).map(([k, l]) => spec[k] ? `${l} "${old[k] || ''}" now reads "${spec[k]}".` : `${l} "${old[k]}" is removed.`);
       if ((old.callouts || []).join('|') !== (spec.callouts || []).join('|')) pairs.push(`The callouts are now: ${(spec.callouts || []).map(c => `"${c}"`).join(', ') || 'none'}.`);
-      const prompt = `This is a finished ad. Change ONLY these words, in exactly the same lettering style, size, colour and position: ${pairs.join(' ') || 'no change'} Spell every word exactly. Keep everything else identical: the picture, the product, the layout and every other word.`;
+      const prompt = `This is a finished ad. Change ONLY these words, in exactly the same lettering style, size, color and position: ${pairs.join(' ') || 'no change'} Spell every word exactly. Keep everything else identical: the picture, the product, the layout and every other word.`;
       send({ type: 'status', text: 'Changing only the words. About 40 seconds.' });
       const out = await imageCall(key, m.image, { images: [{ buf: full, type: 'image/png' }], fidelity: true, prompt, size: `${sz.w || 1024}x${sz.h || 1024}` });
       const ad = await saveAd(env, base.act_id, { bytes: out.bytes, spec: { ...old, ...spec, varied_from: base.id }, prompt, model: m.image, cost: COST.image, parent: base.id, batch_id: clip(body.batch_id, 40) || base.batch_id, line: Number.isInteger(body.line) ? body.line : null });
@@ -937,7 +937,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
       const src = (await env.MEDIA.get(await keyOf(env, row, 'square'))) || (await env.MEDIA.get(await keyOf(env, row, 'clean'))) || (await env.MEDIA.get(await keyOf(env, row, 'full')));
       const full = new Uint8Array(await src.arrayBuffer());
       const sz = pngSize(full);
-      const prompt = `This is a finished ad. Make only this change: ${ask}\nKeep everything else exactly as it is: the product and its logos, the scene, the colours, and all other words in the same lettering. Keep every word inside the frame with a small margin. Spell every word exactly.`;
+      const prompt = `This is a finished ad. Make only this change: ${ask}\nKeep everything else exactly as it is: the product and its logos, the scene, the colors, and all other words in the same lettering. Keep every word inside the frame with a small margin. Spell every word exactly.`;
       send({ type: 'status', text: 'Making the change. About 40 seconds.' });
       const out = await imageCall(key, m.image, { images: [{ buf: full, type: 'image/png' }], fidelity: true, prompt, size: `${sz.w || 1024}x${sz.h || 1024}` });
       const spec = { ...safeJson(row.spec_json, {}), changes: [...(safeJson(row.spec_json, {}).changes || []), ask].slice(-10) };
@@ -1015,7 +1015,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
       const m = await models(key);
       const canvas = unb64(String(body.png).replace(/^data:image\/png;base64,/, ''));
       const out = await imageCall(key, m.image, { images: [{ buf: canvas, type: 'image/png' }], mask: canvas, fidelity: true, size: '1024x1280', quality: 'medium',
-        prompt: 'Extend this picture upward and downward to fill the transparent areas: continue the same background, surfaces, light and colour grade seamlessly. Add NO text, NO product, NO logos, NO new objects in the new areas. Leave the existing picture exactly as it is.' });
+        prompt: 'Extend this picture upward and downward to fill the transparent areas: continue the same background, surfaces, light and color grade seamlessly. Add NO text, NO product, NO logos, NO new objects in the new areas. Leave the existing picture exactly as it is.' });
       await env.MEDIA.put(await keyOf(env, row, 'ext'), out.bytes, { httpMetadata: { contentType: 'image/png' } });
       await env.DB.prepare(`UPDATE p_studio_ad SET cost = cost + ?2, updated_at = datetime('now') WHERE id = ?1`).bind(row.id, 0.08).run();
       send({ type: 'done', ad: shape(await getAd(env, row.id)) });
@@ -1030,7 +1030,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
       const m = await models(key);
       const src = (await env.MEDIA.get(await keyOf(env, row, 'clean'))) || await env.MEDIA.get(await keyOf(env, row, 'full'));
       const spec = safeJson(row.spec_json, {});
-      const prompt = `This is a finished 4:5 feed ad. Make the 9:16 version of it for Stories and Reels: the same scene, the same product exactly as shown, the same headline and smaller line spelled exactly, the same lettering style and colours. LEAVE OUT any button or shop-now label: Stories and Reels add their own button. Extend the scene naturally above and below so it fills the tall frame, and move the words and button so they follow these rules.\n\n${STORY_LAYOUT}\n\nAdd nothing new: no extra words, logos or products.`;
+      const prompt = `This is a finished 4:5 feed ad. Make the 9:16 version of it for Stories and Reels: the same scene, the same product exactly as shown, the same headline and smaller line spelled exactly, the same lettering style and colors. LEAVE OUT any button or shop-now label: Stories and Reels add their own button. Extend the scene naturally above and below so it fills the tall frame, and move the words and button so they follow these rules.\n\n${STORY_LAYOUT}\n\nAdd nothing new: no extra words, logos or products.`;
       send({ type: 'status', text: 'Making the 9:16 version. About 40 seconds.' });
       const out = await imageCall(key, m.image, { images: [{ buf: new Uint8Array(await src.arrayBuffer()), type: 'image/png' }], fidelity: true, prompt, size: TALL });
       const zone = await zoneCheck(key, m, out.bytes, spec, STORY_ZONE, 'outside the Stories safe area');
@@ -1080,7 +1080,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
 
   /* ---- the product fingerprint ----
      The image model kept redesigning complex shapes (a putter head, where the neck sits) while
-     getting colour and logos right. A written, checkable description of the product, made once
+     getting color and logos right. A written, checkable description of the product, made once
      from all its photos and editable by the team, rides in every prompt and every check. */
   if (path === '/api/studio/dna' && request.method === 'POST') {
     if (!key) return needKey();
@@ -1090,7 +1090,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     const imgs = await refImages(env, urls(body.images, 8), 8);
     if (!imgs.length) return json({ error: 'No product photos.' }, 400);
     const m = await models(key);
-    const content = [{ type: 'text', text: `These are photos of one real product: "${clip(body.title, 200)}". Write its FINGERPRINT: the exact, checkable facts an illustrator needs to draw it so its owner would say "that is ours". Cover, as short bullet lines: overall silhouette from the top, side and front; every distinctive shape (cut-outs, wings, flanges, curves) and where it sits; how and where parts join (for a club: the neck or hosel type and where the shaft enters the head); proportions; colours and finish per part; every logo, word and mark with its exact position. Only what the photos show. No marketing words.` }];
+    const content = [{ type: 'text', text: `These are photos of one real product: "${clip(body.title, 200)}". Write its FINGERPRINT: the exact, checkable facts an illustrator needs to draw it so its owner would say "that is ours". Cover, as short bullet lines: overall silhouette from the top, side and front; every distinctive shape (cut-outs, wings, flanges, curves) and where it sits; how and where parts join (for a club: the neck or hosel type and where the shaft enters the head); proportions; colors and finish per part; every logo, word and mark with its exact position. Only what the photos show. No marketing words.` }];
     for (const r of imgs) content.push({ type: 'image_url', image_url: { url: `data:${r.type};base64,${b64(r.buf)}` } });
     const res = await fetch(`${OA}/chat/completions`, { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: m.check || m.vision, messages: [{ role: 'user', content }] }) });
     const j = await res.json().catch(() => ({}));
@@ -1147,7 +1147,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
      12 of 12 club ads: the browser places the real cut-out on an empty canvas FIRST, the model paints the whole
      scene around it (so the ground, contact shadow, light and perspective follow the product), then the browser
      finds where the model left the product, puts the real pixels back over it and takes only the model's smooth
-     light (never its detail or colour). This route is the middle step; studio.js (front end) does the rest. */
+     light (never its detail or color). This route is the middle step; studio.js (front end) does the rest. */
   if (path === '/api/studio/make-real' && request.method === 'POST') {
     if (!key) return needKey();
     if (!body.png) return json({ error: 'png is required' }, 400);

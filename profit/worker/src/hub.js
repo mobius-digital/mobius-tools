@@ -954,7 +954,7 @@ async function metaBrand(env, a, w, model, detail) {
 }
 
 /* THE AD GOAL ON THE META SCREENS (2026-10-22, Cole: "I changed it to ROAS but nothing changed"). goals.cpa / goals.roas
-   are the numbers a Meta screen colours against: the brand's ad goal in its own measure (the Meta platform goal first,
+   are the numbers a Meta screen colors against: the brand's ad goal in its own measure (the Meta platform goal first,
    goalOf), plus the other one as the guardrail. metric says which one decides. One query for every brand. */
 async function adGoalMap(env, accts) {
   const acts = accts.map(a => a.act_id); if (!acts.length) return {};

@@ -155,7 +155,7 @@ export async function integrationsReport(env, { brand = null } = {}) {
   const CLARITY_STEPS = [
     { t: 'In the brand\'s Clarity project (Clarity must already be on the store: Shopify > Apps > Microsoft Clarity, or the tag in the theme), open Settings > Data Export > Generate new API token. Only a project admin sees it. Name it:', u: 'https://clarity.microsoft.com/projects', c: 'Locus-Mobius' },
     { t: 'Copy the token (Clarity shows it once) and paste it here. Locus checks it with one real read before saving and never shows it again.' },
-    { t: 'Optional, for the "Open recordings" and heatmap links: on Store > Website > Behaviour, paste the project ID (the part after /projects/view/ in Clarity\'s address bar).' },
+    { t: 'Optional, for the "Open recordings" and heatmap links: on Store > Website > Behavior, paste the project ID (the part after /projects/view/ in Clarity\'s address bar).' },
     { t: 'Clarity lets the API read only the last 3 days, 10 times a day per project, so Locus reads it at most every 8 hours and keeps a daily history itself. Recordings and heatmap pictures stay in Clarity.' },
   ];
   /* Post-purchase survey (survey.js, 2026-10-10): Fairing's token or KnoCommerce's client pair per brand. Presence and date only. */
@@ -330,7 +330,7 @@ export async function integrationsReport(env, { brand = null } = {}) {
         'The client adds Cole as a Viewer, then pick the property here.', { gets: GETS.ga4, steps: STEPS.ga4, input: { key: 'ga4', label: 'GA4 property ID', placeholder: '312345678' }, options: OPT.ga4 }),
       C('gsc', 'Google Search Console', gd.gsc ? (gp.gsc?.ok ? 'ok' : 'warn') : 'off', gd.gsc ? `${gd.gsc}${gp.gsc?.ok ? '' : ' (Locus cannot read Search Console yet: see Google on the agency side)'}.` : 'No Search Console site linked: Store > Search stays empty.',
         'The client adds Cole as a Full user, then pick the site here.', { gets: GETS.gsc, steps: STEPS.gsc, input: { key: 'gsc', label: 'Search Console property', placeholder: 'sc-domain:brand.com' }, options: OPT.gsc }),
-      C('clarity', 'Microsoft Clarity', clDocs[id]?.has ? 'ok' : 'off', clDocs[id]?.has ? `Connected${clDocs[id].project ? `, project ${clDocs[id].project}` : ' (no project ID yet, so the recording links open the project list)'} (checked ${String(clDocs[id].verified_at || '').slice(0, 10)}).` : 'Not connected: the Behaviour card on Store > Website (rage clicks, dead clicks, scroll depth, quick backs per page) stays empty.',
+      C('clarity', 'Microsoft Clarity', clDocs[id]?.has ? 'ok' : 'off', clDocs[id]?.has ? `Connected${clDocs[id].project ? `, project ${clDocs[id].project}` : ' (no project ID yet, so the recording links open the project list)'} (checked ${String(clDocs[id].verified_at || '').slice(0, 10)}).` : 'Not connected: the Behavior card on Store > Website (rage clicks, dead clicks, scroll depth, quick backs per page) stays empty.',
         'Paste the project\'s Data Export API token.', { group: 'Website', gets: 'Rage clicks, dead clicks, quick backs and scroll depth per page (last 3 days, kept daily), with links to the recordings and heatmaps in Clarity.', steps: CLARITY_STEPS,
           input: clDocs[id]?.has ? null : { key: 'clarity_token', label: 'Clarity API token', placeholder: 'eyJhbGciOi...', secret: true } }),
       /* ---- Store: the post-purchase survey (survey.js). One box: client_id:client_secret = KnoCommerce, anything else = Fairing. ---- */

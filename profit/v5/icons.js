@@ -13,7 +13,7 @@ export function mark(size = 28, { pulse = false, label = APP_NAME } = {}) {
   return `<svg class="lx-mark${pulse ? ' lx-spin' : ''}" width="${size}" height="${size}" viewBox="0 0 48 48" role="img" aria-label="${label}"><path d="M13 7V26A10 10 0 0 0 23 36H41" fill="none" stroke="url(#lx-mark) #FF7A1A" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>${ring}<circle class="lx-mark-pt" cx="31.5" cy="17.5" r="5" fill="#16130F"/></svg>`;
 }
 
-/* Platform marks: the real logos, ink by default (currentColor), never coloured in a menu or a table.
+/* Platform marks: the real logos, ink by default (currentColor), never colored in a menu or a table.
    Each logo is one filled path drawn for a full 24 box. The stroke icons beside them keep about 3 units of air
    inside that box, so a logo is set at 20 of 24 (2 units in on every side): the same optical size in the menu
    rail, a tab, a chip or a table cell. The fill and the missing stroke are set on the path itself, so the
@@ -27,7 +27,7 @@ export const GLYPH = {
   amazon: logo('M.045 18.02c.072-.116.187-.124.348-.022 3.636 2.11 7.594 3.166 11.87 3.166 2.852 0 5.668-.533 8.447-1.595l.315-.14c.138-.06.234-.1.293-.13.226-.088.39-.046.525.13.12.174.09.336-.12.48-.256.19-.6.41-1.006.654-1.244.743-2.64 1.316-4.185 1.726a17.617 17.617 0 0 1-10.951-.577 17.88 17.88 0 0 1-5.43-3.35c-.1-.074-.151-.15-.151-.22 0-.047.021-.09.051-.13zm6.565-6.218c0-1.005.247-1.863.743-2.577.495-.71 1.17-1.25 2.04-1.615.796-.335 1.756-.575 2.912-.72.39-.046 1.033-.103 1.92-.174v-.37c0-.93-.105-1.558-.3-1.875-.302-.43-.78-.65-1.44-.65h-.182c-.48.046-.896.196-1.246.46-.35.27-.575.63-.675 1.096-.06.3-.206.465-.435.51l-2.52-.315c-.248-.06-.372-.18-.372-.39 0-.046.007-.09.022-.15.247-1.29.855-2.25 1.82-2.88.976-.616 2.1-.975 3.39-1.05h.54c1.65 0 2.957.434 3.888 1.29.135.15.27.3.405.48.12.165.224.314.283.45.075.134.15.33.195.57.06.254.105.42.135.51.03.104.062.3.076.615.01.313.02.493.02.553v5.28c0 .376.06.72.165 1.036.105.313.21.54.315.674l.51.674c.09.136.136.256.136.36 0 .12-.06.226-.18.314-1.2 1.05-1.86 1.62-1.963 1.71-.165.135-.375.15-.63.045a6.062 6.062 0 0 1-.526-.496l-.31-.347a9.391 9.391 0 0 1-.317-.42l-.3-.435c-.81.886-1.603 1.44-2.4 1.665-.494.15-1.093.227-1.83.227-1.11 0-2.04-.343-2.76-1.034-.72-.69-1.08-1.665-1.08-2.94l-.05-.076zm3.753-.438c0 .566.14 1.02.425 1.364.285.34.675.512 1.155.512.045 0 .106-.007.195-.02.09-.016.134-.023.166-.023.614-.16 1.08-.553 1.424-1.178.165-.28.285-.58.36-.91.09-.32.12-.59.135-.8.015-.195.015-.54.015-1.005v-.54c-.84 0-1.484.06-1.92.18-1.275.36-1.92 1.17-1.92 2.43l-.035-.02zm9.162 7.027c.03-.06.075-.11.132-.17.362-.243.714-.41 1.05-.5a8.094 8.094 0 0 1 1.612-.24c.14-.012.28 0 .41.03.65.06 1.05.168 1.172.33.063.09.099.228.099.39v.15c0 .51-.149 1.11-.424 1.8-.278.69-.664 1.248-1.156 1.68-.073.06-.14.09-.197.09-.03 0-.06 0-.09-.012-.09-.044-.107-.12-.064-.24.54-1.26.806-2.143.806-2.64 0-.15-.03-.27-.087-.344-.145-.166-.55-.257-1.224-.257-.243 0-.533.016-.87.046-.363.045-.7.09-1 .135-.09 0-.148-.014-.18-.044-.03-.03-.036-.047-.02-.077 0-.017.006-.03.02-.063v-.06z'),
   email: p('M3 6h18v12H3zM3 7l9 6.5L21 7'),
 };
-/** Each platform's own colour. Optional, and only for a platform page header or a hover state:
+/** Each platform's own color. Optional, and only for a platform page header or a hover state:
     icon('meta', '', { brand: true }). Menus, tabs, chips and tables stay ink. */
 export const PLATFORM_COLOR = { meta: '#0866FF', google: '#4285F4', youtube: '#FF0000', amazon: '#FF9900' };   // TikTok's mark is black: it stays ink and follows the theme
 export const PLATFORM_NAME = { meta: 'Meta', google: 'Google', youtube: 'YouTube', tiktok: 'TikTok', amazon: 'Amazon', email: 'Email & SMS' };
@@ -75,12 +75,12 @@ const ICON = {
 };
 
 /** A menu or control icon by name, or a platform mark ('meta', 'google', ...).
-    { brand: true } draws a platform mark in its own colour (see PLATFORM_COLOR for where that is allowed). */
+    { brand: true } draws a platform mark in its own color (see PLATFORM_COLOR for where that is allowed). */
 export function icon(name, cls, { brand = false } = {}) {
   if (GLYPH[name]) { const svg = wrap(GLYPH[name], cls); return brand && PLATFORM_COLOR[name] ? svg.replace('<svg ', `<svg style="color:${PLATFORM_COLOR[name]}" `) : svg; }
   return wrap(ICON[name] || ICON.grid, cls);
 }
 export const ICON_NAMES = Object.keys(ICON);
 
-/** Google's own four colour G, for the sign in button only. */
+/** Google's own four color G, for the sign in button only. */
 export const GOOGLE_G = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.060 5.060 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.09a6.600 6.600 0 0 1 0-4.18V7.07H2.18a11 11 0 0 0 0 9.86l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>';

@@ -1,6 +1,7 @@
 /* Creative > Production > Board. "Are the ads we need getting made on time?"
    One brand's cards from brief to live, five columns. A card opens as a sheet (_sheet.js).
-   Read only in this batch: every change is made in old Locus.
+   The card sheet moves, assigns, approves, takes notes, sends to the client and loads into Meta (see _sheet.js).
+   After a change the board redraws at once and reads itself again (real mode).
    Data: GET /api/production?act=<brand id> on the account-health worker, saved as is.
    A client (or "See as client") gets the review page instead: what waits on them, Approve always in reach. */
 
@@ -10,6 +11,8 @@ import { put, css, COLS, OPEN, day, daysFrom, dueText, todayOf, weekOf, picture,
 import { openCard } from './_sheet.js';
 import review from './review.js';
 import { SAMPLE } from '../../data.js';
+import { refresh } from '../../router.js';
+import { canWrite } from './_act.js';
 
 /** The board for one brand or 'all', with the team's photos beside it (names to picture addresses; none is fine). */
 export async function loadBoard(ctx, act) {
@@ -28,7 +31,7 @@ const FILTERS = [
   { id: 'late', label: 'Late', test: c => !!c.late },
 ];
 
-function tile(c, data, ctx, today) {
+function tile(c, data, ctx, today, changed) {
   const photos = data.photos || {};
   const waited = c.needs_client && c.client_sent_at ? daysFrom(c.client_sent_at, today) : null;
   const mark = c.needs_client ? statusDot('warn', waited != null ? 'Client, ' + plural(waited, 'day') : 'Client')
@@ -36,7 +39,7 @@ function tile(c, data, ctx, today) {
     : c.board === 'scheduled' ? statusDot('info', 'Scheduled')
     : c.board === 'off' ? statusDot('off', 'Ended') : null;
   const sub = c.board === 'review' && c.versions ? plural(c.versions, 'file') : dueText(c, today);
-  return h('button', { type: 'button', class: 'pd-card', onclick: () => openCard(ctx, c, { photos, today }) },
+  return h('button', { type: 'button', class: 'pd-card', onclick: () => openCard(ctx, c, { photos, today, team: data.team || [], onChange: changed }) },
     picture({ src: c.thumb, art: c.art, video: c.format === 'Video' || c.format === 'UGC' }),
     h('div', { class: 'pd-body' },
       h('div', { class: 'pd-meta' }, h('b', null, c.num), h('span', null, c.format || ''), mark),
@@ -45,14 +48,14 @@ function tile(c, data, ctx, today) {
         c.board === 'live' || c.board === 'off' ? null : who(c.assignee, photos))));
 }
 
-function board(cards, data, ctx, today) {
+function board(cards, data, ctx, today, changed) {
   return h('div', { class: 'pd-board' }, COLS.map(col => {
     const mine = cards.filter(c => col.has.includes(c.board))
       .sort((a, b) => (a.board === 'off') - (b.board === 'off') || String(a.due || a.launch_on || '9').localeCompare(String(b.due || b.launch_on || '9')) || (+b.num || 0) - (+a.num || 0));
     const more = col.id === 'live' && data.live && data.live.total > data.live.shown ? data.live.total - data.live.shown : 0;
     return h('section', { class: 'pd-col' },
       h('div', { class: 'pd-col-h' }, col.label, h('span', null, mine.length)),
-      mine.length ? mine.map(c => tile(c, data, ctx, today)) : h('div', { class: 'pd-col-none' }, 'Nothing here'),
+      mine.length ? mine.map(c => tile(c, data, ctx, today, changed)) : h('div', { class: 'pd-col-none' }, 'Nothing here'),
       more ? h('div', { class: 'pd-col-more' }, more + ' more live in Meta') : null);
   }));
 }
@@ -77,7 +80,7 @@ function top(cards, today) {
       gauge({ value: done, max: due.length, thin: true, tone: done === due.length ? 'good' : '' })) : null);
 }
 
-export default {
+const page = {
   title: (ctx, data) => (ctx.isClient ? review.title(ctx, data) : ['Are the ads we need ', em('getting made on time?')]),
   eyebrow: (ctx, data) => (ctx.isClient ? review.eyebrow(ctx, data) : 'Production'),
   ranges: false,                       // the board is where things stand now, not a span of days
@@ -109,13 +112,16 @@ export default {
           onclick: () => { pick = x.id; ctx.saveSetting('production.filter', pick); draw(); } }, x.label, count == null ? null : h('span', null, count));
       }));
       const shown = cards.filter(c => f.test(c, today, wk));
-      put(slot, shown.length ? board(shown, data, ctx, today) : empty({ title: 'No cards match', text: 'Nothing is ' + f.label.toLowerCase() + ' right now.' }));
+      put(slot, shown.length ? board(shown, data, ctx, today, changed) : empty({ title: 'No cards match', text: 'Nothing is ' + f.label.toLowerCase() + ' right now.' }));
     };
+    /* a write landed in the sheet: draw the card where it now is, then read the board again (real mode) */
+    const changed = () => { page.render(el, data, ctx); if (!SAMPLE) refresh({ fresh: true }); };
     draw();
     put(el,
       top(cards, today),
       h('div', { class: 'pd-tools' }, chips, h('span', { class: 'lx-sp' }), oldLocus(ctx, { label: 'New card in old ' + APP_NAME })),
       slot,
-      ctx.isClient ? null : h('p', { class: 'lx-foot' }, 'Read only here. Cards are moved, edited and sent to the client in old ' + APP_NAME + '. Live and Ended follow Meta.'));
+      ctx.isClient ? null : h('p', { class: 'lx-foot' }, canWrite(ctx) ? 'Open a card to move it, give it to someone, approve it, add a note, send it to the client or load it into Meta. New cards and uploads are still made in old ' + APP_NAME + '. Scheduled, Live and Off follow Meta by themselves.' : 'You can look here. Changes are made by the team.'));
   },
 };
+export default page;

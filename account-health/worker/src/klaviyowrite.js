@@ -7,7 +7,7 @@
  *                        text, sender, content from an existing template
  *   campaign_schedule    a draft gets a fixed send time, at least 15 minutes ahead (NEVER "now")
  *   campaign_unschedule  a scheduled campaign goes back to draft (Klaviyo "revert")
- *   campaign_cancel      a scheduled campaign is cancelled for good (Klaviyo "cancel")
+ *   campaign_cancel      a scheduled campaign is canceled for good (Klaviyo "cancel")
  *   campaign_duplicate   a copy of any campaign, as a draft (Locus only)
  *
  * Rules every write keeps:
@@ -434,11 +434,11 @@ async function stopPropose(env, act, input, action) {
   const f = await findCampaign(k.key, input.campaign); if (f.error) return f;
   const c = f.campaign; const st = c.attributes?.status || '';
   if (!/schedul|queued|adding recipients|preparing|sending/i.test(st)) return { error: `"${c.attributes?.name}" is ${st}; only a scheduled campaign can be ${action === 'revert' ? 'unscheduled' : 'cancelled'}.` };
-  if (action === 'revert' && /sending/i.test(st)) return { error: `"${c.attributes?.name}" is already sending; it can only be cancelled.` };
-  const to = action === 'revert' ? 'Draft' : 'Cancelled';
+  if (action === 'revert' && /sending/i.test(st)) return { error: `"${c.attributes?.name}" is already sending; it can only be canceled.` };
+  const to = action === 'revert' ? 'Draft' : 'Canceled';
   const tz = (await brandRow(env, act))?.tz;
   const when = c.attributes?.send_strategy?.datetime || c.attributes?.send_time;
-  return { summary: `${action === 'revert' ? 'Unschedule' : 'Cancel'} "${c.attributes?.name}"`, detail: `${st} → ${to}.${when ? ` It was set for ${whenText(new Date(when), tz)}.` : ''} ${action === 'revert' ? 'It goes back to a draft that can be edited and scheduled again.' : 'Cancelled for good: Klaviyo cannot send it again (duplicate it to reuse it).'}${input.reason ? `\nWhy: ${clip(input.reason, 300)}` : ''}`,
+  return { summary: `${action === 'revert' ? 'Unschedule' : 'Cancel'} "${c.attributes?.name}"`, detail: `${st} → ${to}.${when ? ` It was set for ${whenText(new Date(when), tz)}.` : ''} ${action === 'revert' ? 'It goes back to a draft that can be edited and scheduled again.' : 'Canceled for good: Klaviyo cannot send it again (duplicate it to reuse it).'}${input.reason ? `\nWhy: ${clip(input.reason, 300)}` : ''}`,
     before: { status: st }, after: { status: to }, patch: { op: action === 'revert' ? 'campaign_unschedule' : 'campaign_cancel', act, id: c.id, name: c.attributes?.name, from: st, action, reason: clip(input.reason, 300) || null } };
 }
 async function stopApply(env, p, ctx) {
@@ -448,7 +448,7 @@ async function stopApply(env, p, ctx) {
   if (!c || c.attributes?.status !== p.from) return { error: `"${p.name}" changed since this was shown (it is ${c?.attributes?.status || 'gone'} now). Nothing was written.` };
   try { await klaviyo(k.key, `/api/campaign-send-jobs/${p.id}/`, { method: 'PATCH', body: { data: { type: 'campaign-send-job', id: p.id, attributes: { action: p.action } } } }); }
   catch (e) { return { error: writeErr(e, brand, 'campaigns') }; }
-  const word = p.action === 'revert' ? 'unscheduled (back to draft)' : 'cancelled';
+  const word = p.action === 'revert' ? 'unscheduled (back to draft)' : 'canceled';
   await logChange(env, p.act, { summary: `Klaviyo campaign "${p.name}" ${word}`, reason: p.reason, by: ctx?.who, via: ctx?.via, object: p.id, objectType: 'KLAVIYO_CAMPAIGN', name: p.name });
   await bust(env, p.act, ['campaigns']);
   return { ok: true, note: `"${p.name}" is ${word}. Logged in the Change Log.` };
@@ -523,7 +523,7 @@ export function klaviyoActions(d) {
       { name: { type: 'string' }, audiences: { type: 'array', items: { type: 'string' } }, exclude: { type: 'array', items: { type: 'string' } }, subject: { type: 'string' }, preview: { type: 'string' }, from_email: { type: 'string' }, from_label: { type: 'string' }, template: { type: 'string' } }, ['name', 'audiences', 'subject']),
     card(d, 'klaviyo_campaign_schedule', 'campaign_schedule', 'Schedule a DRAFT Klaviyo campaign for a fixed time at least 15 minutes ahead. Never immediate. at = "2026-10-14T09:00" in the brand\'s time zone, or a full ISO time.',
       { campaign: { type: 'string', description: 'The campaign name or id.' }, at: { type: 'string' } }, ['campaign', 'at']),
-    card(d, 'klaviyo_campaign_cancel', 'campaign_cancel', 'Stop a scheduled Klaviyo campaign. mode unschedule = back to draft (can be fixed and rescheduled); cancel = cancelled for good.',
+    card(d, 'klaviyo_campaign_cancel', 'campaign_cancel', 'Stop a scheduled Klaviyo campaign. mode unschedule = back to draft (can be fixed and rescheduled); cancel = canceled for good.',
       { campaign: { type: 'string' }, mode: { type: 'string', enum: ['unschedule', 'cancel'] } }, ['campaign', 'mode']),
     card(d, 'klaviyo_campaign_update', 'campaign_update', 'Edit a DRAFT Klaviyo campaign: name, subject, preview text, sender, who it goes to (audiences / exclude, the full new lists). It stays a draft; nothing sends. Undo puts the old fields back.',
       { campaign: { type: 'string' }, name: { type: 'string' }, subject: { type: 'string' }, preview: { type: 'string' }, from_email: { type: 'string' }, from_label: { type: 'string' }, audiences: { type: 'array', items: { type: 'string' } }, exclude: { type: 'array', items: { type: 'string' } } }, ['campaign']),

@@ -13,7 +13,7 @@ export const EXAMPLE_NOTE = 'Example until its data feed is built';
 let done = false;
 export function css() { if (done) return; done = true; addStyles('lx-settings-css', CSS); }
 
-/** The small grey chip for a part drawn from the example file in real mode. */
+/** The small gray chip for a part drawn from the example file in real mode. */
 export const exampleChip = kitExampleChip; /* one version, in the kit */
 /** The small note for a control that has no server setting yet. */
 export const localNote = () => h('span', { class: 'lx-st-local' }, LOCAL_NOTE);

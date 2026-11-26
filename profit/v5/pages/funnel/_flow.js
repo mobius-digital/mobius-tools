@@ -109,7 +109,7 @@ export function head(title, sub, ...tools) {
   return h('div', { class: 'fx-head' }, h('div', null, h('h3', null, title), sub ? h('p', null, sub) : null), h('div', { class: 'tools' }, tools.filter(Boolean)));
 }
 
-/* platform dots: the kit's own platform colours, a dot at most */
+/* platform dots: the kit's own platform colors, a dot at most */
 const DOTS = { meta: 'var(--c-meta)', google: 'var(--c-google)', email: 'var(--c-email)', tiktok: 'var(--c-tiktok)', amazon: 'var(--c-amazon)', organic: '#8C867D', direct: '#B9B5AD', other: '#D2CEC7' };
 const NAMES = { meta: 'Meta', google: 'Google', email: 'Email', tiktok: 'TikTok', amazon: 'Amazon', organic: 'Organic and social', direct: 'Direct', other: 'Other' };
 export const channelName = id => NAMES[id] || id;
@@ -125,7 +125,7 @@ export function pathDots(ids, { end } = {}) {
 /* ---------- the funnel steps ---------- */
 /** steps([{ label, value, sub, worst }], { height })
     One bar per step, all on one scale from zero, with the count and the share that made it under each.
-    The step marked worst carries the crimson dot; nothing else is coloured. */
+    The step marked worst carries the crimson dot; nothing else is colored. */
 export function steps(list, { height = 330 } = {}) {
   const max = Math.max(1, ...list.map(x => x.value || 0));
   const share = v => (100 * (v || 0) / max);
@@ -150,7 +150,7 @@ const watch = (el, fn) => {
 /** flow({ columns, links, unit, total, height, phoneHeight, lead, label })
     columns: [{ title, short, sub, align, nodes: [{ id, label, short, value, note, soft, ghost }] }]
       align: 'bottom' puts a column's blocks at the foot, so bands that skip it pass above.
-      value sets the block height. A ghost block is drawn small and grey and is not to scale.
+      value sets the block height. A ghost block is drawn small and gray and is not to scale.
       note is the quiet text after the label ("1,548 of 11,890"); without it the value is shown.
     links:   [{ from, to, value, text, name }]  from and to are node ids, in any two columns.
       text is written on a wide band ("Meta only, 196 orders"); name is the read out title.

@@ -6,9 +6,9 @@
  * read it and move a creator to VIP. The token never leaves this file: only "has a token" and the bot's name do.
  *
  * The look (2026-11-05, Cole: "we don't want it to just say Locus across everything"): each brand sets a mascot
- * (name + picture), a brand emoji, a colour and a server picture. Build applies them: server icon, the bot's name
- * (and picture, where Discord allows it) in that server, role colours, emoji channel names, and every post goes out
- * through a channel webhook as the mascot, in a card with the brand colour. Changing the look reposts the first posts.
+ * (name + picture), a brand emoji, a color and a server picture. Build applies them: server icon, the bot's name
+ * (and picture, where Discord allows it) in that server, role colors, emoji channel names, and every post goes out
+ * through a channel webhook as the mascot, in a card with the brand color. Changing the look reposts the first posts.
  *
  * Routes (staff only, mounted by amb.js under /api/amb/discord):
  *   GET  /api/amb/discord?act=            what is connected: bot, server, channels, invite, look
@@ -102,7 +102,7 @@ export function firstPosts(b) {
   };
 }
 
-/* The brand's look, with the hub's colour and logo as the fallbacks. */
+/* The brand's look, with the hub's color and logo as the fallbacks. */
 function lookOf(d, b) {
   const l = d.look || {};
   const color = HEX.test(l.color || '') ? l.color : (HEX.test(b?.accent || '') ? b.accent : '#5865F2');
@@ -166,7 +166,7 @@ async function build(env, token, act, d, brand, opt) {
     catch { await dc(token, 'PATCH', `/guilds/${g}/members/@me`, { nick: look.mascot.slice(0, 32) }).catch(e => notes.push(`Bot name: ${e.message}`)); }
     d.nick_set = look.mascot;
   }
-  /* Roles in the brand colour (VIP stays gold everywhere). */
+  /* Roles in the brand color (VIP stays gold everywhere). */
   const roles = await dc(token, 'GET', `/guilds/${g}/roles`);
   const role = async (name, color) => {
     const r = roles.find(x => x.name === name) || await dc(token, 'POST', `/guilds/${g}/roles`, { name, mentionable: true, hoist: true, color });
@@ -303,7 +303,7 @@ export async function handleDiscord(request, env, url, path, body, json, mustAcc
     if (path === '/api/amb/discord/look' && method === 'PUT') {
       const s = (k, n) => noDash(body[k]).trim().slice(0, n);
       const look = { mascot: s('mascot', 32), avatar: s('avatar', 500), emoji: s('emoji', 16), color: s('color', 7), icon: s('icon', 500) };
-      if (look.color && !HEX.test(look.color)) return json({ error: 'Colour must be a hex value like #0F7F73.' }, 400);
+      if (look.color && !HEX.test(look.color)) return json({ error: 'Color must be a hex value like #0F7F73.' }, 400);
       for (const k of ['avatar', 'icon']) if (look[k] && !/^https:\/\/\S+$/i.test(look[k])) return json({ error: 'Picture links must start with https://' }, 400);
       if (/discord|clyde/i.test(look.mascot)) return json({ error: 'Discord does not allow "discord" in the mascot name.' }, 400);
       d.look = look;

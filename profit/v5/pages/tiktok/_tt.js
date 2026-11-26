@@ -1,5 +1,5 @@
 /* Shared by every TikTok tab: one loader, the states, and the local parts (kit gaps: a portrait video
-   tile, labelled bar rows, a quiet strip). No ember in here except what the kit already draws.
+   tile, labeled bar rows, a quiet strip). No ember in here except what the kit already draws.
 
    Real mode reads account-health:
      GET /api/tiktok/status                      is the agency signed in to TikTok (team only)

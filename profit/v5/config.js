@@ -46,9 +46,12 @@ export const DEFAULT_AH_URL = `https://${ORG_KEY}-account-health.${ORG_HOST}.wor
    <engine>/pw/api/... and <engine>/ah/api/... The name is the worker's own, an address and not copy. */
 export const ENGINE_URL = `https://locus-engine.${ORG_HOST}.workers.dev`;
 /* Which engine answers when a browser has made no choice of its own: 'old', 'new' or 'compare'.
-   'old' = nothing changes for anyone. The owner picks per browser on Agency > Engine. Set this to
-   'new' to switch everyone, and back to 'old' to switch everyone back. */
-export const ENGINE_DEFAULT = 'old';
+   'new' = the new engine answers what it has its own code for. Any read it fails or does not answer in
+   time is asked of the old engine (engine.js), and a write is never sent twice. The ways back, each one line:
+     this browser   Agency > Engine > This browser > Old engine (or localStorage lx5_engine = 'old')
+     everyone now   Agency > Engine > Everyone > Send everything back (the engine's own flag, no deploy)
+     everyone       set this line back to 'old' */
+export const ENGINE_DEFAULT = 'new';
 
 const get = k => { try { return localStorage.getItem(k); } catch { return null; } };
 /* A developer's own machine and nothing else: localhost, 127.0.0.1, [::1] or a name ending in .localhost. */

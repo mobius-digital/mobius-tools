@@ -30,7 +30,7 @@ export function span(from, to) {
 export const sum = (rows, key) => { let t = null; for (const r of rows) if (ok(r[key])) t = (t || 0) + r[key]; return t; };
 export const b = v => h('b', null, v);
 
-/** A call that may fail without taking the page down. A cancelled load and a lost session still stop it. */
+/** A call that may fail without taking the page down. A canceled load and a lost session still stop it. */
 export const soft = p => p.catch(e => { if (e && (e.name === 'AbortError' || e.status === 401)) throw e; return null; });
 
 /** The brand's goal ROAS and goal cost per new customer. They live on the account-health brand row, never in the
@@ -75,7 +75,7 @@ export function noDays() {
   return empty({ title: 'No numbers for these dates', text: 'Nothing has been read for this brand on these dates yet. Try a different range.' });
 }
 
-/* ---------- layout rules for the four tabs (every colour and size token comes from app.css) ---------- */
+/* ---------- layout rules for the four tabs (every color and size token comes from app.css) ---------- */
 const CSS = `
 .mo{display:grid;gap:var(--sp-8)}
 .mo-chart{padding:28px 32px 20px}

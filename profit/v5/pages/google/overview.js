@@ -62,7 +62,7 @@ function figures(d, ctx) {
   return h('div', { class: 'gg-figs' }, out);
 }
 
-/* ---------- the daily chart: spend columns (brand search in grey on top when known), sales as the lead line ---------- */
+/* ---------- the daily chart: spend columns (brand search in gray on top when known), sales as the lead line ---------- */
 function chartCard(d) {
   const cur = d.currency, rows = d.overview.series || [], hasSales = !!d.sales_source && rows.some(r => ok(r.sales));
   if (!rows.length) return null;

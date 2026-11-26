@@ -1,7 +1,9 @@
 /* Ads > Meta > Load ads for one brand. "What is ready to go into Meta, and where would it go?"
    The cards in Ready on the production board, each beside what Meta already holds for it and the ad set it would
    land in. Then the cards already loaded and waiting for their date, and what was loaded lately.
-   Read only: Load opens a sheet that says what loading does and links to old Locus, where it still runs.
+   Load opens the real Load sheet (production/_load.js): the same flow and bodies old Locus runs
+   (POST /api/launch/batch-prep, then batch-preview as a dry run, then batch-create on the second tap), every
+   approved ad of the card into one ad set, made paused. Sample mode never loads. Viewers get the read only sheet.
    About now, so the date range in the page head is hidden. Team only (the tab is not in a client's menu).
 
    Real mode reads (GET only):
@@ -17,6 +19,10 @@ import { h, em, card, hero, kpi, kpis, button, sheet, statusDot, empty, skeleton
 import { APP_NAME } from '../../config.js';
 import { picture, plural, day, todayOf, isDay } from '../production/_ui.js';
 import { soft, styles, foot } from './_rest.js';
+import { openLoad } from '../production/_load.js';
+import { canWrite } from '../production/_act.js';
+import { refresh } from '../../router.js';
+import { SAMPLE } from '../../data.js';
 
 const CSS = `
 .la-list{display:grid}
@@ -230,12 +236,20 @@ function loadSheet(r, ctx, loadable = true) {
         h('li', null, 'Each ad goes in switched off. Nothing spends until someone turns it on.'),
         h('li', null, 'The change is written to Changes made, with an undo.'))),
     h('section', null,
-      h('div', { class: 'la-box' }, h('b', null, (loadable ? 'Loading still runs from old ' : 'Turning ads on still runs from old ') + APP_NAME + ' for now'),
-        h('p', null, loadable ? 'This page shows what is ready and where it would go. It does not change anything in Meta. You can change the ad set when you load.'
+      loadable && canWrite(ctx) ? null : h('div', { class: 'la-box' }, h('b', null, loadable ? 'Loading is for the team' : 'Turning ads on still runs from old ' + APP_NAME + ' for now'),
+        h('p', null, loadable ? 'You can see what is ready and where it would go. The team loads it.'
           : 'This card is marked Scheduled: its ads are loaded and wait for their date. This page does not change anything in Meta.')),
-      h('div', { class: 'la-act' }, old ? button((loadable ? 'Load it in old ' : 'Open it in old ') + APP_NAME, { primary: true, href: old, target: '_blank', icon: 'arrow' }) : null,
+      h('div', { class: 'la-act' },
+        loadable && canWrite(ctx) ? button('Load it', { primary: true, large: true, onclick: () => { sh.close(); startLoad(r, ctx); } }) : null,
+        old ? button('Open it in old ' + APP_NAME, { href: old, target: '_blank', icon: 'arrow' }) : null,
         button('See the card on the board', { href: ctx.href('production', 'board') }))));
-  return sheet({ title: !loadable ? (r.num ? `Card ${r.num} in Meta` : 'This card in Meta') : r.num ? `Load ${r.num} into Meta` : 'Load into Meta', body });
+  const sh = sheet({ title: !loadable ? (r.num ? `Card ${r.num} in Meta` : 'This card in Meta') : r.num ? `Load ${r.num} into Meta` : 'Load into Meta', body });
+  return sh;
+}
+/** The real load, for one card of this brand. After a load the page reads itself again (real mode). */
+export function startLoad(r, ctx, act) {
+  return openLoad(ctx, { act: act || (ctx.brand && ctx.brand.id), card: { id: r.id, num: r.num, title: r.title, format: r.format, files: r.files, thumb: r.thumb, art: r.art },
+    onDone: () => { if (!SAMPLE) refresh({ fresh: true }); } });
 }
 
 function cardRow(r, ctx, d, loadable) {
@@ -245,7 +259,8 @@ function cardRow(r, ctx, d, loadable) {
     h('div', { class: 'la-t' }, h('b', null, (r.num ? r.num + '  ' : '') + (r.title || 'Untitled card')), h('small', null, sub),
       r.launch_on && r.launch_on < d.today && loadable ? statusDot('bad', 'Its date has passed') : null),
     inMetaCell(r), toCell(r, loadable),
-    h('div', { class: 'la-go' }, loadable ? button('Load', { primary: true, aria: 'Load card ' + (r.num || r.title), onclick: () => loadSheet(r, ctx, true) })
+    h('div', { class: 'la-go' }, loadable ? (canWrite(ctx) ? button('Load', { primary: true, large: true, aria: 'Load card ' + (r.num || r.title), onclick: () => startLoad(r, ctx) })
+        : button('See', { aria: 'See card ' + (r.num || r.title), onclick: () => loadSheet(r, ctx, true) }))
       : button('See', { aria: 'See card ' + (r.num || r.title), onclick: () => loadSheet(r, ctx, false) })));
 }
 
@@ -288,7 +303,7 @@ export default {
     styles('la-css', CSS);
     if (!ctx.brand) return put(el, empty({ title: 'Pick a brand', text: 'Load ads is one brand at a time.' }));
     d = d || { ready: [], waiting: [], recent: null, today: todayOf(null) };
-    const old = ctx.legacy && !ctx.isClient ? button('Open loading in old ' + APP_NAME, { href: ctx.legacy, target: '_blank', icon: 'arrow' }) : null;
+    const old = ctx.legacy && !ctx.isClient ? button('Old ' + APP_NAME, { href: ctx.legacy, target: '_blank', icon: 'arrow', ghost: true }) : null;
     const noMeta = d.connected === false ? card({},
       h('div', { class: 'la-c' }, h('b', null, 'Meta could not be read'),
         h('small', null, (d.meta_error || 'The ad sets and ads in Meta did not come back.') + ' The cards below still show. Where each would go fills in when Meta answers.'),
@@ -302,7 +317,7 @@ export default {
       d.waiting.length ? card({ title: 'Loaded, waiting for its date', note: plural(d.waiting.length, 'card') + ' marked Scheduled', flush: true },
         h('div', { class: 'la-list' }, d.waiting.map(r => cardRow(r, ctx, d, false)))) : null,
       recentCard(d), cantWrite,
-      foot(`Read only. The cards come from the production board, the ad sets and ads straight from Meta, and Loaded lately from what was loaded through ${APP_NAME}. An ad belongs to a card when its name starts with the card's number. Loading still runs from old ${APP_NAME}.`),
+      foot(`The cards come from the production board, the ad sets and ads straight from Meta, and Loaded lately from what was loaded through ${APP_NAME}. An ad belongs to a card when its name starts with the card's number. Load puts every approved ad of a card into one ad set, switched off, after a dry run you check first.`),
     ].filter(Boolean));
   },
 };

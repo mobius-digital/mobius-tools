@@ -12,6 +12,6 @@
   "Google budget raise to $220 a day": { "group": "week", "detail": "Morgan raises it Thu if ROAS holds through Wed." },
   "Amazon listing photos for the navy belt": { "group": "week", "detail": "Taylor is shooting the six listing photos. Due Fri." },
   "Revise the hoodie mock up": { "group": "client", "days": 8, "late": true, "detail": "Pat asked for a darker green. The new mock up was sent back and has no answer yet." },
-  "Your request: a second colour for the gift box": { "group": "week", "detail": "Sam is pricing a second colour with the printer." }
+  "Your request: a second color for the gift box": { "group": "week", "detail": "Sam is pricing a second color with the printer." }
  }
 }

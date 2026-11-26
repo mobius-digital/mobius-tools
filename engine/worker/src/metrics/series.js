@@ -65,7 +65,7 @@ export function shippingMode(piv) {
   };
   if (rev <= 0 && cost <= 0) return { ...base, mode: 'none', note: 'no shipping billed or costed' };
   if (rev > 0 && cost <= 0) {
-    return { ...base, mode: 'uncosted', note: `customers were charged ${Math.round(rev)} for shipping and Triple Whale records no fulfilment cost against any of it, so contribution margin is overstated by whatever delivery actually costs - add shipping rates in Triple Whale to close the gap` };
+    return { ...base, mode: 'uncosted', note: `customers were charged ${Math.round(rev)} for shipping and Triple Whale records no fulfillment cost against any of it, so contribution margin is overstated by whatever delivery actually costs - add shipping rates in Triple Whale to close the gap` };
   }
   return { ...base, mode: 'measured', note: rev >= cost ? `shipping makes ${Math.round(rev - cost)} over the window` : `shipping loses ${Math.round(cost - rev)} over the window` };
 }

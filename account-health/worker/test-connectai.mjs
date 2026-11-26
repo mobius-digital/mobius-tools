@@ -285,7 +285,7 @@ await check('the window is the given dates or whole days ending yesterday, and i
 });
 
 /* ---------- 6. what leaves ---------- */
-await check('every tool result is labelled as data, with its window and source', async () => {
+await check('every tool result is labeled as data, with its window and source', async () => {
   for (const name of EXPECT.filter(t => t !== 'propose_change')) {
     const r = await call(alexKey, name, { brand: 'Alpha Golf', period: 'weekly', start: '2026-11-16' });
     const t = textOf(r);

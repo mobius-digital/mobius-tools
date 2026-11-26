@@ -112,7 +112,7 @@ function view(d, ctx) {
             h('span', { class: 'go lx-btn quiet' }, 'Open page'));
         }))),
     foot(P.real ? 'Clicks are Meta link clicks. Triple Whale visits per page are not in ' + APP_NAME + ' yet, so a click that never loaded the page still counts.' : null,
-      `Grey = under ${FLOOR_VISITS} ${lw} or 5 orders: read it as a hint.`, d.source === 'live' && d.covered ? `Pages are read for the top ${num(d.covered)} ads by spend.` : null, SRC_NOTE),
+      `Gray = under ${FLOOR_VISITS} ${lw} or 5 orders: read it as a hint.`, d.source === 'live' && d.covered ? `Pages are read for the top ${num(d.covered)} ads by spend.` : null, SRC_NOTE),
   ].filter(Boolean);
 }
 

@@ -19,6 +19,8 @@ it holds the four questions, the build plan (one chat per page), the decisions
 already made, the D1 schema and the worker API. Don't re-litigate decisions
 listed there; extend them.
 
+**Copy is American English** (color, behavior, gray, canceled, summarize) in every Slack post, email, report, page, error and AI prompt; change only the words people read, never a key, route or stored value.
+
 ## Layout
 
 ```

@@ -7,7 +7,7 @@
    A page module lives at pages/<line>/<tab>.js and is loaded with import() only when visited.
    No module at that path = the shared "Coming" page. */
 
-import { SAMPLE, cached, getSaved, pageKey, fixture, api, STALE_MS, setting, settingNow, saveSetting } from './data.js';
+import { SAMPLE, cached, getSaved, putSaved, pageKey, fixture, api, STALE_MS, setting, settingNow, saveSetting } from './data.js';
 import { lineOf, viewOf, menuFor } from './menu.js';
 import { legacyUrl, LS5, APP_NAME } from './config.js';
 
@@ -89,7 +89,7 @@ function ctxFor(route, line, tab, signal, frame) {
 const SAMPLE_AGE = 4 * 60e3;       // a fixture reads "updated 4 min ago"
 
 let ctl = null;
-async function show(route, { soft = false } = {}) {
+async function show(route, { soft = false, fresh = false } = {}) {
   const my = ++ticket;
   if (ctl) ctl.abort();
   ctl = new AbortController();
@@ -118,8 +118,21 @@ async function show(route, { soft = false } = {}) {
       const data = typeof mod.sample === 'function' ? await mod.sample(ctx) : mod.sample !== undefined ? mod.sample : await fixture(`${line.id}/_sample/${tab.id}.json`);
       paint(mod, data); stamp(data, Date.now() - SAMPLE_AGE);
     } else {
-      /* the dates are part of the key only for a page that honours them, so the others keep one saved copy */
+      /* the dates are part of the key only for a page that honors them, so the others keep one saved copy */
       const key = pageKey({ view: route.view, brandId: ctx.brand ? ctx.brand.id : 'all', line: line.id, tab: tab.id, range: ranged ? ctx.range : null });
+      /* After a write: read the page again before drawing, so the saved copy from before the write never comes back.
+         The screen keeps what the write already drew until the new answer lands. If the read fails, fall through. */
+      if (fresh) {
+        let data = null, got = false;
+        try { data = await mod.load(ctx); got = true; } catch (e) { if (e && e.name === 'AbortError') return; }
+        if (my !== ticket) return;
+        if (got) {
+          const rec = await putSaved(key, data);
+          if (my !== ticket) return;
+          paint(mod, data); stamp(data, rec.asOf); shownAt = rec.asOf;
+          return;
+        }
+      }
       const saved = await getSaved(key);
       if (my !== ticket) return;
       if (!saved) { el.replaceChildren(); (mod.skeleton || defaultSkeleton)(el, ctx); frame.setAsOf(null, true); }   // first ever visit only
@@ -177,4 +190,4 @@ export function start(shellHost) {
   onHash();
 }
 /** Draw the page on screen again (after the brand list or the role changed). */
-export function refresh() { if (current) { current = normalise(current); history.replaceState(null, '', href(current)); show(current, { soft: true }); } }
+export function refresh({ fresh = false } = {}) { if (current) { current = normalise(current); history.replaceState(null, '', href(current)); show(current, { soft: true, fresh }); } }

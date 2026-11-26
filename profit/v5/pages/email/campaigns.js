@@ -105,7 +105,7 @@ export default {
       chartCard(rows),
       listCard(rows),
       nextCard(d.upcoming),
-      h('p', { class: 'lx-foot' }, 'Sales and orders are Klaviyo\'s placed order count for each campaign, not Triple Whale\'s. Grey columns are texts.'),
+      h('p', { class: 'lx-foot' }, 'Sales and orders are Klaviyo\'s placed order count for each campaign, not Triple Whale\'s. Gray columns are texts.'),
     ].filter(Boolean));
   },
 };

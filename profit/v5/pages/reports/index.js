@@ -3,12 +3,26 @@
    Live data (account-health, reads only):
      GET /api/reports?act=<brand id>                              the list (a client gets sent reports only)
      GET /api/report?act=<brand id>&period=<weekly|monthly>&start= one report's frozen numbers and summary
-   Writing the summary, generating and sending stay in old Locus (ctx.legacy). */
+   A draft gets Send, Edit (the summary) and Do not send, done here through ../a-to-send/_send.js, which calls the
+   same routes old Locus does (POST /api/report-send, PUT /api/report-summary, POST /api/report-skip).
+   Team only: a client and "See as client" never see them. Generating a report stays in old Locus. */
 
 import { APP_NAME } from '../../config.js';
 import { put } from '../../kit.js';
-import { h, addStyles, hero, kpis, kpi, statusDot, button, sheet, em, empty, money, x, num, pct, delta, lineChart, legend, card } from '../../kit.js';
+import { h, addStyles, hero, kpis, kpi, statusDot, sheet, em, empty, money, x, num, pct, delta, lineChart, legend, card } from '../../kit.js';
 import { css, span, short, dayOf, wday, heading, row, list, dateOf, todayYmd } from '../calendar/_cr.js';
+import { actions, noChannel, sampleChannels } from '../a-to-send/_send.js';
+
+/** One report row as the send sheets want it. */
+const itemOf = (r, ctx) => ({ kind: 'report', act_id: ctx.brand.id, brand: ctx.brand.name, day: r.period_start, end: r.period_end, period: r.period, status: r.status });
+/** After a write: change the one row and draw the page again. */
+const changed = (r, d, redraw) => what => {
+  if (what === 'sent') { r.status = 'sent'; r.sent_at = new Date().toISOString(); }
+  else if (what === 'skipped') d.rows = d.rows.filter(x => x !== r);
+  else if (what === 'edited') { if (d.more) delete d.more[keyOf(r)]; }
+  redraw && redraw();
+};
+const draftActs = (r, d, ctx, redraw) => actions(itemOf(r, ctx), ctx, changed(r, d, redraw), { canSkip: d.can_skip !== false, noChannel: noChannel(itemOf(r, ctx), ctx, d.channels) });
 
 const NAME = { weekly: 'Weekly report', monthly: 'Monthly report' };
 const keyOf = r => r.period + '|' + r.period_start;
@@ -77,17 +91,23 @@ const RP_CSS = `.rp-sum{display:grid;gap:8px;max-width:78ch}
 .rp-p{margin:0;font-size:15px;line-height:1.6;color:var(--ink)}
 .rp-ul{margin:0;padding-left:20px;display:grid;gap:6px;font-size:15px;line-height:1.55;color:var(--ink)}`;
 
-async function open(r, d, ctx) {
+async function open(r, d, ctx, redraw) {
   const body = h('div', { class: 'cr-sheet' }, h('p', { class: 'cr-none', style: { border: 0 } }, 'Reading the report...'));
-  sheet({ title: NAME[r.period] + ', ' + span(r.period_start, r.period_end), body });
+  const sh = sheet({ title: NAME[r.period] + ', ' + span(r.period_start, r.period_end), body });
+  const after = () => { sh.close(); redraw && redraw(); };
   let rep = d.latest && keyOf(d.latest) === keyOf(r) ? d.latest : (d.more || {})[keyOf(r)] || null;
   if (!rep && !ctx.sample) {
     try { rep = slim(await ctx.api(`/api/report?act=${encodeURIComponent(ctx.brand.id)}&period=${r.period}&start=${r.period_start}`, { worker: 'ah' })); }
     catch { rep = null; }
   }
-  if (!rep) return put(body, h('p', { class: 'cr-none', style: { border: 0 } }, 'This report could not be read.'), !ctx.isClient && ctx.legacy ? button('Open it in old ' + APP_NAME, { href: ctx.legacy, icon: 'arrow' }) : '');
-  put(body, h('div', null, statusOf(r, ctx.isClient)), figures(rep, ctx), chartOf(rep), summaryOf(rep),
-    !ctx.isClient && ctx.legacy ? button(r.status === 'draft' ? 'Edit and send it in old ' + APP_NAME : 'Open it in old ' + APP_NAME, { href: ctx.legacy, icon: 'arrow' }) : null);
+  if (!rep) return put(body, h('p', { class: 'cr-none', style: { border: 0 } }, 'This report could not be read here.'),
+    !ctx.isClient && r.status === 'draft' ? draftActs(r, d, ctx, after) : null,
+    !ctx.isClient && ctx.legacy ? h('a', { href: ctx.legacy, style: { fontSize: '13px', color: 'var(--muted)' } }, 'Open in old ' + APP_NAME) : null);
+  const team = !ctx.isClient;
+  put(body, h('div', null, statusOf(r, ctx.isClient)),
+    team && r.status === 'draft' ? draftActs(r, d, ctx, after) : null,
+    figures(rep, ctx), chartOf(rep), summaryOf(rep),
+    team && ctx.legacy ? h('a', { href: ctx.legacy, style: { fontSize: '13px', color: 'var(--muted)' } }, 'Open in old ' + APP_NAME) : null);
 }
 
 function draw(el, d, ctx) {
@@ -97,14 +117,22 @@ function draw(el, d, ctx) {
   if (!rows.length) return put(el, empty({ title: 'No reports yet', text: ctx.isClient ? 'Your first weekly report arrives on a Monday.' : 'Weekly reports are drafted each Monday and monthly ones on the 1st.' }));
   const rep = d.latest, today = todayYmd();
   const drafts = rows.filter(r => r.status === 'draft');
+  const redraw = () => draw(el, d, ctx);
+  /* The newest draft gets its own line with its own dates, so Send never sits beside a report that already went out. */
+  const draft = !ctx.isClient && drafts.length ? drafts[0] : null;
+  const draftLine = draft ? h('section', { class: 'cr-sect' },
+    h('div', { class: 'cr-bar-top', style: { gap: '12px', flexWrap: 'wrap' } },
+      h('div', { class: 'cr-heroline' }, h('span', { class: 'lab' }, 'Waiting to send: ' + NAME[draft.period].toLowerCase() + ', ' + span(draft.period_start, draft.period_end)),
+        h('span', { class: 'of' }, drafts.length > 1 ? statusDot('warn', (drafts.length - 1) + ' more draft' + (drafts.length > 2 ? 's' : '') + ' in the list') : statusDot('warn', 'Draft, not sent'))),
+      h('span', { class: 'sp' }),
+      draftActs(draft, d, ctx, redraw))) : null;
 
   const top = rep ? [
     hero({ line: true },
       h('div', { class: 'cr-bar-top', style: { paddingBottom: '18px' } },
         h('div', { class: 'cr-heroline' }, h('span', { class: 'lab' }, (rep.status === 'sent' ? 'Latest report' : 'Latest draft') + ', ' + (rep.period === 'weekly' ? 'the week of ' : '') + span(rep.period_start, rep.period_end)),
           h('span', { class: 'of' }, statusOf(rep, ctx.isClient))),
-        h('span', { class: 'sp' }),
-        !ctx.isClient && drafts.length && ctx.legacy ? button(drafts.length === 1 ? 'Review and send the draft' : 'Review and send ' + drafts.length + ' drafts', { primary: true, href: ctx.legacy }) : null),
+        h('span', { class: 'sp' })),
       figures(rep, ctx)),
     chartOf(rep), summaryOf(rep),
   ] : [];
@@ -114,12 +142,16 @@ function draw(el, d, ctx) {
     title: NAME[r.period] || 'Report',
     sub: span(r.period_start, r.period_end),
     cells: [{ w: 210, node: statusOf(r, ctx.isClient) }],
-    onclick: () => open(r, d, ctx),
+    onclick: () => open(r, d, ctx, redraw),
   }));
-  put(el, ...top, h('section', { class: 'cr-sect' }, heading('Every report', rows.length, ctx.isClient ? 'tap one to read it' : null), list(lines)));
+  put(el, draftLine, ...top, h('section', { class: 'cr-sect' }, heading('Every report', rows.length, ctx.isClient ? 'tap one to read it' : null), list(lines)));
 }
 
 export default {
+  async sample(ctx) {
+    const [d, channels] = await Promise.all([ctx.fixture('index.json'), sampleChannels()]);
+    return { ...d, can_skip: true, channels };
+  },
   title: ['How did the ', em('last report read?')],
   eyebrow: 'Reports',
   ranges: false,                 /* a report is a fixed week or month */
@@ -130,7 +162,7 @@ export default {
     const first = rows.find(r => r.status === 'sent') || rows[0];
     let latest = null;
     if (first) latest = slim(await ctx.api(`/api/report?act=${act}&period=${first.period}&start=${first.period_start}`, { worker: 'ah', signal: ctx.signal }).catch(() => null));
-    return { rows: rows.map(({ act_id, period, period_start, period_end, status, generated_at, sent_at }) => ({ act_id, period, period_start, period_end, status, generated_at, sent_at })), latest };
+    return { rows: rows.map(({ act_id, period, period_start, period_end, status, generated_at, sent_at }) => ({ act_id, period, period_start, period_end, status, generated_at, sent_at })), latest, can_skip: list.can_skip === true };
   },
   render: draw,
   skeleton(el) { el.innerHTML = '<div class="lx-skel chart" style="height:190px"></div><div class="lx-skel chart" style="height:340px"></div><div class="lx-skel row"></div><div class="lx-skel row"></div>'; },

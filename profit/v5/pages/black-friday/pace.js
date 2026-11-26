@@ -8,7 +8,7 @@
                                                              and the sale so far (live.sale_so_far) for a client or a brand not in the check-in
      account-health  /api/standing                           the latest check-in for every brand (team only): MER so far,
                                                              the last 6 hours, the call, budgets and the Meta daily limit
-   It never writes. Approving a budget move happens in old Locus (ctx.legacy). */
+   It never writes. Approving a budget move happens on the War Room tab (war-room.js). */
 
 import { put } from '../../kit.js';
 import { h, em, money, num, x, pct, statusDot, button, platformChip, hero, card, legend, lineChart, delta, empty, sheet, skeleton, addStyles } from '../../kit.js';
@@ -258,7 +258,7 @@ function openRange(d) {
       ok(m.last6) ? h('div', null, h('small', null, `Last ${m.last6_hours || 6} hours`), h('b', null, x(m.last6))) : null,
       ok(m.new) ? h('div', null, h('small', null, 'New customers only'), h('b', null, x(m.new) + (ok(m.be_new) ? `, break-even ${x(m.be_new)}` : ''))) : null)
       : h('p', { class: 'lx-foot', style: { margin: 0 } }, 'No MER goal is set for this brand\'s sale, so there is no range to read against.'),
-    h('p', { class: 'lx-foot', style: { margin: 0 } }, `A raise is held back when store MER is under the hold line or the campaign is not spending its budget. A budget move is never made by itself: someone approves it in old ${APP_NAME}.`)) });
+    h('p', { class: 'lx-foot', style: { margin: 0 } }, `A raise is held back when store MER is under the hold line or the campaign is not spending its budget. A budget move is never made by itself: someone approves it on the War Room tab.`)) });
 }
 
 function callCard(d, ctx) {
@@ -270,7 +270,7 @@ function callCard(d, ctx) {
       h('div', { class: 'hd' }, h('span', { class: 'lab' }, 'The call'), h('b', { class: tone }, c.text), c.sub ? h('span', null, c.sub) : null),
       c.why ? h('p', null, c.why) : null),
     h('div', { class: 'btns' },
-      c.needs_yes ? button(`Approve in old ${APP_NAME}`, { primary: true, large: true, href: ctx.legacy || '../', icon: 'arrow' }) : null,
+      c.needs_yes && !ctx.isClient ? button('Approve in War Room', { primary: true, large: true, href: ctx.href('black-friday', 'war-room'), icon: 'arrow' }) : null,
       button('How the call is made', { onclick: () => openRange(d) })));
 }
 
@@ -332,7 +332,7 @@ function render(el, d, ctx) {
     sub: team ? h('span', { class: 'bp-meta' }, platformChip('meta'), ' sales ads' + (d.dry ? ', dry run on today' : '')) : null,
     action: team ? h('div', { class: 'bp-meta' },
       h('span', null, d.checked ? `Checked ${d.checked}${d.next ? ', next ' + d.next : ''}` : 'No check-in yet'),
-      button(`Check now in old ${APP_NAME}`, { href: ctx.legacy || '../' })) : null,
+      button('Open the War Room', { href: ctx.href('black-friday', 'war-room') })) : null,
   },
   h('div', { class: 'bp-hero' },
     h('div', { class: 'bp-hero-l' },

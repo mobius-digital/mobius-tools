@@ -16,7 +16,7 @@ export const addDays = (date, n) => { const d = new Date(date + 'T12:00:00Z'); d
 export const shortDate = date => new Date(String(date).slice(0, 10) + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 export const weekDate = date => new Date(String(date).slice(0, 10) + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
 export const hourWord = hr => (hr % 24 === 0 ? '12am' : hr === 12 ? 'Noon' : hr < 12 ? hr + 'am' : (hr - 12) + 'pm');
-/** A failed side read must not take the page down; a cancelled one still stops the load. */
+/** A failed side read must not take the page down; a canceled one still stops the load. */
 export const soft = p => Promise.resolve(p).catch(e => { if (e && e.name === 'AbortError') throw e; return null; });
 
 /** One ad against the brand's goal. The agency's rule: wait until twice the goal cost is spent and 3 days have passed. */

@@ -202,7 +202,7 @@ async function productRefs(env, F, act, want) {
 
 const LAYOUT = {
   '1:1': 'FORMAT: a SQUARE 1:1 image. Every word, badge and button sits at least 6% in from every edge; the whole product sits inside the frame, nothing important touching an edge.',
-  '4:5': 'FORMAT: a 4:5 portrait feed image. Meta crops it to a centred square in some placements, so every word, badge and button sits between 12% and 88% of the height and at least 5% in from each side; the top and bottom 12% hold only scene. The whole product sits inside the frame.',
+  '4:5': 'FORMAT: a 4:5 portrait feed image. Meta crops it to a centered square in some placements, so every word, badge and button sits between 12% and 88% of the height and at least 5% in from each side; the top and bottom 12% hold only scene. The whole product sits inside the frame.',
   '9:16': 'FORMAT: a TALL 9:16 image for Stories and Reels. The scene fills the frame. Every word, badge and button sits between 20% and 62% of the height and at least 6% in from each side; the top 15% and the bottom 35% hold no words (the app draws its own there). The whole product sits between 18% and 85% of the height.',
 };
 const TYPE_RULES = 'TYPOGRAPHY like a top DTC brand\'s paid social, set by a senior designer: flat, crisp, well kerned letters on a clean grid; at most two typefaces; one clear headline; generous breathing room. NO bevels, glows, outlines, 3D text, metallic or gradient text, drop shadows, or glossy fake badges.';
@@ -215,7 +215,7 @@ export function imagePrompt({ brand, kind, brief, words, format, product, dna, n
   return [
     `Create a finished ${kind || 'image'} for ${brand}.`,
     LAYOUT[format] || LAYOUT['4:5'],
-    product ? (nImages ? `The ${nImages} attached image${nImages > 1 ? 's are' : ' is'} the REAL product "${product}": reproduce it exactly, with the same shape, colours, materials, logos and any words printed on it.` : `The product is "${product}".`) : (nImages ? 'The attached images are reference only.' : ''),
+    product ? (nImages ? `The ${nImages} attached image${nImages > 1 ? 's are' : ' is'} the REAL product "${product}": reproduce it exactly, with the same shape, colors, materials, logos and any words printed on it.` : `The product is "${product}".`) : (nImages ? 'The attached images are reference only.' : ''),
     dna ? `THE PRODUCT, EXACTLY (its fingerprint; every point must be true in the image, from any angle):\n${dna}` : '',
     `The brief: ${brief}`,
     about ? `About the brand, for tone, setting and casting only (never write any of it on the image):\n${about}` : '',
@@ -421,7 +421,7 @@ async function runAnalysis(env, d, input, ctx) {
   try {
     r = await sandbox(env, d, { model: ANALYST, effort: 'medium', maxMs: LIMITS.analysisMs, maxTokens: 14000,
       system: `You are the analyst inside Locus (Mobius Digital's agency system), working in a Python sandbox with no internet. The data is the uploaded file ${dataName} (find it with: find / -name "${dataName}" -not -path "/proc/*" 2>/dev/null). Answer the ask from that data only; never invent a number.
-FILES: every file the person should get (charts as PNG, spreadsheets as XLSX, CSV, a PDF) goes into $OUTPUT_DIR with a short lowercase name, at most ${LIMITS.files} files, and list $OUTPUT_DIR in the same command. Charts: clean, white background, labelled axes, money as $, one idea per chart, 1600px wide.
+FILES: every file the person should get (charts as PNG, spreadsheets as XLSX, CSV, a PDF) goes into $OUTPUT_DIR with a short lowercase name, at most ${LIMITS.files} files, and list $OUTPUT_DIR in the same command. Charts: clean, white background, labeled axes, money as $, one idea per chart, 1600px wide.
 THEN REPLY in plain sentences for a media buyer: the findings with the numbers, what to do, and the file names you made. No markdown headings, no tables, never em dashes. Keep it under 200 words.`,
       content: [{ type: 'text', text: `The ask: ${clip(input.ask, 3000)}${input.files ? `\nFiles wanted: ${clip(input.files, 300)}` : ''}` }, { type: 'container_upload', file_id: fid }] });
   } finally { filesDelete(env, F, fid); }

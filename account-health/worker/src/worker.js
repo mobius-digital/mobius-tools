@@ -325,7 +325,7 @@ class MetaError extends Error {
    stop calling for a while.
  *
  * Before this, a rate-limited account was retried on the next tick and every
- * tick after, which is the behaviour that earns a longer ban rather than
+ * tick after, which is the behavior that earns a longer ban rather than
  * clearing one. Now the first limit error parks ALL Meta work for an hour.
  * Deliberately global rather than per account: the app-level quota is shared,
  * so one brand hitting it means the others are about to. */
@@ -1127,7 +1127,7 @@ async function syncAccount(env, acct, days, { includeAds = true } = {}) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Summarise (Chat 1) - Claude writes the daily/weekly update         */
+/*  Summarize (Chat 1) - Claude writes the daily/weekly update         */
 /* ------------------------------------------------------------------ */
 
 const ANTHROPIC_MODEL = 'claude-opus-5';
@@ -1455,7 +1455,7 @@ Plain text with Slack-style *bold*, no preamble, no sign-off.`,
     system: `You are writing a client-facing update from Mobius Digital, their paid-social agency, about their Meta ads account.
 Rules:
 - Warm, confident, plain English - no internal jargon, no ad-account IDs, no "activity log".
-- Summarise what was done and why it's good for them, then how the account is trending (only well-supported numbers, in their currency).
+- Summarize what was done and why it's good for them, then how the account is trending (only well-supported numbers, in their currency).
 - Recent conversions still settle for ~72h - phrase recent performance carefully.
 - 100–180 words, no subject line, no greeting or sign-off placeholders.`,
   },
@@ -1494,7 +1494,7 @@ async function writeUpdate(env, { act, from, to, template }) {
       `SELECT event_time, category, summary, actor, reason, suggested_reason, note, confirmed, manual FROM activities
        WHERE act_id IN ${metaOf(1)} AND event_time >= ?2 AND event_time <= ?3 AND confirmed != -1 ORDER BY event_time`,
     ).bind(a.act_id, from, to + 'T23:59:59').all();
-    // Meta tab Summarise: purchases, CPA and ROAS are Triple Whale's (see twMetaDaily).
+    // Meta tab Summarize: purchases, CPA and ROAS are Triple Whale's (see twMetaDaily).
     const tw = await twMetaDaily(env, a.act_id, prevFrom, to);
     const cur = agg(attributeRows(sumByDate((await env.DB.prepare(`SELECT * FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date BETWEEN ?2 AND ?3`).bind(a.act_id, from, to).all()).results), tw), true);
     const prev = agg(attributeRows(sumByDate((await env.DB.prepare(`SELECT * FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date BETWEEN ?2 AND ?3`).bind(a.act_id, prevFrom, prevTo).all()).results), tw), true);
@@ -1558,7 +1558,7 @@ const LINEAR_MODELS = new Set(['linear', 'linearAll']);
 
 /* Triple Whale's touchpoint `source`, reduced to the channel names this app
    uses everywhere else. Values seen live on these shops: `facebook-ads`,
-   `google-ads`, `organic_and_social`, `Excluded`. Anything unrecognised is kept
+   `google-ads`, `organic_and_social`, `Excluded`. Anything unrecognized is kept
    verbatim rather than bucketed, so a new channel shows up as itself the first
    time it appears instead of quietly joining another one's total. */
 function twPlatform(source) {
@@ -1811,7 +1811,7 @@ async function twWindow(env, shopDomain, start, end) {
    stopped: asking 10-06 returned 10-06 (fb_ads_spend matched Meta's 10-06 to the cent), so the
    +1 asked for tomorrow and the live Today chip read $0. The shift is now read from TW itself,
    once a day per shop: ask a 3-day window ending two days ago and see which day-of-year the
-   daily chart starts on. 0 = correct, 1 = one day early. Unknown = 0 (current behaviour). */
+   daily chart starts on. 0 = correct, 1 = one day early. Unknown = 0 (current behavior). */
 async function twShift(env, shopDomain) {
   const key = `twShift:${shopDomain}`, today = new Date().toISOString().slice(0, 10);
   const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(key).first().catch(() => null);
@@ -2362,7 +2362,7 @@ async function briefData(env, acct, upTo) {
   }
   const shipTotal = m => Object.values(piv[m] || {}).reduce((x, y) => x + (y || 0), 0);
   // Diagnostic only now. Shipping revenue is inside netSales and cannot be removed,
-  // so a client who bills shipping without recording a fulfilment cost simply has
+  // so a client who bills shipping without recording a fulfillment cost simply has
   // overstated profit - we flag it rather than pretending to net it off.
   /* The brand's own cost rules and fixed costs (profit worker costs.js / expenses.js, 2026-11-25). Plain reads that
      tolerate a missing table: no rule and no fixed cost leaves every number and every key below exactly as it was. */
@@ -2481,7 +2481,7 @@ async function briefData(env, acct, upTo) {
     };
     a.amer = a.new_rev != null && a.spend ? a.new_rev / a.spend : null;
     a.mer = sales != null && a.spend ? sales / a.spend : null;
-    // CM = revenue - every variable cost (product, fulfilment, handling, fees, ads).
+    // CM = revenue - every variable cost (product, fulfillment, handling, fees, ads).
     // Fixed costs are excluded by definition. Margin override wins when set.
     const variable = a.cogs != null ? a.cogs + shipCost + handling + (a.fees ?? 0) : null;
     a.cm = cmPct != null && sales != null && a.spend != null ? sales * cmPct - a.spend
@@ -2586,7 +2586,7 @@ function prettyDate(ymd) {
 }
 const shortDate = ymd => `${+ymd.slice(5, 7)}/${+ymd.slice(8, 10)}`;
 
-/** The Slack message. Modelled on CTC's own daily update: a friendly opener, one
+/** The Slack message. Modeled on CTC's own daily update: a friendly opener, one
  *  block per day covered, then the narrative. Deliberately NOT a metrics dump - 
  *  the revenue split, channel reads and month-to-date all live in the Notes, where
  *  Claude writes them as sentences, because that is what makes it read like a
@@ -2828,7 +2828,7 @@ async function writeBriefNarrative(env, acct, data, date, steer) {
       (data.goals && data.goals_planned === false
         ? `IMPORTANT: no target was actually set for ${MONTH_OF(data.month)} - the figures above are carried over from ${data.goals_inherited_from ? MONTH_OF(data.goals_inherited_from) : 'the last plan on file'}. Do NOT call them this month's goal or say the client is ahead of/behind "plan" as though it were agreed. Refer to them as last month's pace, and put setting this month's target in What we're doing.\n`
         : '') +
-      `Contribution margin basis: ${data.cm_pct != null ? `net sales × ${Math.round(data.cm_pct * 100)}% margin − ad spend` : 'Triple Whale cost data: revenue minus product costs, fulfilment, handling, payment fees and ad spend (every variable cost; fixed costs are excluded by definition)'}.\n\n` +
+      `Contribution margin basis: ${data.cm_pct != null ? `net sales × ${Math.round(data.cm_pct * 100)}% margin − ad spend` : 'Triple Whale cost data: revenue minus product costs, fulfillment, handling, payment fees and ad spend (every variable cost; fixed costs are excluded by definition)'}.\n\n` +
       (data.cogs_quality && (data.cogs_quality.verdict === 'broken' || data.cogs_quality.verdict === 'none')
         ? `IMPORTANT: this client's cost data is unreliable (${data.cogs_quality.reason}). Contribution margin has been REMOVED from the numbers block - do NOT mention contribution margin, CM, profit or margin anywhere in your narrative. Build the story from net sales, spend, aMER and the channel reads instead.
 
@@ -3201,7 +3201,7 @@ async function draftBrief(env, acct, date, { skipIfExists = false, steer } = {})
      calls /api/brief-draft, so every rewrite from the app dropped ANOTHER copy
      of the brief into the internal channel, each one carrying its own live
      Send-to-client button, while Slack's own Rewrite button (which goes through
-     the modal path) correctly edited in place. Two surfaces, two behaviours,
+     the modal path) correctly edited in place. Two surfaces, two behaviors,
      and the app's was the one that notified the whole channel again.
      Cole, 2026-09-07, wanting today's five drafts moved onto the new format:
      "I don't want the notifications going through, I would rather them just be
@@ -3441,7 +3441,7 @@ function clientDailyThreadFor(acct, date, data) {
    Shopify app is approved?"). Bonk's Amazon orders reach Shopify through a sync app, so Triple Whale's Amazon summary
    metric (totalAmazonSales) is empty for it while about a third of its orders are Amazon's. Triple Whale's own orders
    table carries them (source_name 'amazon'; a directly connected Amazon store is platform 'amazon'), so read them there:
-   one query per window, {date: {sales, orders}}. Sales = gross product sales minus product discounts, cancelled orders
+   one query per window, {date: {sales, orders}}. Sales = gross product sales minus product discounts, canceled orders
    out. null when the brand has no Triple Whale shop or the query fails; {} when it sold nothing on Amazon. */
 async function amazonOrdersByDay(env, acct, from, to) {
   if (!acct?.tw_shop || !env.TW_API_KEY) return null;
@@ -3667,7 +3667,7 @@ async function dailyBriefs(env) {
     }
 
     // Stop BEFORE starting a brand we cannot finish. Half a brief is worse than
-    // none: the old behaviour ran until Cloudflare killed it, which could land
+    // none: the old behavior ran until Cloudflare killed it, which could land
     // between the Slack post and the row that records it - a client message with
     // no record that it was sent, and a retry next hour that sends it twice.
     if (!subCanAfford(costOf('brief', COST_BRIEF_BRAND))) {
@@ -4052,7 +4052,7 @@ async function twAttributeChannels(env, acct, channels, [s, e], [ps, pe]) {
  *  Anthropic exposes SPEND, not remaining balance - no API can watch a credit
  *  balance drain - so the practical warning is the failure itself. Every
  *  narrative call already degrades gracefully (the brief and the report still
- *  ship their numbers), which is correct behaviour and also exactly why it would
+ *  ship their numbers), which is correct behavior and also exactly why it would
  *  otherwise go unnoticed for weeks: a client would just quietly receive a
  *  thinner brief.
  *
@@ -5486,7 +5486,7 @@ const FORMAT_WORDS = new Map([
 ]);
 
 /** The tag on an ad's name, and whether it is a format or just a label.
- *  Case is normalised so "still" and "Still" are one thing, not two. */
+ *  Case is normalized so "still" and "Still" are one thing, not two. */
 function nameTag(name) {
   const m = /\|([^|]+)$/.exec(name || '');
   const raw = m ? m[1].trim() : '';
@@ -5784,7 +5784,7 @@ async function adBreakdown(env, acct, windowDays, freshDays, win = null) {
 }
 
 /* `win` is {from,to} when the caller has a real date range - the shared period
-   control - and null for the old "last N days" behaviour. The freshness cards
+   control - and null for the old "last N days" behavior. The freshness cards
    compare the window against the SAME LENGTH immediately before it, so an
    arbitrary range works as well as a day count. The 97-day history behind the
    weekly trend chart is separate and unaffected: that chart is about the shape
@@ -6574,7 +6574,7 @@ function editModal({ callback_id, meta, title, label, hint, value, submit = 'Sav
 /* THE STEER BOX, AND WHY IT IS OPTIONAL.
    Cole asked the open question himself: does "rewrite" just rewrite, or does it
    take a suggestion? Both, in one control. Leave it empty and it is the old
-   behaviour; type a sentence and that sentence outranks the standing prompt.
+   behavior; type a sentence and that sentence outranks the standing prompt.
    The same box exists on the Rewrite button in Locus, so neither surface can do
    something the other cannot. */
 function rewriteModal({ callback_id, meta, title, what, current }) {
@@ -7403,7 +7403,7 @@ async function googleLogin(env, credential, invite) {
 /* ---- Roles ----
    TWO roles and no more: admin, and viewer. `settings.userRoles` maps an email
    to its role and ANYONE NOT LISTED IS AN ADMIN, which is exactly today's
-   behaviour - so adding this cannot lock anybody out, including whoever forgets
+   behavior - so adding this cannot lock anybody out, including whoever forgets
    they added themselves.
    A viewer is GET-only. That is the whole rule: they see every screen and can
    press nothing that leaves the building - no send to client, no plan save, no
@@ -8384,7 +8384,7 @@ const AH_APP = {
     /* BUTTONS ON THE SLACK CARD. Every action the Daily Brief and Reports tabs
        offer, available where the draft already is. Unauthenticated by design:
        Slack signs the request and verifySlackSig is what proves it. */
-    /* Calendly: a strategy call booked or cancelled (signed with the key Locus chose, calendly.js). */
+    /* Calendly: a strategy call booked or canceled (signed with the key Locus chose, calendly.js). */
     if (path === '/calendly/webhook' && request.method === 'POST') return handleCalendly(request, env, onCallBooked);
     /* Stripe: the first retainer invoice was paid (signed with the endpoint secret, newclient.js). */
     if (path === '/stripe/webhook' && request.method === 'POST') return handleStripeWebhook(request, env);
@@ -9084,10 +9084,10 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
        could be copied was the whole of the wait Cole felt - so the client's
        page asks for them here by share token, and only for ads that snapshot
        contains. They cache in ad_creative on first view; every later open is
-       instant. Same rule as ad-video below: the token authorises its own ads
+       instant. Same rule as ad-video below: the token authorizes its own ads
        and nothing else. */
     /* COVERS ON A CREATOR LINK (Ambassadors, profit/worker/src/amb.js). The slug
-       authorises exactly the Meta ads shown as proof on that brand's LIVE page,
+       authorizes exactly the Meta ads shown as proof on that brand's LIVE page,
        and nothing else - the same rule as a share token. */
     if (path === '/api/ad-creatives' && url.searchParams.get('angles')) {
       const slug = url.searchParams.get('angles');
@@ -9248,7 +9248,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if (!row) return json({ error: 'not found in this report' }, 404);
         hint = { video_id: row.video_id, page_id: row.page_id };
       } else if (adsTok) {
-        /* A shared creative snapshot authorises playback for the ads IT
+        /* A shared creative snapshot authorizes playback for the ads IT
            contains and nothing else - the same rule as a report archive token.
            Anything looser turns this into an open proxy for arbitrary Meta
            video ids, which is the one thing this endpoint must never be. */
@@ -9764,7 +9764,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       } catch (e) { return json({ error: e.message }, 502); }
       return json({ error: 'unknown google route' }, 404);
     }
-    /* Microsoft Clarity (clarity.js): the Behaviour card on Store > Website. GET = the report (cached; Clarity allows
+    /* Microsoft Clarity (clarity.js): the Behavior card on Store > Website. GET = the report (cached; Clarity allows
        10 reads a project a day), PUT {act, token?, project?} = connect / set the project id for links, DELETE = forget. */
     if (path === '/api/clarity') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
@@ -10510,7 +10510,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
            sequential round trips before a single number appeared. The cards do
            not need the image to be correct - they need it to be fast - so the
            rows come back immediately and the images are fetched separately and
-           patched in. `?assets=1` keeps the old one-shot behaviour for any
+           patched in. `?assets=1` keeps the old one-shot behavior for any
            caller that genuinely wants both together. */
         let assets = {};
         if (url.searchParams.get('assets') === '1') {
@@ -11083,7 +11083,7 @@ export { dashNumbers, dashBlocks, dashRange };
 /* For the offline cost checks (test-costs-brief.mjs). */
 export { econDay, briefData, reportData, buildBriefText, buildBriefTextV2, reportHeadline, spendFor, clientReportText, storePeriod };
 /** A creator link on the AUTO board (profit amb.js autoBoard, migration amb-004) also shows the
- *  brand's top-ranked video ads. The ranked ids are cached on the brand row, so the slug authorises
+ *  brand's top-ranked video ads. The ranked ids are cached on the brand row, so the slug authorizes
  *  exactly those ads on a LIVE page, the same rule as proof. Empty for a hand-picked board. */
 async function anglesBoardAds(env, slug) {
   if (!/^[a-z0-9-]{1,50}$/.test(slug || '')) return [];

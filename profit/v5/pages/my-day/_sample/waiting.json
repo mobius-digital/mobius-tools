@@ -1,0 +1,20 @@
+{
+ "note": "Made-up rows for sample mode. Same shape as loadWaiting() in bell.js returns.",
+ "failed": [],
+ "items": [
+  { "id": "calls|brand_northlake_golf", "kind": "calls", "n": 4, "act_id": "brand_northlake_golf", "brand": "Northlake Golf", "text": "4 ad calls waiting on Yes or No", "by": "Ad calls",
+    "btn": { "label": "Make the calls", "href": "#/agency/all/a-meta/suggestions", "primary": true } },
+  { "id": "calls|brand_tallgrass_apparel", "kind": "calls", "n": 2, "act_id": "brand_tallgrass_apparel", "brand": "Tallgrass Apparel", "text": "2 ad calls waiting on Yes or No", "by": "Ad calls",
+    "btn": { "label": "Make the calls", "href": "#/agency/all/a-meta/suggestions", "primary": true } },
+  { "id": "send", "kind": "send", "n": 3, "act_id": null, "brand": "2 brands", "text": "3 client updates waiting to send", "by": "2 daily briefs, 1 report",
+    "btn": { "label": "Review and send", "href": "#/agency/all/a-to-send/index", "primary": true } },
+  { "id": "war", "kind": "war", "n": 2, "act_id": null, "brand": "2 brands", "text": "War Room check-in: 2 brands waiting on Approve", "by": "Afternoon check-in",
+    "btn": { "label": "Open the War Room", "href": "#/agency/all/a-black-friday/war-room", "primary": true } },
+  { "id": "review|brand_tallgrass_apparel", "kind": "review", "n": 1, "act_id": "brand_tallgrass_apparel", "brand": "Tallgrass Apparel", "text": "1 creative card waiting on review", "by": "Production",
+    "btn": { "label": "Review", "href": "#/agency/all/a-production/pipeline" } },
+  { "id": "load|brand_northlake_golf", "kind": "load", "n": 2, "act_id": "brand_northlake_golf", "brand": "Northlake Golf", "text": "2 approved cards ready to load into Meta", "by": "Load ads",
+    "btn": { "label": "Load ads", "href": "#/agency/all/a-meta/load-ads" } },
+  { "id": "requests", "kind": "requests", "n": 1, "act_id": null, "brand": "Northlake Golf", "text": "1 client request waiting on the team", "by": "Requests",
+    "btn": { "label": "Open requests", "href": "#/agency/all/a-requests/index" } }
+ ]
+}

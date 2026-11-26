@@ -128,7 +128,7 @@ export const say = parts => (parts || []).map(p => (p && typeof p === 'object' ?
 const lockIcon = () => svgNode(icon('lock'));
 /** The small locked line at the foot of a card. */
 export const lockLine = text => h('div', { class: 'az-lock' }, lockIcon(), text);
-/** The grey box that says what is missing and what would fill it. lock: false drops the padlock. */
+/** The gray box that says what is missing and what would fill it. lock: false drops the padlock. */
 export function lockBox(title, text, { lock = true } = {}) {
   return h('div', { class: 'az-box' }, h('b', null, lock && lockIcon(), title), text && h('span', null, text));
 }

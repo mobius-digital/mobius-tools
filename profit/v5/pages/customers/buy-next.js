@@ -48,7 +48,7 @@ function fromFixture(f) {
     tiles: [
       { label: 'Ordered a second time', value: ok(back) ? pct(back, { digits: 1 }) : null, sub: `${num(f.came_back)} of ${num(f.customers)} customers`, share: back },
       { label: 'Belt, then another belt', value: f.came_back > 0 ? pct(f.belt_belt / f.came_back) : null, sub: `${num(f.belt_belt)} of ${num(f.came_back)} second orders`, share: f.came_back > 0 ? f.belt_belt / f.came_back : null },
-      { label: 'Same colour again', value: f.top_back > 0 ? pct(f.same_colour / f.top_back) : null, sub: `${num(f.same_colour)} of ${num(f.top_back)}, top six belts`, share: f.top_back > 0 ? f.same_colour / f.top_back : null },
+      { label: 'Same color again', value: f.top_back > 0 ? pct(f.same_colour / f.top_back) : null, sub: `${num(f.same_colour)} of ${num(f.top_back)}, top six belts`, share: f.top_back > 0 ? f.same_colour / f.top_back : null },
       f.top_addon && { label: 'Top add-on', value: f.top_addon.name, sub: `${num(f.top_addon.customers)} ${f.top_addon.of} bought one next`, word: true },
     ].filter(Boolean),
     by_category: f.by_category, by_product: f.by_product, pick: f.pick || [], gap_days: f.gap_days,
@@ -102,7 +102,7 @@ function flowCard(d, ctx) {
       h('div', { style: { marginTop: '10px' } }, flow({ columns: f.columns || [], links: f.links || [], lead: f.lead, unit: 'customers', height: 640, phoneHeight: 600,
         label: 'What customers bought on their first, second and third orders', empty: 'Not enough repeat customers to draw this yet' })),
       d.say && view === 'category' ? h('div', { style: { marginTop: '20px' } }, takeaway(['Of ', b(num(d.say.back)), ' customers who came back, ', b(num(d.say.same)), ' bought another belt',
-        d.say.addon ? [' and the top add-on is the ', b(d.say.addon.name.toLowerCase())] : '', '. Offer a ', b('new colour'), ' next, with the ' + (d.say.addon ? d.say.addon.name.toLowerCase() : 'add-on') + ' beside it.'],
+        d.say.addon ? [' and the top add-on is the ', b(d.say.addon.name.toLowerCase())] : '', '. Offer a ', b('new color'), ' next, with the ' + (d.say.addon ? d.say.addon.name.toLowerCase() : 'add-on') + ' beside it.'],
       { action: ctx.isClient ? null : button('Ask why', { href: ctx.href('ask', 'index') }) })) : '');
   };
   paint();
