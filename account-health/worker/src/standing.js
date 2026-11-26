@@ -20,7 +20,7 @@ import { dmPerson } from './morning.js';
 import { adNumbers, metaActsOf, sumAds, withCovers } from './buyerai.js';
 import { buildBuyerList } from './buyerlist.js';
 import { standingCard, clientCard } from './standingdm.js';
-import { boardSvg, brandSvg, opsBrandSvg, callWarn, toPng } from './standingimg.js';
+import { boardSvg, brandSvg, opsBrandSvg, callWarn, toPng, clientCardSvg, sinceWin } from './standingimg.js';
 
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
@@ -30,6 +30,15 @@ export const STAND_DAYS = { from: '2026-11-23', to: '2026-12-04' };
 /* Central hours. 9am to 9pm every 3 hours, and 11pm to close the day (a midnight read would be an empty new day). */
 /* Every 6 hours since Cole 2026-11-24 ("can Meta even optimize after every 3 hours?"): 9am, 3pm, 9pm Central; moved to 8am, 2pm, 8pm the same day (Cole). */
 export const STAND_HOURS = [8, 14, 20];
+/* PER-BRAND CADENCE (War Room 2.6 / 2.9 W1): p_season_answer key `checkin_hours` (2 to 12) = 8am CT, then every N
+   hours while <= 10pm. A brand without one keeps STAND_HOURS; with no brand set at all the tick runs exactly as before. */
+export const hoursFor = n => { const out = []; for (let h = 8; h <= 22; h += n) out.push(h); return out; };
+export async function checkinHours(env) {
+  if (!env.DB) return null;
+  const rows = ((await env.DB.prepare(`SELECT act_id, value FROM p_season_answer WHERE season = ?1 AND key = 'checkin_hours'`).bind('2026').all().catch(() => ({ results: [] }))).results) || [];
+  const m = new Map(rows.filter(r => Number.isInteger(+r.value) && +r.value >= 2 && +r.value <= 12).map(r => [r.act_id, hoursFor(+r.value)]));
+  return m.size ? m : null;
+}
 const KNOWN_LIMITS = { brand_lucky_golf: 6637, brand_dartee_golf: 13806, brand_bonk_golf: 5000, brand_grunk_dolfer: 2583, brand_yak_sports: 841, brand_vetripaws: 3428 };
 const SALE_RE =/bfcm|black friday|\bbf\b|cyber|holiday 20\d\d/i;
 
@@ -218,11 +227,13 @@ function opsImgMsg(rec, imgs) {
   return { text: `Where we stand, ${rec.label}. ${N.length ? `${N.length} to approve.` : 'Nothing to approve.'}`, blocks };
 }
 /** Build one check-in (reads only). */
-export async function buildStanding(env, deps, slot = slotOf()) {
+export async function buildStanding(env, deps, slot = slotOf(), only = null) {
   const md = { xfetch: deps.xfetch, listAccounts: deps.listAccounts, getSetting: deps.getSetting, putSetting: deps.putSetting, twAttr: deps.twAttr };
-  const tw = await readProfit(env, deps, '/api/season/standing');
+  /* only = {acts, skip} (per-brand cadence): read just the due brands; null = every brand, as before. */
+  const tw = await readProfit(env, deps, '/api/season/standing' + (only && only.acts ? `?acts=${encodeURIComponent(only.acts.join(','))}` : ''));
   const brands = [];
   for (const b of tw.brands || []) {
+    if (only && only.skip && only.skip.has(b.act_id)) continue;
     let m; try { m = await metaSide(env, md, b.act_id, tw.today); } catch (e) { m = { error: e.message }; }
     const sug = { ...b.suggest }, from = m.camp && m.camp.daily;
     /* A brand whose sale has ended gets no call. Before its BF sale starts it still gets the ladder on today's numbers
@@ -246,14 +257,14 @@ export async function buildStanding(env, deps, slot = slotOf()) {
 }
 
 /** The next check-in after this slot, in words ("6pm", "9am Fri"), or null after the last one. */
-export function nextLabel(slot) {
-  const [d, h] = slot.split('T'), hr = +h, i = STAND_HOURS.findIndex(x => x > hr);
+export function nextLabel(slot, hours = STAND_HOURS) {
+  const [d, h] = slot.split('T'), hr = +h, i = hours.findIndex(x => x > hr);
   const fmt = x => x === 12 ? '12pm' : x < 12 ? `${x}am` : `${x - 12}pm`;
-  if (i >= 0) return fmt(STAND_HOURS[i]);
+  if (i >= 0) return fmt(hours[i]);
   const nd = new Date(d + 'T12:00:00Z'); nd.setUTCDate(nd.getUTCDate() + 1);
   const ymd = nd.toISOString().slice(0, 10);
   if (ymd > STAND_DAYS.to) return null;
-  return `${fmt(STAND_HOURS[0])} ${nd.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' })}`;
+  return `${fmt(hours[0])} ${nd.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' })}`;
 }
 export const dayShort = ymd => ymd ? new Date(ymd + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
 const W = { scale: 'Raise 50%', raise: 'Raise 25%', hold: 'Hold', cut: 'Cut 25%' };
@@ -376,6 +387,9 @@ async function sendSample(env, deps, rec, prev, { style, act, label }) {
 export async function standingTick(env, deps, now = new Date()) {
   const c = central(now);
   if (c.date < STAND_DAYS.from || c.date > STAND_DAYS.to) return { skipped: 'outside Nov 23 to Dec 4' };
+  /* Any brand with its own check-in hours: the per-brand tick. None set: everything below runs exactly as before. */
+  const sched = await checkinHours(env).catch(() => null);
+  if (sched) return scheduledTick(env, deps, now, c, sched);
   /* At or up to 2 hours after a check-in hour, never only ON it (Cole 2026-11-25: the 8am check-in never came). An
      exact-hour match cannot recover from one missed or late hourly tick; the standingSent flag stops a double send. */
   const h = [...STAND_HOURS].reverse().find(x => x <= c.hour && c.hour - x <= 2);
@@ -396,6 +410,49 @@ export async function standingTick(env, deps, now = new Date()) {
   return { slot, brands: rec.brands.length, sent: rec.sent };
 }
 
+/* What a checked brand carries from its last check-in (War Room 2.9 W1), so the page and the client update can say
+   "since 2pm" without probing older records. Revenue = the stored return times the spend it was earned on. */
+const prevOf = (r, b) => ({ slot: b.checked_slot || r.slot, at: b.checked_at || r.at, today: b.today || null, week: b.week || null, so_far: b.so_far || null,
+  camps: ((b.meta || {}).camps || []).map(z => ({ id: z.id, spent: z.spent, t_rev: z.t_roas != null ? z.t_roas * (z.spent || 0) : null,
+    w_spend: z.w_spend ?? null, w_rev: z.w_roas != null && z.w_spend ? z.w_roas * z.w_spend : null, daily: z.daily ?? null })) });
+/** The tick with per-brand cadence: a brand is due at or up to 2 hours after one of its own hours, once (the same
+ *  standingSent:<slot> flags, one per due hour). Only due brands are read, DMed and drafted for their client; every
+ *  other brand rides along from the previous record with its own checked_at. */
+async function scheduledTick(env, deps, now, c, sched) {
+  const dueOf = hrs => [...hrs].reverse().find(x => x <= c.hour && c.hour - x <= 2);
+  const slotAt = h => `${c.date}T${String(h).padStart(2, '0')}`;
+  const sentAt = async h => !!(await deps.getSetting(env, `standingSent:${slotAt(h)}`));
+  const hDef = dueOf(STAND_HOURS), defDue = hDef != null && !(await sentAt(hDef));
+  const due = new Map(), skip = new Set();
+  for (const [act, hrs] of sched) { const h = dueOf(hrs); if (h != null && !(await sentAt(h))) due.set(act, h); else skip.add(act); }
+  if (!defDue && !due.size) { await deps.putSetting(env, 'standingLastSkip', JSON.stringify({ at: now.toISOString(), why: 'no brand is due', hour: c.hour })).catch(() => {}); return { skipped: 'no brand is due' }; }
+  const hours = [...due.values(), ...(defDue ? [hDef] : [])], slot = slotAt(Math.max(...hours));
+  const prevRec = await load(env, deps).catch(() => null);
+  /* Default brands due = read every brand and drop the scheduled ones not due; else only the due ones. */
+  const rec = await buildStanding(env, deps, slot, { acts: defDue ? null : [...due.keys()], skip });
+  if (!rec.brands.some(b => b.mode === 'live')) return { skipped: 'no brand sale is live' };
+  const all = [...new Set([...STAND_HOURS, ...[...sched.values()].flat()])].sort((p, q) => p - q);
+  rec.next = nextLabel(slot, all);
+  for (const b of rec.brands) {
+    b.checked_at = rec.at; b.checked_slot = slot; b.next = nextLabel(slot, sched.get(b.act_id) || STAND_HOURS);
+    const pb = prevRec && (prevRec.brands || []).find(z => z.act_id === b.act_id);
+    if (pb) b.prev = prevOf(prevRec, pb);
+  }
+  const checked = new Set(rec.brands.map(b => b.act_id));
+  for (const z of (prevRec && prevRec.brands) || []) {
+    if (checked.has(z.act_id)) continue;
+    rec.brands.push({ ...z, carried: 1, checked_at: z.checked_at || prevRec.at, checked_slot: z.checked_slot || prevRec.slot });
+    if ((prevRec.approved || {})[z.act_id]) rec.approved[z.act_id] = prevRec.approved[z.act_id];
+  }
+  const view = { ...rec, brands: rec.brands.filter(b => !b.carried) };
+  await sendDm(env, deps, view, { prev: prevRec });
+  rec.sent = view.sent; if (view.img_error) rec.img_error = view.img_error;
+  await save(env, deps, rec);
+  if (rec.sent && !rec.sent.error) for (const h of new Set(hours)) await deps.putSetting(env, `standingSent:${slotAt(h)}`, rec.sent.at);
+  await postBatch(env, deps, rec).catch(e => console.log('client batch: ' + e.message));
+  return { slot, brands: checked.size, carried: rec.brands.length - checked.size, sent: rec.sent };
+}
+
 /** Apply one brand's suggestion: only the budget the check-in saw, only on the person's tap. */
 async function approve(env, deps, rec, act, who) {
   const b = rec.brands.find(x => x.act_id === act);
@@ -403,7 +460,7 @@ async function approve(env, deps, rec, act, who) {
   if (rec.approved && rec.approved[act]) return { error: `Already approved by ${rec.approved[act].by}.`, done: rec.approved[act] };
   const g = b.suggest || {}, camp = b.meta && b.meta.camp;
   if (!g.to || !camp || !camp.daily) return { error: 'Nothing to approve on this brand.' };
-  if (Date.now() - Date.parse(rec.at) > 6 * 3600e3) return { error: 'This check-in is over 6 hours old. Wait for the next one or change it on the War Room.' };
+  if (Date.now() - Date.parse(b.checked_at || rec.at) > 6 * 3600e3) return { error: 'This check-in is over 6 hours old. Wait for the next one or change it on the War Room.' };
   const md = { xfetch: deps.xfetch, listAccounts: deps.listAccounts, getSetting: deps.getSetting, putSetting: deps.putSetting };
   const up = g.to > camp.daily;
   const body = { act, kind: 'budget', level: 'campaign', object: camp.id, amount: g.to, reason: `Where we stand ${rec.label}: ${g.why}`,
@@ -454,14 +511,35 @@ function changeLine(r) {
   if (/resum|turned on|activ/i.test(sum + ' ' + (r.category || ''))) return `Turned on the ${name || ''} ${kind}`.replace(/\s+/g, ' ');
   return firstUp(String(r.client_why || sum).trim().replace(/\.$/, ''));
 }
-async function didSince(env, deps, act) {
+/** The changes since the last client update, one per line ({line, why}: why = the client_why when the line is not it). */
+async function didItems(env, deps, act) {
   const last = await deps.getSetting(env, `wsLastSent:${act}`);
   const since = last || `${central().date}T06:00:00Z`;   // never sent: since midnight Central
   const acts = (await metaActs(env, act)).map(m => m.act);
   if (!acts.length) return [];
   const rows = ((await env.DB.prepare(`SELECT summary, category, object_type, object_name, client_why, event_time FROM activities WHERE act_id IN (${acts.map((_, i) => `?${i + 2}`).join(', ')})
     AND client_why IS NOT NULL AND client_why != '' AND event_time >= ?1 ORDER BY event_time`).bind(since, ...acts).all().catch(() => ({ results: [] }))).results) || [];
-  return [...new Set(rows.map(changeLine).filter(Boolean))].slice(0, 10);
+  const out = [], seen = new Set();
+  for (const r of rows) {
+    const line = changeLine(r);
+    if (!line || seen.has(line)) continue;
+    seen.add(line);
+    const why = String(r.client_why || '').trim();
+    out.push({ line, why: why && firstUp(why.replace(/\.$/, '')) !== line ? why : '' });
+  }
+  return out.slice(0, 10);
+}
+const didSince = async (env, deps, act) => (await didItems(env, deps, act)).map(i => i.line);
+/** The client card as a Slack file id (War Room 2.9 W2), or null when anything fails: the update then goes as text only. */
+async function cardFor(env, deps, rec, act) {
+  const b = (rec.brands || []).find(x => x.act_id === act);
+  if (!b || b.no_sales) return null;
+  try {
+    const svg = clientCardSvg(rec, act, await didItems(env, deps, act));
+    if (!svg) return null;
+    const up = await slackPng(env, deps, await toPng(svg, deps.xfetch, 1600), `update-${act.replace('brand_', '')}-${rec.slot}.png`);
+    return up.id || null;
+  } catch { return null; }
 }
 const hourOfSlot = slot => { const [d, h] = String(slot).split('T'), hr = +h; const day = new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' }); return { day, hour: hr === 12 ? '12pm' : hr === 0 ? '12am' : hr < 12 ? `${hr}am` : `${hr - 12}pm` }; };
 /* THE CLIENT UPDATE (Cole 2026-11-24, final brief). One shape, three moments: 9am Morning Update (adds the top 3 ads from
@@ -504,9 +582,11 @@ async function topAds(env, act, day, kpi, line) {
 const cleanName = s => String(s || '').replace(/\s*\|\s*(Still|UGC|Video|Static|Carousel)\s*$/i, '').trim();
 /** The client message: {text, blocks, attachments}. images=false leaves the ad pictures out (a retry when Slack
  *  refuses an image). */
-export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name = null, { images = true, layout = 'table', mdIn = true } = {}) {
+export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name = null, { images = true, layout = 'table', mdIn = true, card = null } = {}) {
   const b = (rec.brands || []).find(x => x.act_id === act);
   if (!b || b.no_sales) return null;
+  /* Per-brand cadence: "Since 2pm" replaces Last 6 hours when the brand carries its last check-in; its own next time. */
+  const since = sinceWin(rec, b), L6 = since ? since.label : 'Last 6 hours', next = 'next' in b ? b.next : rec.next;
   const did = await didSince(env, deps, act), line = b.hold ?? (b.kpi ? b.kpi * 0.8 : null), t = longDay(rec.slot), m = moment(rec.slot);
   const H = s => ({ type: 'header', text: { type: 'plain_text', text: s } });
   const md = s => ({ type: 'section', text: { type: 'mrkdwn', text: s } });
@@ -524,7 +604,9 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
   const tEm = b.today && b.kpi && b.today.mer >= b.kpi ? '📈' : '📊';
   const title = NEW ? `${tEm} ${name || b.name} · BFCM Week · ${m}` : `${name || b.name} · ${m}`;
   const blocks = [(layout === 'spaced' || NEW ? MDH : H)(title), ctx(`${t.day}  ·  ${t.hour} CT   |   Goal: *${nx(b.kpi)} MER*`), { type: 'divider' }];
-  const wins = (m === 'End of Day' ? [['Today', b.today], ['This week', b.week]] : [['Last 6 hours', b.last6], ['Today', b.today], ['This week', b.week]]).filter(([, p]) => p && p.sales != null);
+  /* The picture card on top (War Room 2.7), when one was made; the text below stays the whole update. */
+  if (card && images) blocks.unshift({ type: 'image', block_id: 'ws_card', slack_file: { id: card }, alt_text: `${name || b.name}: sales, ad spend and MER against the goal, and what we changed` });
+  const wins = (m === 'End of Day' ? [['Today', b.today], ['This week', b.week]] : [[L6, since ? since.p : b.last6], ['Today', b.today], ['This week', b.week]]).filter(([, p]) => p && p.sales != null);
   let attachments;
   /* Cole 2026-11-24: the grid without the code-block names. 'clean' = no colored bars at all (bold names, grey lines,
      dividers); 'blue' = the same grid in one Mobius-blue bar (brand color, not a score). Slack's grey quote lines
@@ -540,7 +622,7 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
     const SQ = { great: '🟩', good: '🟩', near: '⬜', under: '🟨', bad: '🟥' };
     const f = (l, p) => ({ type: 'mrkdwn', text: `${SQ[tierOf(p.mer, b.kpi, line).key]}  *${l.toUpperCase()}*\n\n> *Sales:* ${usd(p.sales)}\n\n> *Ad spend:* ${usd(p.spend)}\n\n> *MER:* ${nx(p.mer)}` });
     const get = k => wins.find(([l]) => l === k);
-    const row1 = [get('Last 6 hours'), get('Today')].filter(Boolean), wk = get('This week');
+    const row1 = [get(L6), get('Today')].filter(Boolean), wk = get('This week');
     if (row1.length) blocks.push({ type: 'section', fields: row1.map(([l, p]) => f(l, p)) });
     if (wk) blocks.push({ type: 'divider' }, { type: 'section', fields: [f(wk[0], wk[1])] });
     attachments = [];
@@ -561,7 +643,7 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
     } else if (layout === 'winbars') {
       for (const [l, p] of wins) attachments.push({ color: col(p), blocks: [md(txt(l, p))] });
     } else {
-      const row1 = [get('Last 6 hours'), get('Today')].filter(Boolean), wk = get('This week');
+      const row1 = [get(L6), get('Today')].filter(Boolean), wk = get('This week');
       /* One bar per row is all Slack allows (Cole asked for a bar per window): the day row takes the WORSE of Last 6
          hours and Today, so a bad stretch never hides behind a good one. */
       const worst = row1.map(([, p]) => tierOf(p && p.mer, b.kpi, line)).sort((x, y) => TIER.indexOf(y) - TIER.indexOf(x))[0];
@@ -617,7 +699,7 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
     }
   }
   const upd = [T1('Updates'), md((did.length ? did : ['No changes since the last update']).map(d => `•  ${d}`).join('\n')),
-    ctx(rec.next ? `Next update at ${rec.next} CT` : 'Next update tomorrow at 8am CT')];
+    ctx(next ? `Next update at ${next} CT` : 'Next update tomorrow at 8am CT')];
   /* The client decides (client_approve, Yak): our suggestion with an Approve button the client taps; Locus makes the
      change only on that tap and confirms only once Meta took it (handleClientUpdateButton ws_capprove). */
   const sg = b.suggest || {}, camp = b.meta && b.meta.camp;
@@ -653,16 +735,18 @@ export async function offerClientUpdate(env, deps, { act, rec = null, style = nu
      falls to the next. Whatever reached Cole is what Send posts. */
   /* Cole 2026-11-24: the separate colored bars, stacked (Slack cannot put colored bars side by side). */
   const pick = ['clean', 'blue', 'bars', 'wc', 'spaced', 'lines', 'rowbars', 'rowbullets', 'winbars', 'wincompact'].includes(style) ? style : (['clean', 'blue', 'bars', 'spaced', 'lines', 'rowbars', 'winbars', 'wincompact'].includes(await deps.getSetting(env, 'clientUpdateLayout')) ? await deps.getSetting(env, 'clientUpdateLayout') : 'wincompact');
-  const tries = [[pick, true, true], [pick, true, false], [pick, false, false], ['bars', false, false]];
+  /* The picture card goes first; Slack refusing it falls back to exactly the tries before it. */
+  const card = await cardFor(env, deps, rec, act);
+  const tries = [...(card ? [[pick, true, true, card]] : []), [pick, true, true], [pick, true, false], [pick, false, false], ['bars', false, false]];
   let r = { ok: false, error: 'nothing tried' }, used = null;
-  for (const [layout, images, mdIn] of tries) {
-    const m = await clientUpdateMsg(env, deps, rec, act, st, b.name, { layout, images, mdIn });
+  for (const [layout, images, mdIn, cd = null] of tries) {
+    const m = await clientUpdateMsg(env, deps, rec, act, st, b.name, { layout, images, mdIn, card: cd });
     if (!m) return { ok: false, error: 'No sales numbers for this brand.' };
     const tail = forCole ? [] : [btns];
     const msg = m.attachments && m.attachments.length ? { text: m.text, blocks: [top, ...m.blocks], attachments: [...m.attachments, ...(tail.length ? [{ blocks: tail }] : [])] }
       : { text: m.text, blocks: [top, ...m.blocks, ...tail] };
     r = await dmPerson(env, deps, env.OWNER_EMAIL || 'cole@go-mobius-digital.com', msg);
-    if (r.ok) { used = layout + (images ? '' : ' (no pictures)') + (mdIn ? '' : ' (header titles in bars)'); await deps.putSetting(env, `wsDraft:${id}`, JSON.stringify({ v: 3, act, ch: b.brief_channel, msg: m, name: b.name, at: new Date().toISOString() })); break; }
+    if (r.ok) { used = layout + (cd ? ' (picture card)' : '') + (images ? '' : ' (no pictures)') + (mdIn ? '' : ' (header titles in bars)'); await deps.putSetting(env, `wsDraft:${id}`, JSON.stringify({ v: 3, act, ch: b.brief_channel, msg: m, name: b.name, at: new Date().toISOString() })); break; }
     if (!/invalid_blocks|invalid_attachments|image|table/i.test(String(r.error || ''))) break;
     r.tried = `${r.tried || ''}${layout}: ${String(r.error).slice(0, 120)}; `;
   }
@@ -681,7 +765,7 @@ async function draftFor(env, deps, rec, act, batchSlot = null) {
   const forCole = !b.brief_channel || b.brief_channel === b.slack_channel;
   const saved = await deps.getSetting(env, 'clientUpdateLayout');
   const layout = ['clean', 'blue', 'bars', 'spaced', 'rowbars', 'winbars', 'wincompact'].includes(saved) ? saved : 'wincompact';
-  const m = await clientUpdateMsg(env, deps, rec, act, 'plain', b.name, { layout, images: true, mdIn: true });
+  const m = await clientUpdateMsg(env, deps, rec, act, 'plain', b.name, { layout, images: true, mdIn: true, card: await cardFor(env, deps, rec, act) });
   if (!m) return null;
   const id = Math.random().toString(16).slice(2, 12);
   await deps.putSetting(env, `wsDraft:${id}`, JSON.stringify({ v: 3, act, ch: forCole ? null : b.brief_channel, msg: m, name: b.name, forCole, batch: batchSlot, at: new Date().toISOString() }));
@@ -716,7 +800,7 @@ export async function postBatch(env, deps, rec) {
   if (!uid) return { ok: false, error: 'no slack user' };
   const bt = { slot: rec.slot, channel: null, ts: null, items: [] }, drafts = [];
   for (const b of rec.brands) {
-    if (b.no_sales) continue;
+    if (b.no_sales || b.carried) continue;   // carried = not checked this time (per-brand cadence)
     /* Every brand's update is ready to send now (2026-11-25: the 2pm round never went out because three brands sat
        "waiting on your Approve" with no draft). An Approve later rebuilds that brand's draft with the change in it. */
     const d = await draftFor(env, deps, rec, b.act_id, rec.slot).catch(() => null);
@@ -747,8 +831,25 @@ export async function batchApproved(env, deps, rec, act) {
 async function sendDraft(env, xfetch, dr) {
   if (!env.SLACK_USER_TOKEN) return { ok: false, error: 'no Slack user token on Locus' };
   if (!dr.ch) return { ok: false, error: 'no client channel' };
-  return xfetch('https://slack.com/api/chat.postMessage', { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
-    body: JSON.stringify({ channel: dr.ch, ...dr.msg, unfurl_links: false }) }).then(r => r.json()).catch(e => ({ ok: false, error: e.message }));
+  const post = msg => xfetch('https://slack.com/api/chat.postMessage', { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
+    body: JSON.stringify({ channel: dr.ch, ...msg, unfurl_links: false }) }).then(r => r.json()).catch(e => ({ ok: false, error: e.message }));
+  const r = await post(dr.msg), bl = (dr.msg && dr.msg.blocks) || [];
+  /* Slack refused the picture card: send the same update as text only (what went out before the card). */
+  if (r.ok || !bl.some(x => x && x.block_id === 'ws_card') || !/invalid_blocks|invalid_attachments|image|file/i.test(String(r.error || ''))) return r;
+  const r2 = await post({ ...dr.msg, blocks: bl.filter(x => !(x && x.block_id === 'ws_card')) });
+  return r2.ok ? { ...r2, card_dropped: String(r.error || '') } : r2;
+}
+/** One brand's update out of a check-in's batch: the send_batch loop's own steps (War Room 2.9 W3). Returns a result
+ *  row; marks the batch item and wsLastSent. The caller saves the batch. */
+async function sendItem(env, deps, rec, it, slot) {
+  if (it.status === 'forme' || it.status === 'sent' || it.status === 'skipped') return { name: it.name, skipped: it.status };
+  const last = await deps.getSetting(env, `wsLastSent:${it.act}`);
+  if (last && Date.now() - Date.parse(last) < 2 * 3600e3) { it.status = 'sent'; return { name: it.name, skipped: 'sent in the last 2 hours' }; }
+  if (!it.id) { const d = await draftFor(env, deps, rec, it.act, slot); if (!d) return { name: it.name, error: 'no draft' }; it.id = d.id; }
+  const dr = JSON.parse((await deps.getSetting(env, `wsDraft:${it.id}`)) || 'null');
+  const res = dr ? await sendDraft(env, deps.xfetch, dr) : { ok: false, error: 'draft gone' };
+  if (res.ok) { const now = new Date().toISOString(); it.status = 'sent'; dr.done = `sent ${now}`; await deps.putSetting(env, `wsDraft:${it.id}`, JSON.stringify(dr)); await deps.putSetting(env, `wsLastSent:${it.act}`, now); return { name: it.name, sent: true }; }
+  return { name: it.name, error: res.error };
 }
 /** The buttons: Approve on the scoreboard, Send / Send all on the batch, Send / Don't send on a single update. Cole only. */
 export async function handleClientUpdateButton(env, ctx, payload, deps, { ACK, xfetch }) {
@@ -957,18 +1058,36 @@ export async function handleStanding(request, env, url, path, json, deps) {
       const rec = await load(env, deps, slot).catch(() => null);
       if (!bt || !rec) return json({ error: 'No batch for that check-in.' }, 404);
       const out = [];
-      for (const it of bt.items) {
-        if (it.status === 'forme' || it.status === 'sent' || it.status === 'skipped') { out.push({ name: it.name, skipped: it.status }); continue; }
-        const last = await deps.getSetting(env, `wsLastSent:${it.act}`);
-        if (last && Date.now() - Date.parse(last) < 2 * 3600e3) { it.status = 'sent'; out.push({ name: it.name, skipped: 'sent in the last 2 hours' }); continue; }
-        if (!it.id) { const d = await draftFor(env, deps, rec, it.act, slot); if (!d) { out.push({ name: it.name, error: 'no draft' }); continue; } it.id = d.id; }
-        const dr = JSON.parse((await deps.getSetting(env, `wsDraft:${it.id}`)) || 'null');
-        const res = dr ? await sendDraft(env, deps.xfetch, dr) : { ok: false, error: 'draft gone' };
-        if (res.ok) { const now = new Date().toISOString(); it.status = 'sent'; dr.done = `sent ${now}`; await deps.putSetting(env, `wsDraft:${it.id}`, JSON.stringify(dr)); await deps.putSetting(env, `wsLastSent:${it.act}`, now); out.push({ name: it.name, sent: true }); }
-        else out.push({ name: it.name, error: res.error });
-      }
+      for (const it of bt.items) out.push(await sendItem(env, deps, rec, it, slot));
       await saveBatch(env, deps, rec, bt);
       return json({ ok: true, results: out });
+    }
+    /* One brand's client update now (War Room 2.9 W3, the page's "Send to client"): the send_batch steps for that
+       brand's item in the check-in's batch. Owner only; posts as Cole in the client's channel. */
+    if (path === '/api/standing/send' && request.method === 'POST') {
+      if (String(email || '').toLowerCase() !== OWNER(env).toLowerCase()) return json({ error: 'Only the owner can send to a client.' }, 403);
+      const act = String(body.act || ''), slot = String(body.slot || '');
+      if (!/^brand_[a-z0-9_]+$/.test(act) || !/^\d{4}-\d{2}-\d{2}T\d{2}$/.test(slot)) return json({ error: 'act and slot (YYYY-MM-DDTHH)' }, 400);
+      let rec = await load(env, deps, slot).catch(() => null), b = rec && rec.brands.find(x => x.act_id === act);
+      /* A brand carried into this record was checked earlier: its own check-in holds its numbers and batch. */
+      const at = b && b.carried && b.checked_slot ? b.checked_slot : slot;
+      if (at !== slot) { rec = await load(env, deps, at).catch(() => null); b = rec && rec.brands.find(x => x.act_id === act); }
+      if (!rec || !b) return json({ error: 'That brand is not in that check-in.' }, 404);
+      const raw = await deps.getSetting(env, `wsBatch:${at}`), bt = raw ? JSON.parse(raw) : null;
+      const it = bt && bt.items.find(i => i.act === act);
+      if (!it) return json({ error: 'No client update was drafted for that brand at that check-in.' }, 404);
+      const res = await sendItem(env, deps, rec, it, at);
+      await saveBatch(env, deps, rec, bt);
+      return json({ ok: !!res.sent, slot: at, ...res }, res.error ? 502 : 200);
+    }
+    /* The client card as a PNG (War Room 2.9 W4): the same picture Slack gets, for Download image. Team only. */
+    if (path === '/api/standing/card.png' && request.method === 'GET') {
+      const act = String(url.searchParams.get('act') || '');
+      const only = await deps.brandsFor(env, email).catch(() => null);
+      if (only && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
+      const rec = await load(env, deps, url.searchParams.get('slot')), svg = rec && clientCardSvg(rec, act, await didItems(env, deps, act));
+      if (!svg) return json({ error: 'That brand is not in that check-in.' }, 404);
+      return new Response(await toPng(svg, deps.xfetch, 1600), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'private, no-store' } });
     }
     /* Take a message back (Cole only, through the admin gate): {delete: {channel, ts, as_cole}}. as_cole = a message
        Locus sent under Cole's name; otherwise the bot's own. */
