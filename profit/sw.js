@@ -8,7 +8,8 @@
  *     Every script tag carries ?v=, so a new version is a new URL and never waits on the old copy.
  *   - Anything else (the API, Meta and Triple Whale images, POSTs): straight to the network, untouched.
  * Bump VERSION to drop every old copy. */
-const VERSION = 'locus-v3';   /* v3 (2026-10-21): the manifest gained share_target (Save to Locus) */ //   /* v2 (2026-10-11): the bead icons from logo/locus/icons replace the Mobius mark */
+const VERSION = 'locus-v4';   /* v4 (2026-11-26): v5 files are no longer cached here (a deploy showed the old screens) */
+//   /* v3 (2026-10-21): the manifest gained share_target (Save to Locus) */ //   /* v2 (2026-10-11): the bead icons from logo/locus/icons replace the Mobius mark */
 const SHELL = ['./', './index.html', './offline.html', './manifest.webmanifest', '../logo/locus/icons/icon-192.png', '../logo/locus/icons/icon-512.png', '../mobius.css'];
 
 self.addEventListener('install', e => {
@@ -19,7 +20,7 @@ self.addEventListener('activate', e => {
 });
 
 const sameOrigin = u => u.origin === self.location.origin;
-const isAsset = u => sameOrigin(u) && /\.(js|css|png|svg|webp|jpg|ico|woff2?|webmanifest|gif)$/i.test(u.pathname);
+const isAsset = u => sameOrigin(u) && !u.pathname.startsWith('/profit/v5/') && /\.(js|css|png|svg|webp|jpg|ico|woff2?|webmanifest|gif)$/i.test(u.pathname);
 const isFont = u => u.origin === 'https://fonts.googleapis.com' || u.origin === 'https://fonts.gstatic.com';
 
 self.addEventListener('fetch', e => {
