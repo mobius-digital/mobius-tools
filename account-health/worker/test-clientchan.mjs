@@ -53,12 +53,12 @@ ok(set.checkinAutoApprove === true && set.askInClientChannels === false && set.s
 for (const k of SWITCHES) clearSetting(k);
 
 /* ---------------- 1. the 24 hour timer ---------------- */
-db.exec(`CREATE TABLE p_br_batch (id TEXT PRIMARY KEY, act_id TEXT, num INTEGER, title TEXT, brief_json TEXT, brief_text TEXT, board_stage TEXT, assignee_name TEXT)`);
+db.exec(`CREATE TABLE p_br_batch (id TEXT PRIMARY KEY, act_id TEXT, num INTEGER, title TEXT, brief_json TEXT, brief_text TEXT, board_stage TEXT, assignee_name TEXT, needs_client INTEGER DEFAULT 0, client_sent_at TEXT)`);
 db.exec(`CREATE TABLE brand_accounts (act_id TEXT PRIMARY KEY, name TEXT, slack_channel TEXT, brief_channel TEXT)`);
 db.exec(`CREATE TABLE p_work_file (id TEXT PRIMARY KEY, batch_id TEXT, kind TEXT, version INTEGER, ad TEXT, name TEXT, mime TEXT, created_at TEXT, deleted_at TEXT)`);
 db.exec(`CREATE TABLE p_work_comment (id TEXT PRIMARY KEY, batch_id TEXT, file_id TEXT, kind TEXT, body TEXT, author_name TEXT, parent_id TEXT, fixed INTEGER, created_at TEXT)`);
 db.exec(`INSERT INTO brand_accounts VALUES ('brand_harbor', 'Harbor Kettle Co', 'C_HARBOR_INT', NULL)`);
-db.exec(`INSERT INTO p_br_batch VALUES ('card1', 'brand_harbor', 12, 'Morning pour', NULL, '', 'review', 'Sam')`);
+db.exec(`INSERT INTO p_br_batch VALUES ('card1', 'brand_harbor', 12, 'Morning pour', NULL, '', 'review', 'Sam', 0, NULL)`);
 db.exec(`INSERT INTO p_work_file VALUES ('f1', 'card1', 'version', 1, '12-1', '12-1 v1.png', 'image/png', '2026-11-01', NULL)`);
 const old = new Date(Date.now() - 30 * 3600e3).toISOString();
 const seedCard = async () => {
