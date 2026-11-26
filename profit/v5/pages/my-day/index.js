@@ -11,7 +11,7 @@ import { h, button, takeaway, kpis, kpi, statusDot, segmented, toast, sheet, fie
 import { OLD_LOCUS, APP_NAME } from '../../config.js';
 import { css, face, ic, heading, store } from './_ui.js';
 import { lineButtons, css as gsCss } from '../get-started/_ui.js';
-import { loadWaiting, primeRead } from '../../bell.js';
+import { loadWaiting, primeRead, LINE_SOURCES } from '../../bell.js';
 import { agencyRows, liveNote, liveHelp, brandWord } from './_waiting.js';
 import { pageHelp } from '../../defs.js';
 
@@ -29,6 +29,8 @@ function dueOf(it, today) {
   return { due: it.due ? wd(it.due) : 'This week' };
 }
 function whyOf(it) {
+  /* a move line (movelines.js) says what is waiting in its own detail line */
+  if (LINE_SOURCES.includes(it.source)) return it.detail || it.from || '';
   if (it.source === 'onboard') return ['New client setup', it.when].filter(Boolean).join(', ');
   if (it.source === 'slack') return [it.from ? it.from + ' asked in Slack' : 'You were tagged in Slack', it.when].filter(Boolean).join(', ');
   if (it.source === 'card') return ['Card ' + (it.num || '').trim(), cap(it.column) + ' column'].filter(s => s.trim() && s !== 'Card').join(', ');
@@ -37,6 +39,9 @@ function whyOf(it) {
 }
 function btnOf(it) {
   if (it.source === 'onboard') return { onboard: true };
+  /* a move line: a page in this app (v5), else its own link (Slack, a card in old Locus) in a new tab */
+  if (it.v5) return { label: it.btn_label || 'Open', href: it.v5 };
+  if (LINE_SOURCES.includes(it.source) && it.link) return { label: it.btn_label || 'Open', href: it.link, out: true };
   if (it.source === 'slack') return { label: 'Reply', href: it.link, out: true };
   if (it.source === 'card') return { label: 'Open card', href: it.link, out: true };
   if (it.source === 'call') return { label: 'Open the plan', href: OLD_LOCUS + '?open=calls&call=monday' };
@@ -59,7 +64,8 @@ export function fromLive(mw, rq, me) {
     person: { name: (mw.person && mw.person.name) || (me && me.name) || '', role: (mw.person && mw.person.role) || '', email: me && me.email, photo: me && me.photo },
     take: null,
     clients_waiting: reqs ? { n: sitsTeam.length, sub: oldest ? `${oldest.by || oldest.brand}, ${ago(oldest.created_at) ? ago(oldest.created_at) + ' days' : 'today'}` : 'no one is waiting' } : null,
-    today_rows: open.filter(i => i.bucket === 'late' || i.bucket === 'today').sort((a, b) => (a.bucket === 'late' ? 0 : 1) - (b.bucket === 'late' ? 0 : 1)).map(i => rowOf(i, today)),
+    /* a top line (the "no plan yet" nudge) first, then late, then today */
+    today_rows: open.filter(i => i.bucket === 'late' || i.bucket === 'today').sort((a, b) => (a.top ? 0 : a.bucket === 'late' ? 1 : 2) - (b.top ? 0 : b.bucket === 'late' ? 1 : 2)).map(i => rowOf(i, today)),
     week_rows: open.filter(i => i.bucket === 'week').map(i => rowOf(i, today)),
     waiting_rows: reqs ? sitsClient.map(r => { const n = ago(r.created_at); return { id: 'req:' + r.id, source: 'request', text: r.title, who: 'Client', why: 'Sits with the client', brand: r.brand || '', due: n ? n + (n === 1 ? ' day' : ' days') : 'Today', days: n,
       btn: { label: 'Open request', href: OLD_LOCUS + '?open=requests&act=' + encodeURIComponent(r.act_id || 'all') } }; }) : null,

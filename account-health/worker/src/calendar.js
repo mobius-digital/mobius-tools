@@ -26,7 +26,9 @@
  * Slack (calendarTick, hourly cron, from 8am Central, once a day): the day before and a week before a date (the
  * week-out only when something is still open), a client's new or moved date (Lineup changelog rows not written
  * by the team), and on Mondays "still running?" for a sale with no end date. Each brand's internal channel.
- * Switch: settings calendarPost = 'off'. */
+ * Switch: settings calendarPost = 'off' (everything). 2026-11-26 (move lines): the countdown is ALSO kept as settings
+ * calCountdown each morning (movelines.js, the step owner's My day line), whatever Slack does; the countdown POST alone
+ * goes quiet with settings jobOn:calendarCountdown = 'off' (jobflags.js). */
 import { metaOf } from './brands.js';
 import { keyFor, klaviyo } from './klaviyo.js';
 import { supplyFetch } from './stock.js';
@@ -34,6 +36,8 @@ import { clientScope } from './brandguard.js';
 import { teamPost, cardOn } from './morningcard.js';
 import { laneLines, laneWho, laneOwner, fyi } from './lane.js';
 import { calendarPosts } from './socialpost.js';
+import { jobOn } from './jobflags.js';
+import { countdownFrom } from './movelines.js';
 
 let F = (...a) => fetch(...a);
 /** The worker hands in its counted fetch (xfetch), like every other module. */
@@ -513,6 +517,11 @@ export async function calendarTick(env, d) {
   await d.putSetting(env, 'calRemindDay', today);
   const data = await calendarData(env, { act: 'all', from: add(today, -60), to: add(today, 30), today });
   const monday = new Date(today + 'T12:00:00Z').getUTCDay() === 1;
+  /* The Locus line first (movelines.js): the open steps of dates going live tomorrow or in 7 days, per owner. A step
+     with nobody named ("the strategist") is the owner's. Kept whether or not the post below goes. */
+  const stepWho = (s, team) => { const w = s.key === 'assets' || s.who === 'the client' ? laneOwner('CLIENT', team) : s.who; return /^the /i.test(String(w || '')) ? '' : String(w || ''); };
+  await Promise.resolve().then(() => d.putSetting(env, 'calCountdown', JSON.stringify(countdownFrom(data, today, stepWho)))).catch(() => {});
+  if (!(await jobOn(env, 'calendarCountdown', d.getSetting))) { out.countdown = 'quiet'; return out; }
   /* Internal: only what needs the team (something still open the day before or a week out; Mondays, a sale with no end).
      "Live tomorrow" rides on the morning card while it is on (2026-10-13), so it is not posted twice. */
   const carded = await cardOn(env).catch(() => false);

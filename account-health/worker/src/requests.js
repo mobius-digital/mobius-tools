@@ -23,6 +23,7 @@
 import { clientScope } from './brandguard.js';
 import { resolveBrandId } from './brands.js';
 import { lanePost, laneOwner, fyi } from './lane.js';
+import { jobOn } from './jobflags.js';
 
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const WHAT = ['studio', 'link', 'offer', 'date'];
@@ -143,6 +144,9 @@ async function tellTeam(env, deps, act, msg) {
   const b = await env.DB.prepare(`SELECT name, slack_channel FROM brand_accounts WHERE act_id = ?1`).bind(act).first().catch(() => null);
   if (!b || !b.slack_channel) return false;
   if (msg.fyi) return fyi(env, { act, lane: 'CLIENT', line: msg.fyi });
+  /* 2026-11-26 (move lines): the bell's "N client requests waiting on the team" row has it; jobOn:requestPost = 'off'
+     stops this line. The request itself, the client's receipts and the FYI lines are unchanged. */
+  if (!(await jobOn(env, 'requestPost'))) return false;
   const team = deps.teamOf ? ((await deps.teamOf(env, [act]).catch(() => ({})))[act] || {}) : {};
   try {
     await lanePost(env, deps, b.slack_channel, { lane: 'CLIENT', brand: b.name, who: laneOwner('CLIENT', team), ask: msg.ask, why: msg.why,

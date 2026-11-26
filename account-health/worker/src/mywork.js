@@ -20,6 +20,9 @@
  *   Goals   (2026-11-26) "Set <Month>'s goal for <Brand>" for a month with no goal typed (accounts.goals_json[ym]), from the
  *            25th of the month before until someone types it, to the brand's strategist (STRAT), else the owner
  *            (OWNER_EMAIL). Active brands that send a client daily or have ever had a goal. Links to the v5 Plan page.
+ *   Move lines (2026-11-26, movelines.js): the Locus lines that replace Slack posts (no plan yet, Monday week plans,
+ *            calendar countdowns, card comments, new ad accounts to match, connect asks, creator videos). Worked out
+ *            live, grouped, never in the 5am DM.
  *   One line said twice (a plan line that became a card, a task with the same words) shows once.
  * Buckets: Late (past due), Today (Slack asks, tasks due today or with no date, cards due today or tomorrow), This week
  * (everything else, Monday plan lines included).
@@ -49,6 +52,7 @@ import { DEFAULT_PEOPLE } from './checkin.js';
 import { permalink } from './slackindex.js';
 import { onboardLines, lineFor, myWorkItem } from './onboard.js';
 import { allSavedNotify, cleanNotify, catalogTypes, wants } from './notify.js';
+import { gatherLines, lineItems, LINE_SOURCES } from './movelines.js';
 
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const LOCUS_V5 = `${LOCUS}v5/`;
@@ -61,6 +65,8 @@ const SLACK_DAYS = 7;
 export const STRAT = { brand_dartee_golf: 'Noma', brand_bonk_golf: 'Noma', brand_ice_and_gold: 'Noma', brand_yak_sports: 'Noma', brand_party_patch: 'Noma', brand_grunk_dolfer: 'Ahsan', brand_lucky_golf: 'Ahsan', brand_vetripaws: 'Ahsan', brand_speedin: 'Ahsan' };
 const ROLE = { Cole: 'Owner', Ahsan: 'Strategist', Noma: 'Strategist', William: 'Designer', Ravo: 'Video', Radhesh: 'Google', Hamza: 'Amazon' };
 const OPEN_COLS = ['brief', 'making', 'review', 'ready'];
+/* Lines that live on My work and the bell only: never in the 5am DM, so that Slack post stays what it is today. */
+export const DM_SKIP = new Set(['goal', ...LINE_SOURCES]);
 const SRC = { meeting: 'From a call', monday: 'Monday call', today: 'Today', strategist: 'The Strategist', manual: 'Added in Locus' };
 
 const safe = (s, d) => { try { return s == null ? d : JSON.parse(s); } catch { return d; } };
@@ -145,7 +151,8 @@ export async function gather(env, d, people) {
   const domain = (await d.getSetting(env, 'slackDomain').catch(() => null)) || 'mobiusdigitalhq';
   const onboard = await (d.onboardLines || onboardLines)(env).catch(() => []);
   const goals = ((await env.DB.prepare(`SELECT act_id, name, goals_json, brief_enabled FROM brand_accounts WHERE active = 1`).all().catch(() => ({ results: [] }))).results) || [];
-  return { today, brands, tasks, cards, call, mentions, own, dismissed, domain, onboard, goals, ownerEmail: env.OWNER_EMAIL || 'cole@go-mobius-digital.com', names: Object.fromEntries(people.filter(p => p.slack).map(p => [p.slack, p.name])) };
+  const lines = await (d.gatherLines || gatherLines)(env, d, { today, brands }).catch(() => null);
+  return { today, brands, tasks, cards, call, mentions, own, dismissed, domain, onboard, goals, lines, ownerEmail: env.OWNER_EMAIL || 'cole@go-mobius-digital.com', names: Object.fromEntries(people.filter(p => p.slack).map(p => [p.slack, p.name])) };
 }
 
 /* A Slack line, readable: @U123 becomes @Name, links and spaces tidied. */
@@ -240,6 +247,8 @@ export function forPerson(g, person) {
   /* A new client's onboarding lines for this person (onboard.js lineFor: the owner sees all of them). */
   for (const l of g.onboard || []) if (lineFor(l, person, g.ownerEmail)) items.push(myWorkItem(l, done.has(l.id)));
   items.push(...goalItems(g, person));
+  /* The move lines (movelines.js): one grouped row each, cleared by the data itself. */
+  if (g.lines) items.push(...lineItems(g.lines, person, { isPerson, strat: STRAT, ownerEmail: g.ownerEmail }));
   /* One line said twice shows once: tasks, then cards, then Slack, then the plan. */
   const seen = new Set(), ids = new Set(), out = [];
   for (const it of items) { const n = norm(it.text); if (ids.has(it.id) || (n && seen.has(n))) continue; ids.add(it.id); if (n) seen.add(n); out.push(it); }
@@ -258,7 +267,7 @@ export function forPerson(g, person) {
 const tagOf = it => it.source === 'card' ? `card ${it.num}` : it.source === 'slack' ? 'Slack' : it.source === 'call' ? 'Monday plan' : 'task';
 /** The DM text, or null when nothing is open. Pure. */
 export function dmText(r, person, today, link = MYWORK_LINK) {
-  const open = (r.items || []).filter(i => !i.done && i.source !== 'goal'); // goal lines are My work only, never the DM
+  const open = (r.items || []).filter(i => !i.done && !DM_SKIP.has(i.source)); // goal and move lines are My work only, never the DM
   const T = open.filter(i => i.bucket === 'today'), L = open.filter(i => i.bucket === 'late'), W = open.filter(i => i.bucket === 'week' && i.due);
   if (!T.length && !L.length && !W.length) return null;
   const when = it => it.due === today ? ', due today' : it.due === addDays(today, 1) ? ', due tomorrow' : '';
@@ -282,7 +291,7 @@ export function dmText(r, person, today, link = MYWORK_LINK) {
  *  the tasks as lines (today first, then late, then coming up; 5 shown), "Locus · 5:00am CT", one Open button.
  *  null when nothing is open. Pure. */
 export function dmMessage(r, person, today, link = MYWORK_LINK, at = new Date()) {
-  const open = (r.items || []).filter(i => !i.done && i.source !== 'goal'); // goal lines are My work only, never the DM
+  const open = (r.items || []).filter(i => !i.done && !DM_SKIP.has(i.source)); // goal and move lines are My work only, never the DM
   const T = open.filter(i => i.bucket === 'today'), L = open.filter(i => i.bucket === 'late'), W = open.filter(i => i.bucket === 'week' && i.due);
   if (!T.length && !L.length && !W.length) return null;
   const when = it => it.due === today ? ', due today' : it.due === addDays(today, 1) ? ', due tomorrow' : '';
