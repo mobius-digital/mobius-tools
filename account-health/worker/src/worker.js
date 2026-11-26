@@ -115,6 +115,7 @@ import { runStudioMake, studioMakeTools } from './studiomake.js';
 import { slackPostWith, senderFor, envFor, sendersOf, resolveSenders, clearSenderCache, senderPerson, buyerSlackPost } from './sender.js';
 import { handleExampleDm } from './exampledm.js';
 import { houseMessage } from './house.js';
+import { catalogPayload } from './catalog.js';
 import { deliveryMessage } from './delivery.js';
 /* /api/tw-day's 60-second memo (2026-10-26, Locus speed): key = brand | shop | day -> { at, p }. */
 const TW_DAY_MEMO = new Map();
@@ -3477,7 +3478,7 @@ async function clientDailyFor(env, acct, date, text, data, { next = true } = {})
     amazon: amzMonth && amzMonth.orders > 0 ? { day: amzDay, month: amzMonth } : null,
     brand: acct.name, date, currency: acct.currency,
     day: { sales: day?.a?.sales ?? null, spend: day?.a?.spend ?? null, mer: day?.a?.mer ?? null, amer: day?.a?.amer ?? null, plan: day?.f?.sales ?? null },
-    /* "of $27K planned" = the plan TO DATE (the forecast days so far), not the whole month's goal. */
+    /* "of $27K goal" = the goal TO DATE (the month's sales goal split evenly, the days so far), not the whole month's. */
     month: { ym: monthOf(date), sales: days.length ? mtd : (data?.mtd?.sales ?? null),
       plan: days.some(x => x.f?.sales != null) ? days.reduce((n, x) => n + (x.f?.sales || 0), 0) : (data?.mtd?.sales_f ?? null),
       spend: days.length ? days.reduce((n, x) => n + (x.a.spend || 0), 0) : (data?.mtd?.spend ?? null),
@@ -10578,6 +10579,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
          Nothing mints new ones, no page renders them, and its route is gone. */
       /* Example Slack messages to the owner's own DM only (exampledm.js): owner only, no recipient in the body. */
       if (path === '/api/slack/example-dm' && request.method === 'POST') return handleExampleDm(request, env, { isOwner, slackPost, json });
+      /* The message catalog (catalog.js): every message Locus sends, with who, when, why, sender and a house style
+         example drawn from made up numbers. Owner only, the same check as PUT /api/settings senders. Read only. */
+      if (path === '/api/messages/catalog' && request.method === 'GET') {
+        if (!isOwner) return json({ error: 'Only the owner can see the message catalog.' }, 403);
+        return json(catalogPayload({ stored: await getSetting(env, 'senders'), env,
+          person: await senderPerson(env, { F: xfetch, getSetting, putSetting }).catch(() => null) }));
+      }
       if (path === '/api/settings' && request.method === 'GET') {
         return json({
           slackChannel: await getSetting(env, 'slackChannel'),
