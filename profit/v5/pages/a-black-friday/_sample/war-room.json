@@ -12,26 +12,8 @@
   }
  ],
  "answers": {
-  "brand_northlake_golf": {
-   "checkin_hours": "4"
-  },
-  "brand_brightside_patch": {
-   "checkin_hours": "4"
-  },
   "brand_fairway_supply": {
    "checkin_hours": "4"
-  },
-  "brand_tallgrass_apparel": {
-   "checkin_hours": "6"
-  },
-  "brand_summit_sticks": {
-   "checkin_hours": "6"
-  },
-  "brand_harbor_and_pine": {
-   "checkin_hours": "6"
-  },
-  "brand_copper_kettle_pets": {
-   "checkin_hours": "10"
   }
  },
  "goals": {
@@ -3231,6 +3213,302 @@
      }
     ]
    }
+  }
+ },
+ "hub_paid": {
+  "brand_northlake_golf": {
+   "campaigns": [
+    {
+     "id": "9001",
+     "name": "BFCM 2026",
+     "spend": 3000,
+     "impressions": 120000,
+     "reach": 70588,
+     "clicks": 1680,
+     "atc": 118,
+     "checkouts": 53,
+     "purchases": 94,
+     "revenue": 8910,
+     "platform_purchases": 176,
+     "platform_revenue": 16830,
+     "ctr": 0.014,
+     "cpm": 25,
+     "cost_per_atc": 25.42,
+     "frequency": 1.7,
+     "hook": null
+    },
+    {
+     "id": "9002",
+     "name": "Creator ABO",
+     "spend": 1550,
+     "impressions": 81579,
+     "reach": 45322,
+     "clicks": 1387,
+     "atc": 111,
+     "checkouts": 50,
+     "purchases": 67,
+     "revenue": 6417,
+     "platform_purchases": 126,
+     "platform_revenue": 12121,
+     "ctr": 0.01700192451488741,
+     "cpm": 19,
+     "cost_per_atc": 13.96,
+     "frequency": 1.8,
+     "hook": 0.24
+    },
+    {
+     "id": "9003",
+     "name": "Apparel + Gear",
+     "spend": 610,
+     "impressions": 23462,
+     "reach": 14664,
+     "clicks": 258,
+     "atc": 23,
+     "checkouts": 10,
+     "purchases": 4,
+     "revenue": 384.3,
+     "platform_purchases": 8,
+     "platform_revenue": 725.9,
+     "ctr": 0.010996504986787146,
+     "cpm": 26,
+     "cost_per_atc": 26.52,
+     "frequency": 1.6,
+     "hook": null
+    }
+   ]
+  },
+  "brand_tallgrass_apparel": {
+   "campaigns": [
+    {
+     "id": "9101",
+     "name": "BFCM 2026",
+     "spend": 2580,
+     "impressions": 129000,
+     "reach": 75882,
+     "clicks": 1806,
+     "atc": 108,
+     "checkouts": 49,
+     "purchases": 28,
+     "revenue": 2670.3,
+     "platform_purchases": 53,
+     "platform_revenue": 5043.9,
+     "ctr": 0.014,
+     "cpm": 20,
+     "cost_per_atc": 23.89,
+     "frequency": 1.7,
+     "hook": 0.26
+    },
+    {
+     "id": "9102",
+     "name": "Signature Polo",
+     "spend": 800,
+     "impressions": 29630,
+     "reach": 16461,
+     "clicks": 504,
+     "atc": 35,
+     "checkouts": null,
+     "purchases": 21,
+     "revenue": 2016,
+     "platform_purchases": 40,
+     "platform_revenue": 3808,
+     "ctr": 0.01700978737765778,
+     "cpm": 27,
+     "cost_per_atc": 22.86,
+     "frequency": 1.8,
+     "hook": null
+    }
+   ]
+  },
+  "brand_brightside_patch": {
+   "campaigns": [
+    {
+     "id": "9201",
+     "name": "BFCM 2026",
+     "spend": 2400,
+     "impressions": 114286,
+     "reach": 71429,
+     "clicks": 1257,
+     "atc": 101,
+     "checkouts": 45,
+     "purchases": 18,
+     "revenue": 1728,
+     "platform_purchases": 34,
+     "platform_revenue": 3264,
+     "ctr": 0.010998722503193743,
+     "cpm": 21,
+     "cost_per_atc": 23.76,
+     "frequency": 1.6,
+     "hook": 0.23
+    },
+    {
+     "id": "9202",
+     "name": "[MD] CBO #2",
+     "spend": 900,
+     "impressions": 32143,
+     "reach": 18908,
+     "clicks": 450,
+     "atc": 41,
+     "checkouts": 18,
+     "purchases": 16,
+     "revenue": 1539,
+     "platform_purchases": 30,
+     "platform_revenue": 2907,
+     "ctr": 0.01399993777805432,
+     "cpm": 28,
+     "cost_per_atc": 21.95,
+     "frequency": 1.7,
+     "hook": null
+    }
+   ]
+  },
+  "brand_summit_sticks": {
+   "campaigns": [
+    {
+     "id": "9301",
+     "name": "BFCM 2026",
+     "spend": 1200,
+     "impressions": 54545,
+     "reach": 30303,
+     "clicks": 927,
+     "atc": 56,
+     "checkouts": 25,
+     "purchases": 37,
+     "revenue": 3564,
+     "platform_purchases": 70,
+     "platform_revenue": 6732,
+     "ctr": 0.016995141626180217,
+     "cpm": 22,
+     "cost_per_atc": 21.43,
+     "frequency": 1.8,
+     "hook": 0.25
+    },
+    {
+     "id": "9302",
+     "name": "Evergreen",
+     "spend": 440,
+     "impressions": 15172,
+     "reach": 9483,
+     "clicks": 167,
+     "atc": 12,
+     "checkouts": 5,
+     "purchases": 9,
+     "revenue": 831.6,
+     "platform_purchases": 16,
+     "platform_revenue": 1570.8,
+     "ctr": 0.011007118375955707,
+     "cpm": 29,
+     "cost_per_atc": 36.67,
+     "frequency": 1.6,
+     "hook": null
+    }
+   ]
+  },
+  "brand_copper_kettle_pets": {
+   "campaigns": [
+    {
+     "id": "9401",
+     "name": "BFCM 2026",
+     "spend": 348,
+     "impressions": 11600,
+     "reach": 6444,
+     "clicks": 197,
+     "atc": 18,
+     "checkouts": 8,
+     "purchases": 0,
+     "revenue": 0,
+     "platform_purchases": 0,
+     "platform_revenue": 0,
+     "ctr": 0.016982758620689656,
+     "cpm": 30,
+     "cost_per_atc": 19.33,
+     "frequency": 1.8,
+     "hook": null
+    }
+   ]
+  },
+  "brand_harbor_and_pine": {
+   "campaigns": [
+    {
+     "id": "9501",
+     "name": "Sale ABO",
+     "spend": 2100,
+     "impressions": 87500,
+     "reach": 54688,
+     "clicks": 963,
+     "atc": 58,
+     "checkouts": 26,
+     "purchases": 52,
+     "revenue": 4914,
+     "platform_purchases": 98,
+     "platform_revenue": 9282,
+     "ctr": 0.011005714285714285,
+     "cpm": 24,
+     "cost_per_atc": 36.21,
+     "frequency": 1.6,
+     "hook": 0.24
+    }
+   ]
+  },
+  "brand_fairway_supply": {
+   "campaigns": [
+    {
+     "id": "9601",
+     "name": "Early access list",
+     "spend": 601,
+     "impressions": 33389,
+     "reach": 19641,
+     "clicks": 467,
+     "atc": 33,
+     "checkouts": 15,
+     "purchases": 10,
+     "revenue": 973.62,
+     "platform_purchases": 19,
+     "platform_revenue": 1839.06,
+     "ctr": 0.01398664230734673,
+     "cpm": 18,
+     "cost_per_atc": 18.21,
+     "frequency": 1.7,
+     "hook": null
+    },
+    {
+     "id": "9602",
+     "name": "BFCM 2026",
+     "spend": 3820,
+     "impressions": 152800,
+     "reach": 84889,
+     "clicks": 2598,
+     "atc": 208,
+     "checkouts": 94,
+     "purchases": 54,
+     "revenue": 5157,
+     "platform_purchases": 102,
+     "platform_revenue": 9741,
+     "ctr": 0.017002617801047122,
+     "cpm": 25,
+     "cost_per_atc": 18.37,
+     "frequency": 1.8,
+     "hook": 0.26
+    },
+    {
+     "id": "9603",
+     "name": "[MD] CBO",
+     "spend": 2080,
+     "impressions": 109474,
+     "reach": 68421,
+     "clicks": 1204,
+     "atc": 108,
+     "checkouts": null,
+     "purchases": 53,
+     "revenue": 5054.4,
+     "platform_purchases": 99,
+     "platform_revenue": 9547.2,
+     "ctr": 0.010998045197946544,
+     "cpm": 19,
+     "cost_per_atc": 19.26,
+     "frequency": 1.6,
+     "hook": null
+    }
+   ]
   }
  }
 }

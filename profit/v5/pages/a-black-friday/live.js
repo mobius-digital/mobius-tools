@@ -16,6 +16,15 @@
      ah       GET /api/standing?slot=<earlier>               the previous check-in, walked back hour by hour (max 12,
                                                              cached in sessionStorage by slot), after the first paint
      profit   GET /api/season/war?act=<id>&live=1            today by the hour, only when a brand's hour sheet opens
+     profit   GET /api/hub/paid?platform=meta&act=<id>&model=fullFirstClick&cmp=none&from=<Monday>&to=<today>
+                                                             the full picture per campaign (link clicks, CTR, add to
+                                                             carts, checkouts, video views, Triple Whale first click,
+                                                             Meta's own purchases), only when a campaign sheet opens,
+                                                             one request per brand per check-in (cached)
+   How the call is made (rule w2): Since last check-in and Today decide; This week is context that only breaks a tie or
+   adds a note, and never blocks a raise. While the store is over goal nothing is cut (weak reads Hold, needs new ads).
+   Exports, all in the browser (./_export.js, no route, no library): the client card and the whole board can be copied
+   as a PNG, downloaded as a PNG or a PDF; the card's Copy link is the existing snapshot below. The board is team only.
    Writes (team only, each after a tap; sample mode never calls one):
      ah       POST /api/meta/write {act, kind:'budget', level:'campaign', object, amount, reason, client_why, dry:true}
               then the same body without dry, plus expect {daily_budget} from the dry run (and big:true over 50%)
@@ -34,9 +43,10 @@ import { forgetWaiting } from '../../bell.js';
 import {
   CALL_WORD, CADENCE_CHOICES, MAX_STEP, MIN_BUDGET, READ_HOURS,
   BE_ROAS_DIV, brandCalls, cadenceOf, central, clientChanges, clientWhy, clockCT, dayLabel, hourWord, isDue, matchesCheckin,
-  nextDue, sinceBasis, slotAdd, slotDate, slotDiff, slotHour, agoWords, parseBudget, stepTo,
+  nextDue, sinceBasis, slotAdd, slotDate, slotDiff, slotHour, agoWords, parseBudget, stepTo, cadenceSuggest, mondayOf,
 } from '../_warcall.js';
-import { cardHtml, CARD_CSS, downloadCard, copyCard } from './_card.js';
+import { cardHtml, CARD_CSS, downloadCard, copyCard, downloadCardPdf } from './_card.js';
+import { boardCanvas, copyCanvas, downloadCanvas, downloadPdf } from './_export.js';
 
 const CSS = `
 .wr2{display:grid;gap:14px;min-width:0}
@@ -107,6 +117,13 @@ const CSS = `
 .wr2-tb .hd{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
 .wr2-hr>div{grid-template-columns:minmax(0,.8fr) repeat(3,minmax(0,1fr))}
 .wr2-cu{display:grid;gap:12px;min-width:0}
+.wr2-pic{display:grid;gap:8px;border-top:1px solid var(--line);padding-top:12px}
+.wr2-pic h4{margin:0;font-size:14px;font-weight:650;letter-spacing:-.01em}
+.wr2-pic .lead{font-size:13.5px;font-weight:600;color:var(--ink)}
+.wr2-pic dl{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:6px 12px;margin:0;font-size:13.5px}
+.wr2-pic dt{color:var(--muted);overflow-wrap:anywhere}
+.wr2-pic dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.wr2-pic dd.na{font-weight:400;color:var(--muted)}
 .wr2-cu .wcc{max-width:100%}
 @media (max-width:759px){
   .wr2-w{grid-template-columns:1fr}
@@ -197,7 +214,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
   const alive = () => el.__wr === token && !(ctx.signal && ctx.signal.aborted);
   const S = {
     data: data || {}, prevs: {}, records: [], probing: true, probeFails: 0, probeId: 0,
-    done: {}, links: {}, linkBusy: {}, hourCache: {},
+    done: {}, links: {}, linkBusy: {}, hourCache: {}, picture: {},
   };
   /* Done is per check-in: a new check-in asks again */
   const doneKey = (act, id) => `${(rec() && rec().slot) || ''}|${act}|${id}`;
@@ -276,7 +293,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
 
   /* ---------- parts ---------- */
   const merTone = (mer, c) => !ok(mer) || !ok(c.goal) ? '' : mer >= c.goal ? 'good' : ok(c.be) && mer < c.be ? 'bad' : '';
-  function windowBox(w, c, label) {
+  function windowBox(w, c, label, context = false) {
     if (!w) return h('div', null, h('span', { class: 'lab' }, label), h('span', { class: 'mer off' }, S.probing ? 'Reading...' : 'No earlier check-in'));
     const noSales = c.mode === 'no_sales';
     return h('div', null,
@@ -284,7 +301,8 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
       h('span', { class: 'mer ' + (w.readable && !noSales ? merTone(w.mer, c) : 'off'), title: 'MER: store sales over all ad spend' }, noSales ? usd(w.spend) : fx(w.mer)),
       noSales ? h('span', { class: 'ln' }, 'Ad spend (no sales source)') : h('span', { class: 'ln' }, 'Sales ' + usd(w.sales)),
       noSales ? null : h('span', { class: 'ln' }, 'Ad spend ' + usd(w.spend)),
-      !w.readable ? h('span', { class: 'gray' }, 'Too little to read') : w.synced ? h('span', { class: 'gray' }, "Yesterday's part from the nightly sync") : null);
+      !w.readable ? h('span', { class: 'gray' }, 'Too little to read') : w.synced ? h('span', { class: 'gray' }, "Yesterday's part from the nightly sync") : null,
+      context ? h('span', { class: 'gray' }, 'Context: only breaks a tie') : null);
   }
   const roasTxt = w => !w ? '...' : w.readable ? fx(w.roas) : w.no_tw ? 'no TW sales' : 'too little';
   /** The campaign ROAS line in words: goal ROAS holds, break-even ROAS (and whether it is assumed). */
@@ -302,8 +320,8 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     const verb = cp.call === 'putback' ? 'put back' : m.to > m.from ? 'raise' : 'cut';
     return `${c.name}: ${verb} ${cp.name} ${money(m.from)} to ${money(m.to)} (${pc > 0 ? '+' : ''}${pc}%)`;
   }
-  const windowsLine = (c, cp) => `ROAS (Triple Whale): ${c.windows.since ? c.windows.since.label : 'Since last check-in'} ${roasTxt(cp.w.since)} · Today ${roasTxt(cp.w.today)} · Week ${roasTxt(cp.w.week)}, goal ROAS ${c.roas && ok(c.roas.goal) ? fx(c.roas.goal) : 'not set'}. Store MER ${fx(c.windows.today.mer)} today, MER goal ${fx(c.goal)}.`;
-  const gateLine = c => c.gate && c.gate.light ? `${LIGHT[c.gate.light][1]}: ${c.gate.why}` : '';
+  const windowsLine = (c, cp) => `ROAS (Triple Whale): ${c.windows.since ? c.windows.since.label : 'Since last check-in'} ${roasTxt(cp.w.since)} · Today ${roasTxt(cp.w.today)} (these two decide) · Week ${roasTxt(cp.w.week)} (context), goal ROAS ${c.roas && ok(c.roas.goal) ? fx(c.roas.goal) : 'not set'}. Store MER ${fx(c.windows.today.mer)} today, MER goal ${fx(c.goal)}.`;
+  const gateLine = c => c.gate && c.gate.light ? `${LIGHT[c.gate.light][1]}: ${c.gate.why}${c.gate.note ? ' ' + c.gate.note : ''}` : '';
 
   function modeLine(c) {
     const b = c.b;
@@ -355,12 +373,12 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
         ctx.isClient ? null : chip,
         !ctx.isClient && due ? pill('warn', 'Check-in due') : null,
         !ctx.isClient && old ? pill('warn', 'Check-in is old') : null),
-      h('div', { class: 'wr2-w' }, windowBox(c.windows.since, c, 'Since last check-in'), windowBox(c.windows.today, c, 'Today'), windowBox(c.windows.week, c, 'This week')),
+      h('div', { class: 'wr2-w' }, windowBox(c.windows.since, c, 'Since last check-in'), windowBox(c.windows.today, c, 'Today'), windowBox(c.windows.week, c, 'This week', !ctx.isClient)),
       mline ? h('p', { class: 'wr2-gate' }, mline) : null,
       !ctx.isClient && sinceNote ? h('p', { class: 'wr2-amber' }, sinceNote) : null,
       !ctx.isClient && c.gate && c.gate.light && !S.probing ? h('p', { class: 'wr2-gate' }, gateLine(c)) : null,
       ctx.isClient ? null : h('div', null,
-        h('div', { class: 'wr2-h', style: { marginBottom: '4px' } }, platformChip('meta'), h('span', { class: 'goal' }, 'Campaigns: Since · Today · Week, ROAS (Triple Whale, last click)')),
+        h('div', { class: 'wr2-h', style: { marginBottom: '4px' } }, platformChip('meta'), h('span', { class: 'goal' }, 'Campaigns: Since · Today · Week, ROAS (Triple Whale, last click). Since and Today decide, Week is context.')),
         h('p', { class: 'wr2-roas' }, roasLineText(c)),
         c.roas && c.roas.unread ? h('div', { class: 'wr2-ra' }, button('Refresh', { onclick: e => refresh(e.currentTarget), aria: 'Read the goal ROAS again' })) : null,
         c.camps.length ? h('div', { class: 'wr2-c' }, c.camps.map(cp => campRow(c, cp))) : h('p', { class: 'wr2-foot' }, 'No live campaign in Meta.')),
@@ -410,6 +428,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
   }
 
   function campSheet(c, cp) {
+    const picHost = h('div');
     const W = cp.w, rowOf = (lab, w) => h('div', null, h('span', null, lab),
       h('span', null, w ? usd(w.spend) : '...'), h('span', null, w ? usd(w.rev) : '...'), h('span', null, w && ok(w.roas) ? fx(w.roas) : 'n/a'));
     const s = c.b.suggest || {}, m = c.b.meta || {};
@@ -423,7 +442,8 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
         h('div', { class: 'hd' }, h('span', null, 'Window'), h('span', null, 'Spend'), h('span', null, 'Sales'), h('span', null, 'ROAS')),
         rowOf(c.windows.since ? c.windows.since.label : 'Since last', W.since), rowOf('Today', W.today), rowOf('This week', W.week)),
       ctx.isClient ? null : h('p', null, roasLineText(c)),
-      ctx.isClient ? null : h('p', { class: 'dim' }, 'ROAS is this campaign\'s Triple Whale attributed sales (last click) over its own spend. MER is the whole store only. Last click undercounts the campaigns that open the funnel (broad new people), which is why the store gate holds cuts while the store MER is over goal.'),
+      ctx.isClient ? null : h('p', { class: 'dim' }, 'ROAS is this campaign\'s Triple Whale attributed sales (last click) over its own spend. Since last check-in and Today decide the call; This week only breaks a tie or adds a note. MER is the whole store only. Last click undercounts the campaigns that open the funnel (broad new people), which is why the store gate holds cuts while the store MER is over goal.'),
+      ctx.isClient ? null : picHost,
       h('dl', null,
         h('dt', null, 'Budget'), h('dd', null, cp.daily ? money(cp.daily) + ' a day' : 'Ad set budgets'),
         h('dt', null, 'Spent today'), h('dd', null, money(cp.spent) + (ok(cp.pace) ? `, pace ${Math.round(cp.pace * 100)}%` : '')),
@@ -440,6 +460,70 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
         cp.done && cp.done.write ? button('Undo', { large: true, onclick: () => { sh.close(); undo(c, cp); } }) : null,
         button('Close', { large: true, onclick: () => sh.close() })));
     const sh = closeOnLeave(sheet({ title: `${c.name}: ${cp.name}`, body, side: 'right' }));
+    if (!ctx.isClient) fillPicture(c, cp, picHost);
+  }
+
+  /* ---------- the full picture for one campaign (rule w1), read only when its sheet opens ---------- */
+  const picKey = c => c.act + '|' + ((rec() && rec().slot) || '');
+  /** One GET per brand per check-in: Meta's own rows for every campaign this week, with Triple Whale first click. */
+  function readPicture(c) {
+    const key = picKey(c);
+    if (S.picture[key]) return S.picture[key];
+    const R = rec(), to = R.today || slotDate(R.slot), from = (c.b.week && c.b.week.from) || mondayOf(to);
+    const p = (async () => {
+      if (ctx.sample) {
+        const all = (f() && f().hub_paid) || {};
+        if (!all[c.act]) throw new Error('No sample numbers for this brand.');
+        return { from, to, camps: all[c.act].campaigns || [] };
+      }
+      const q = `platform=meta&act=${encodeURIComponent(c.act)}&model=fullFirstClick&cmp=none&from=${from}&to=${to}`;
+      const r = await ctx.api('/api/hub/paid?' + q, { signal: ctx.signal });
+      const b = r && r.brands && r.brands[0];
+      return { from, to, camps: (b && b.campaigns) || [] };
+    })();
+    S.picture[key] = p;
+    p.catch(() => { if (S.picture[key] === p) delete S.picture[key]; });   // a failed read is tried again next open
+    return p;
+  }
+  async function fillPicture(c, cp, host) {
+    put(host, h('div', { class: 'wr2-pic' }, h('h4', null, 'The full picture, this week'), h('p', { class: 'dim' }, 'Reading...')));
+    const raw = ((c.b.meta && c.b.meta.camps) || []).find(x => String(x.id) === cp.id) || {};
+    let P = null, err = '';
+    try { P = await readPicture(c); } catch (e) { if (e && e.name === 'AbortError') return; err = errText(e); }
+    if (!host.isConnected) return;
+    const m = P ? P.camps.find(x => String(x.id) === cp.id) || null : null;
+    const NA = 'not available';
+    const n0 = v => ok(v) ? Math.round(v).toLocaleString('en-US') : null;
+    const pct = v => ok(v) ? (v * 100).toFixed(2) + '%' : null;
+    const row = (label, val) => [h('dt', null, label), h('dd', { class: val == null || val === '' ? 'na' : '' }, val == null || val === '' ? NA : val)];
+    const both = (a, b) => (a == null && b == null ? null : `${a == null ? NA : a} · ${b == null ? NA : b}`);
+    /* last click from the check-in record (the number the call uses), this week */
+    /* a campaign with no Triple Whale sales on record is not read, so its 0 is not shown as a reading */
+    const lcOrd = !cp.no_tw && ok(+raw.w_ord) ? +raw.w_ord : null, lcRoas = !cp.no_tw && cp.w.week && ok(cp.w.week.roas) ? cp.w.week.roas : null;
+    /* first click: the worker turns missing credit into 0, so a brand with no first click credit at all this week
+       (not synced, or not landed yet) reads as not available rather than 0 sales */
+    const noFc = !!P && P.camps.some(x => x.spend > 0) && P.camps.every(x => !(+x.purchases) && !(+x.revenue));
+    const fcOrd = m && !noFc ? n0(m.purchases) : null;
+    const fcRoas = m && !noFc && m.spend > 0 && ok(m.revenue) ? m.revenue / m.spend : null;
+    const plRoas = m && m.spend > 0 && ok(m.platform_revenue) ? m.platform_revenue / m.spend : null;
+    const views = m && ok(m.hook) && ok(m.impressions) ? Math.round(m.hook * m.impressions) : null;
+    put(host, h('div', { class: 'wr2-pic' },
+      h('h4', null, 'The full picture, this week'),
+      h('p', { class: 'lead' }, 'These are the numbers to look at; the call is a starting point, not a rule.'),
+      P ? h('p', { class: 'dim' }, `Meta rows ${dayLabel(P.from)} to ${dayLabel(P.to)}. They land overnight, so today may be partly missing.`) : null,
+      err ? h('p', { class: 'dim' }, 'Could not read the Meta rows: ' + err) : null,
+      P && !m ? h('p', { class: 'dim' }, 'No Meta rows for this campaign this week yet.') : null,
+      h('dl', null,
+        row('Ad spend (Meta)', m ? usd(m.spend) : null),
+        row('Link clicks · CTR', m ? both(n0(m.clicks), pct(m.ctr)) : null),
+        row('CPM · frequency', m ? both(ok(m.cpm) ? usd(m.cpm) : null, ok(m.frequency) ? m.frequency.toFixed(2) : null) : null),
+        row('Add to carts · cost per add to cart', m ? both(n0(m.atc), ok(m.cost_per_atc) ? usd(m.cost_per_atc) : null) : null),
+        row('Checkouts started', m && m.checkouts != null ? n0(m.checkouts) : null),
+        row('Video views (3 seconds)', views != null && views > 0 ? n0(views) : null),
+        row('Triple Whale, last click: sales · ROAS', both(lcOrd != null ? n0(lcOrd) : null, ok(lcRoas) ? fx(lcRoas) : null)),
+        row('Triple Whale, first click: sales · ROAS', m ? both(fcOrd, ok(fcRoas) ? fx(fcRoas) : null) : null),
+        row('Meta reports: purchases · ROAS', m ? both(n0(m.platform_purchases), ok(plRoas) ? fx(plRoas) : null) : null)),
+      h('p', { class: 'dim' }, 'Last click is what the call reads. First click shows the campaigns that open the funnel. "Meta reports" is Meta\'s own count, a second opinion only: it usually runs higher than Triple Whale.')));
   }
 
   /* ---------- the one tap: dry run, then the write ---------- */
@@ -596,7 +680,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
 
   /* ---------- cadence ---------- */
   function cadenceSheet(c) {
-    const cur = c.cadence, msg = h('div');
+    const cur = c.cadence, msg = h('div'), sug = cadenceSuggest(c.b, cur);
     const pick = async n => {
       if (n === cur) return;
       if (ctx.sample) toast('Sample: nothing was saved');
@@ -610,6 +694,8 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     };
     const body = h('div', { class: 'wr2-sh' },
       h('p', null, 'Check-in every:'),
+      h('p', { class: 'dim' }, `Every brand starts at every 6 hours until you pick another rhythm here.`),
+      sug ? h('p', { class: 'wr2-amber' }, `Suggested: every ${sug.hours} hours. ${sug.why}`) : null,
       segmented(CADENCE_CHOICES.map(n => ({ id: n, label: n + 'h' })), CADENCE_CHOICES.includes(cur) ? cur : null, pick),
       h('p', { class: 'dim' }, 'From 8am Central, the last one by 10pm. It sets when this card says "Check-in due", which earlier check-in "Since" counts from, and when the client update is due. The Slack check-in still runs at its own times until the worker change ships.'),
       msg);
@@ -703,14 +789,68 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
       host,
       h('div', { class: 'wr2-act' },
         sendBtn,
-        button('Download image', { onclick: async () => { try { await downloadCard(d, fileOf(c)); } catch (e) { say('Could not draw it. ' + errText(e), 'bad'); } } }),
-        button('Copy image', { onclick: async () => { const r = await copyCard(d, fileOf(c)).catch(e => { say(errText(e), 'bad'); return null; }); if (r) toast(r === 'copied' ? 'Picture copied' : 'This browser cannot copy pictures, so it downloaded instead'); } }),
+        button('Copy as PNG', { onclick: async () => { const r = await copyCard(d, fileOf(c)).catch(e => { say(errText(e), 'bad'); return null; }); if (r) toast(r === 'copied' ? 'Picture copied' : 'This browser cannot copy pictures, so it downloaded instead'); } }),
+        button('Download PNG', { onclick: async () => { try { await downloadCard(d, fileOf(c)); } catch (e) { say('Could not draw it. ' + errText(e), 'bad'); } } }),
+        button('Download PDF', { onclick: async () => { try { await downloadCardPdf(d, fileOf(c).replace(/\.png$/, '.pdf')); } catch (e) { say('Could not make the PDF. ' + errText(e), 'bad'); } } }),
         copyBtn),
       sent ? h('p', { class: 'wr2-foot' }, 'Saved this check-in: ' + sent) : null,
       msg);
   }
   function clientSheet(c) {
     closeOnLeave(sheet({ title: `${c.name}: client update`, body: clientBlock(c), side: 'right' }));
+  }
+
+  /* ---------- the board export (team only): store lines, per brand numbers, campaign calls ---------- */
+  function boardModel(list) {
+    const R = rec(), recDate = R.today || slotDate(R.slot);
+    const okb = list.filter(c => !c.b.no_sales && c.b.so_far && ok(c.b.so_far.sales));
+    const sales = okb.reduce((t, c) => t + c.b.so_far.sales, 0), spend = okb.reduce((t, c) => t + (c.b.so_far.spend || 0), 0);
+    const goal = okb.reduce((t, c) => t + (c.b.goal || 0), 0);
+    const store = okb.length ? [`Weekend so far: ${money(sales)}${goal ? ` of the ${money(goal)} goal (${Math.round(sales / goal * 100)}%)` : ''} on ${money(spend)} of ads, store MER ${fx(spend > 0 ? sales / spend : null)}.`] : [];
+    store.push('Since last check-in and Today decide the calls; This week is context that only breaks a tie.');
+    const tone = (w, c) => !w || !w.readable ? '' : merTone(w.mer, c) === 'good' ? 'good' : merTone(w.mer, c) === 'bad' ? 'bad' : '';
+    return {
+      title: one && list[0] ? `${list[0].name}: Black Friday War Room` : 'Black Friday War Room',
+      when: `${dayLabel(recDate)}, checked ${hourWord(slotHour(R.slot))} CT${S.probing ? ' (earlier check-ins still reading)' : ''}`,
+      store,
+      brands: list.map(c => {
+        const lt = c.gate && c.gate.light ? LIGHT[c.gate.light] : null;
+        const W = c.windows, win = (w, label) => w ? { label: w.label || label, mer: w.mer, sales: w.sales, spend: w.spend, readable: !!w.readable, tone: tone(w, c) } : { label, readable: false };
+        return {
+          name: c.name, light: lt ? { word: lt[1], tone: lt[0] } : null,
+          goal: ok(c.goal) ? `MER goal ${fx(c.goal)}${ok(c.be) ? `, break-even ${fx(c.be)}` : ''}${c.roas && ok(c.roas.goal) ? `, goal ROAS ${fx(c.roas.goal)}` : ''}` : '',
+          windows: [win(W.since, 'Since last check-in'), win(W.today, 'Today'), { ...win(W.week, 'This week'), label: 'This week (context)' }],
+          lines: [modeLine(c), gateLine(c)],
+          camps: c.camps.map(cp => ({
+            name: cp.name, since: roasTxt(cp.w.since), today: roasTxt(cp.w.today), week: roasTxt(cp.w.week),
+            call: cp.done ? 'Done' : cp.move ? CALL_WORD[cp.call] : c.mode === 'live' && c.gate.light ? (cp.needs_ads ? 'Hold, needs new ads' : cp.early ? 'Hold, too early' : CALL_WORD[cp.call]) : 'Numbers',
+            tone: cp.done ? 'good' : cp.move ? CALL_TONE[cp.call] : '',
+            move: cp.done ? `${money(cp.done.to)} a day` : cp.move ? `${money(cp.move.from)} to ${money(cp.move.to)}` : '',
+          })),
+        };
+      }),
+      foot: 'Team only. Sales and MER are Triple Whale; campaign ROAS is Triple Whale last click; budgets are Meta. The calls are a starting point, not a rule. Nothing changes without a tap.',
+    };
+  }
+  const boardFile = ext => `war-room-${one ? String((calcAll()[0] || {}).name || 'brand').toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' : ''}${rec().slot}.${ext}`;
+  async function exportBoard(kind, btn) {
+    const was = btn && btn.textContent;
+    if (btn) { btn.disabled = true; btn.textContent = 'Drawing...'; }
+    try {
+      const cv = await boardCanvas(boardModel(calcAll()));
+      if (kind === 'copy') { const r = await copyCanvas(cv, boardFile('png')); toast(r === 'copied' ? 'Board copied as a picture' : 'This browser cannot copy pictures, so it downloaded instead'); }
+      else if (kind === 'png') await downloadCanvas(cv, boardFile('png'));
+      else await downloadPdf([cv], boardFile('pdf'));
+    } catch (e) { toast('Could not draw the board: ' + errText(e), { tone: 'bad', ms: 5000 }); }
+    finally { if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = was; } }
+  }
+  function boardExports() {
+    if (!write || ctx.isClient) return null;
+    return h('div', { class: 'wr2-act' },
+      button('Copy board as PNG', { onclick: e => exportBoard('copy', e.currentTarget) }),
+      button('Download board PNG', { onclick: e => exportBoard('png', e.currentTarget) }),
+      button('Download the board (PDF)', { onclick: e => exportBoard('pdf', e.currentTarget), aria: 'Download the War Room board as a PDF, team only' }),
+      h('span', { class: 'wr2-foot' }, 'Team only: it has the calls and break-even lines. For the client, use the client update card.'));
   }
 
   /* ---------- refresh and Check now ---------- */
@@ -800,9 +940,10 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     put(el, h('div', { class: 'wr2' },
       top,
       one ? null : card({}, weekendLine(list)),
+      boardExports(),
       needsYes(list),
       h('div', { class: 'wr2-grid' }, list.map(brandCard)),
-      h('p', { class: 'wr2-foot' }, `Sales and MER are Triple Whale. MER is the whole store: all sales over all ad spend. A campaign is judged on its own ROAS (Triple Whale attributed, last click) against the brand's goal ROAS. Budgets are Meta. Nothing changes without a tap; Set budget takes any amount by hand. A change under ${READ_HOURS} hours old, or with under 20% of its new budget spent, is flagged as not read yet; it never blocks a tap.`)));
+      h('p', { class: 'wr2-foot' }, `Sales and MER are Triple Whale. MER is the whole store: all sales over all ad spend. A campaign is judged on its own ROAS (Triple Whale attributed, last click) against the brand's goal ROAS, on what is happening now: Since last check-in and Today decide, This week is context that only breaks a tie or adds a note. While the store MER is over goal nothing is cut; a weak campaign reads Hold, needs new ads. The call is a starting point, not a rule: open a campaign for the full picture. Budgets are Meta. Nothing changes without a tap; Set budget takes any amount by hand. A change under ${READ_HOURS} hours old, or with under 20% of its new budget spent, is flagged as not read yet; it never blocks a tap.`)));
   }
 
   draw();
