@@ -153,6 +153,11 @@ const route = async (mod, w, method, p, body) => {
   return r;
 };
 
+/* The send claim (standing-send-claim) adds one allowed difference to a button tap: the batch message redrawn with
+   "Sending..." the moment Send is tapped. Everything else, the client post included, must match the base commit. */
+const isSending = c => c.method === 'chat.update' && JSON.stringify(c.body.blocks || []).includes('Sending...');
+const sendingRedraws = s => s.slack.filter(isSending).length;
+const noSending = s => ({ ...s, slack: s.slack.filter(c => !isSending(c)) });
 const threadPostsOf = w => w.slack.filter(c => c.method === 'chat.postMessage' && c.body.thread_ts);
 /** A Slack button tap from the owner, run to the end (the work is in ctx.waitUntil). */
 async function tap(mod, w, action_id, value) {
@@ -224,7 +229,8 @@ if (OLD) {
     at('2026-11-27T20:20:00Z');
     for (const [mod, w] of [[OLD, r.old], [NEW, r.new]]) await tap(mod, w, 'ws_sendall', '2026-11-27T14');
     assert.ok(r.new.posts.filter(p => p.channel === 'C_CLIENT').length > 0, 'client posts made');
-    same(snap(r.new), snap(r.old));
+    assert.ok(sendingRedraws(snap(r.new)) > 0, 'the message showed Sending... first');
+    same(noSending(snap(r.new)), snap(r.old));
   });
   await check('card switch OFF: a single batch Send button (ws_send) is byte for byte the base commit', async () => {
     const r = await tickBoth({ fonts: true }, '2026-11-27T20:05:00Z');
@@ -232,7 +238,8 @@ if (OLD) {
     const id = JSON.parse(r.new.settings.get('wsBatch:2026-11-27T14')).items.find(i => i.status === 'ready').id;
     for (const [mod, w] of [[OLD, r.old], [NEW, r.new]]) await tap(mod, w, 'ws_send', id);
     assert.equal(r.new.posts.filter(p => p.channel === 'C_CLIENT').length, 1);
-    same(snap(r.new), snap(r.old));
+    assert.equal(sendingRedraws(snap(r.new)), 1, 'the message showed Sending... first');
+    same(noSending(snap(r.new)), snap(r.old));
   });
   await check('card switch OFF: an Approve after the tick re-drafts and previews in the thread exactly as the base commit', async () => {
     const r = await tickBoth({ fonts: true }, '2026-11-27T20:05:00Z');

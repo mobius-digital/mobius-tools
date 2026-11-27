@@ -867,18 +867,21 @@ async function addCard(env, deps, rec, d) {
     await deps.putSetting(env, `wsDraft:${d.id}`, JSON.stringify(d.dr));
   } catch (e) { console.log('client card: ' + e.message); }
 }
-const STATUS = { ready: 'Ready to send', forme: 'For you (no client channel)', waiting: 'Waiting on your Approve above', sent: 'Sent ✓', skipped: 'Not sent' };
-function batchBlocks(rec, bt) {
+const STATUS = { ready: 'Ready to send', forme: 'For you (no client channel)', waiting: 'Waiting on your Approve above', sent: 'Sent ✓', skipped: 'Not sent', sending: 'Sending...' };
+/* over = {item id: {status?, note?}}: how the message shows an item right now without saving it (Sending... while a
+   Send runs, the error after a failed one). Never stored, so a run that dies leaves the saved batch as it was. */
+function batchBlocks(rec, bt, over = null) {
   const hr = +String(rec.slot).split('T')[1], when = hr === 12 ? '12pm' : hr < 12 ? `${hr}am` : `${hr - 12}pm`;
   const blocks = [{ type: 'markdown', text: `# Client updates · ${when}` },
     { type: 'context', elements: [{ type: 'mrkdwn', text: 'Each full update is in the thread below. Send posts it as you in that client\'s channel.' }] }, { type: 'divider' }];
-  for (const it of bt.items) {
-    const sec = { type: 'section', text: { type: 'mrkdwn', text: `*${it.name}*\n${STATUS[it.status] || it.status}` } };
+  const items = bt.items.map(i => (over && i.id && over[i.id] ? { ...i, ...over[i.id] } : i));
+  for (const it of items) {
+    const sec = { type: 'section', text: { type: 'mrkdwn', text: `*${it.name}*\n${it.note || STATUS[it.status] || it.status}` } };
     if (it.status === 'ready' && it.id) sec.accessory = { type: 'button', action_id: 'ws_send', style: 'primary', text: { type: 'plain_text', text: 'Send' }, value: it.id };
     blocks.push(sec);
   }
   /* Send all sits right under the title (Cole 2026-11-25 could not find how to send): one tap sends every ready one. */
-  const nReady = bt.items.filter(i => i.status === 'ready').length;
+  const nReady = items.filter(i => i.status === 'ready').length;
   if (nReady) blocks.splice(2, 0, { type: 'actions', elements: [{ type: 'button', action_id: 'ws_sendall', style: 'primary', text: { type: 'plain_text', text: nReady > 1 ? `Send all ${nReady} to clients` : 'Send to client' }, value: rec.slot }] });
   return blocks;
 }
@@ -896,9 +899,13 @@ async function threadPreview(env, deps, bt, d) {
   if (r && r.ok) return r;
   return post(bl.filter(x => !isCard(x)));
 }
-async function saveBatch(env, deps, rec, bt, update = true) {
+async function saveBatch(env, deps, rec, bt, update = true, over = null) {
   await deps.putSetting(env, `wsBatch:${bt.slot}`, JSON.stringify(bt));
-  if (update && bt.ts) await deps.slackApi(env, 'chat.update', { channel: bt.channel, ts: bt.ts, text: 'Client updates', blocks: batchBlocks(rec, bt), username: 'Locus', icon_url: 'https://tools.go-mobius-digital.com/favicon.png' }).catch(() => null);
+  if (update) await showBatch(env, deps, rec, bt, over);
+}
+/** Redraw the batch message only (nothing saved): Sending... the moment a Send is tapped. */
+async function showBatch(env, deps, rec, bt, over = null) {
+  if (bt.ts) await deps.slackApi(env, 'chat.update', { channel: bt.channel, ts: bt.ts, text: 'Client updates', blocks: batchBlocks(rec, bt, over), username: 'Locus', icon_url: 'https://tools.go-mobius-digital.com/favicon.png' }).catch(() => null);
 }
 /** The one message for a check-in. */
 export async function postBatch(env, deps, rec) {
@@ -1015,6 +1022,21 @@ async function releaseSend(env, act, val) {
 export async function handleClientUpdateButton(env, ctx, payload, deps, { ACK, xfetch }) {
   const a = (payload.actions || []).find(x => /^ws_/.test(x.action_id || ''));
   const reply = t => payload.response_url && xfetch(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ replace_original: true, text: t }) }).catch(() => {});
+  /* A word only Cole sees (a stale button: "Already sent"); nothing is posted in the thread or to a client. */
+  const privately = t => payload.response_url
+    ? xfetch(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ response_type: 'ephemeral', replace_original: false, text: t }) }).catch(() => {})
+    : deps.slackApi(env, 'chat.postEphemeral', { channel: payload.channel && payload.channel.id, user: payload.user && payload.user.id, text: t }).catch(() => {});
+  /* A single Send to client DM (no batch message): its buttons swapped for a line (Sending...), or put back after a
+     failed post, through the message's response_url. */
+  const dmButtons = line => {
+    const m = payload.message;
+    if (!payload.response_url || !m) return null;
+    const strip = bl => (bl || []).filter(b => !(b.type === 'actions' && (b.elements || []).some(e => /^ws_/.test(e.action_id || ''))));
+    const body = line == null ? { replace_original: true, text: m.text, blocks: m.blocks, attachments: m.attachments }
+      : { replace_original: true, text: m.text, blocks: [...strip(m.blocks), { type: 'context', elements: [{ type: 'mrkdwn', text: line }] }],
+        attachments: (m.attachments || []).map(x => ({ ...x, blocks: strip(x.blocks) })).filter(x => !x.blocks || x.blocks.length || x.text) };
+    return xfetch(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
+  };
   const inThread = t => deps.slackApi(env, 'chat.postMessage', { channel: payload.channel && payload.channel.id, thread_ts: payload.message && payload.message.ts, text: t, username: 'Locus', icon_url: 'https://tools.go-mobius-digital.com/favicon.png' }).catch(() => {});
   ctx.waitUntil((async () => {
     if (a.action_id === 'ws_capprove') {
@@ -1048,37 +1070,76 @@ export async function handleClientUpdateButton(env, ctx, payload, deps, { ACK, x
     if (a.action_id === 'ws_sendall') {
       const bt = await batchOf(a.value), rec = await load(env, deps, a.value).catch(() => null);
       if (!bt || !rec) return inThread('That batch is gone.');
-      const done = [], failed = [], card = await cardOn(env, deps);
-      for (const it of bt.items.filter(i => i.status === 'ready')) {
-        const now = new Date().toISOString(), saved = JSON.parse((await deps.getSetting(env, `wsDraft:${it.id}`)) || 'null');
-        const f = saved ? await freshDraft(env, deps, saved, rec) : null, dr = f && f.dr;
-        const res = dr ? await sendDraft(env, xfetch, dr, { wait: 0, card }) : { ok: false, error: 'gone' };
-        if (res.ok) { it.status = 'sent'; dr.done = `sent ${now}`; await deps.putSetting(env, `wsDraft:${it.id}`, JSON.stringify(dr)); await deps.putSetting(env, `wsLastSent:${it.act}`, now); await markDid(env, deps, it.act, f.did); done.push(it.name); }
-        else failed.push(`${it.name} (${res.error})`);
+      /* The send claim per brand (as sendItem), taken for every ready brand BEFORE anything posts: a second tap, or the
+         page's Send, finds the brand claimed and posts nothing. After the claim the batch and each draft are read again,
+         so a brand another request sent while this one waited is skipped. */
+      const claims = new Map();
+      for (const it of bt.items.filter(i => i.status === 'ready')) { const c = await claimSend(env, it.act); if (c) claims.set(it.id, c); }
+      const release = async it => { const c = claims.get(it.id); if (c) { claims.delete(it.id); await releaseSend(env, it.act, c); } };
+      const cur = await batchOf(a.value), sentAt = {}, took = claims.size;
+      const todo = [];
+      for (const it of bt.items.filter(i => claims.has(i.id))) {
+        const ci = cur && cur.items.find(i => i.id === it.id), saved = JSON.parse((await deps.getSetting(env, `wsDraft:${it.id}`)) || 'null');
+        if ((ci && ci.status !== 'ready') || (saved && saved.done)) { await release(it); continue; }
+        todo.push(it);
       }
-      await saveBatch(env, deps, rec, bt);
+      if (!todo.length) return privately(!took && bt.items.some(i => i.status === 'ready') ? 'Already sending.' : 'Already sent.');
+      const over = Object.fromEntries(todo.map(i => [i.id, { status: 'sending' }]));
+      await showBatch(env, deps, rec, cur || bt, over);
+      const done = [], failed = [], card = await cardOn(env, deps);
+      try {
+        for (const it of todo) {
+          try {
+            const now = new Date().toISOString(), saved = JSON.parse((await deps.getSetting(env, `wsDraft:${it.id}`)) || 'null');
+            const f = saved ? await freshDraft(env, deps, saved, rec) : null, dr = f && f.dr;
+            const res = dr ? await sendDraft(env, xfetch, dr, { wait: 0, card }) : { ok: false, error: 'gone' };
+            if (res.ok) { it.status = 'sent'; sentAt[it.id] = 1; dr.done = `sent ${now}`; await deps.putSetting(env, `wsDraft:${it.id}`, JSON.stringify(dr)); await deps.putSetting(env, `wsLastSent:${it.act}`, now); await markDid(env, deps, it.act, f.did); done.push(it.name); delete over[it.id]; }
+            else { failed.push(`${it.name} (${res.error})`); over[it.id] = { note: `Not sent (${res.error}). Tap Send to try again.` }; }
+          } finally { await release(it); }
+        }
+      } finally { for (const it of todo) await release(it); }
+      /* Saved onto the batch as it is now, so a brand another request sent meanwhile keeps its Sent. */
+      const fin = (await batchOf(a.value)) || bt;
+      for (const i of fin.items) if (sentAt[i.id]) i.status = 'sent';
+      await saveBatch(env, deps, rec, fin, true, Object.keys(over).length ? over : null);
       return failed.length ? inThread(`Not sent: ${failed.join(', ')}`) : null;
     }
     const raw = await deps.getSetting(env, `wsDraft:${a.value}`);
     const dr = raw ? JSON.parse(raw) : null;
     if (!dr) return inThread('That update is gone.');
-    if (dr.done) return inThread(`${dr.name}: already ${dr.done}.`);
-    const bt = await batchOf(dr.batch), rec = bt ? await load(env, deps, dr.batch).catch(() => null) : null;
-    const it = bt && bt.items.find(i => i.id === a.value);
+    const already = d => (/^sent/.test(String(d.done)) ? `Already sent to ${d.name}.` : `${d.name}: already ${d.done}.`);
+    if (dr.done) return privately(already(dr));
+    let bt = await batchOf(dr.batch), rec = bt ? await load(env, deps, dr.batch).catch(() => null) : null;
+    let it = bt && bt.items.find(i => i.id === a.value);
     if (a.action_id === 'ws_skip') {
       dr.done = 'not sent'; await deps.putSetting(env, `wsDraft:${a.value}`, JSON.stringify(dr));
       if (it && rec) { it.status = 'skipped'; await saveBatch(env, deps, rec, bt); return null; }
       return reply(`Not sent to ${dr.name}.`);
     }
     if (dr.v !== 3 || !dr.msg) return inThread('That is an older draft. Nothing was sent.');
-    const now = new Date().toISOString(), f = await freshDraft(env, deps, dr, rec), fr = f.dr;
-    const res = await sendDraft(env, xfetch, fr, { card: await cardOn(env, deps) });
-    if (!res.ok) return inThread(`${dr.name}: Slack refused it (${res.error}). Nothing was sent.`);
-    fr.done = `sent ${now}`; await deps.putSetting(env, `wsDraft:${a.value}`, JSON.stringify(fr));
-    await deps.putSetting(env, `wsLastSent:${dr.act}`, now);
-    await markDid(env, deps, dr.act, f.did);
-    if (it && rec) { it.status = 'sent'; await saveBatch(env, deps, rec, bt); return null; }
-    return reply(`✓ Sent to ${dr.name}.`);
+    /* The send claim per brand, BEFORE posting (as sendItem): a double tap, or this button racing the page's Send,
+       posts once. The claimed request reads the draft and the batch again, so a send that finished while it waited
+       is seen; the claim is released after the post either way (the draft's done mark then guards). */
+    const claim = await claimSend(env, dr.act);
+    if (!claim) return privately(`${dr.name} is already sending.`);
+    try {
+      const d2 = JSON.parse((await deps.getSetting(env, `wsDraft:${a.value}`)) || 'null') || dr;
+      if (d2.done) return privately(already(d2));
+      if (bt) { bt = (await batchOf(dr.batch)) || bt; it = bt.items.find(i => i.id === a.value); }
+      if (it && (it.status === 'sent' || it.status === 'skipped')) return privately(it.status === 'sent' ? `Already sent to ${d2.name}.` : `${d2.name}: already not sent.`);
+      if (it && rec) await showBatch(env, deps, rec, bt, { [it.id]: { status: 'sending' } }); else await dmButtons(`Sending to ${d2.name}...`);
+      const now = new Date().toISOString(), f = await freshDraft(env, deps, d2, rec), fr = f.dr;
+      const res = await sendDraft(env, xfetch, fr, { card: await cardOn(env, deps) });
+      if (!res.ok) {
+        if (it && rec) await showBatch(env, deps, rec, bt, { [it.id]: { note: `Not sent (${res.error}). Tap Send to try again.` } }); else await dmButtons(null);
+        return inThread(`${dr.name}: Slack refused it (${res.error}). Nothing was sent.`);
+      }
+      fr.done = `sent ${now}`; await deps.putSetting(env, `wsDraft:${a.value}`, JSON.stringify(fr));
+      await deps.putSetting(env, `wsLastSent:${dr.act}`, now);
+      await markDid(env, deps, dr.act, f.did);
+      if (it && rec) { it.status = 'sent'; await saveBatch(env, deps, rec, bt); return null; }
+      return reply(`✓ Sent to ${dr.name}.`);
+    } finally { await releaseSend(env, dr.act, claim); }
   })());
   return ACK();
 }
