@@ -41,7 +41,7 @@ export async function checkinHours(env, deps) {
   const m = new Map(rows.filter(r => Number.isInteger(+r.value) && +r.value >= 2 && +r.value <= 12).map(r => [r.act_id, hoursFor(+r.value)]));
   return m.size ? m : null;
 }
-const KNOWN_LIMITS = { brand_lucky_golf: 6637, brand_dartee_golf: 13806, brand_bonk_golf: 5000, brand_grunk_dolfer: 2583, brand_yak_sports: 841, brand_vetripaws: 3428 };
+const KNOWN_LIMITS = { brand_lucky_golf: 6637, brand_dartee_golf: 13806, brand_bonk_golf: 5000, brand_grunk_dolfer: 2583, brand_yak_sports: 650, brand_vetripaws: 3428 };
 const SALE_RE =/bfcm|black friday|\bbf\b|cyber|holiday 20\d\d/i;
 
 const central = (d = new Date()) => {
