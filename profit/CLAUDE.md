@@ -353,6 +353,16 @@ profit/
   grants `shopifyqlQuery`, and the cohort data comes from ShopifyQL `FROM customers` -
   the only place Shopify exposes customers grouped by their first-order month. It is
   easy to miss because the obvious three (orders, customers, products) look sufficient.
+- **Shopify daily store totals live in `p_shop_daily` (src/shopsync.js, 2026-11-26).** One row per brand per
+  store day (shop time zone). `sales` = total_sales - taxes (the one revenue definition); `orders` = PAID orders only
+  (not test, not cancelled, above $0, paid or authorized), `$0` creator samples in `zero_orders`, `new_orders` /
+  `returning_orders` from `customerJourneySummary.customerOrderIndex`. Money comes from ShopifyQL `FROM sales ...
+  GROUP BY day` for any range; order counts come from the orders list for the last 60 days (`orders_source =
+  'orders'`), older days carry ShopifyQL money and `orders_all` only (`'shopifyql'`). `p_shopify.last_sync_at` is the
+  COHORT sync; the daily totals stamp `orders_sync_at` / `orders_days` / `orders_error`. Backfill one store:
+  `POST /api/shopify/orders-sync?act=<brand>&days=90` (answers `resume_from` on a very busy store: call again with
+  `&from=`). Read: `GET /api/shopify/daily?act=<brand>&days=30`. Incremental: account-health's hourly tick
+  (`shopDailyTick`, 3 stalest stores, last 3 days, no new cron). Tests: `node test-shopsync.mjs`.
 - **`read_orders` only reaches back 60 DAYS.** Older orders need `read_all_orders`,
   which is a separate approval request in the Partner Dashboard with a written
   justification, not a checkbox. Today's cohorts avoid this because ShopifyQL

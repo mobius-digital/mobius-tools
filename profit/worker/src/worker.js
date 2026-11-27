@@ -27,6 +27,7 @@ const DASHBOARD_URL = 'https://locus.go-mobius-digital.com/profit/';
 import { handleSeason, seasonPublic } from './season.js';
 import { handleShopifyApp } from './shopifyapp.js';
 import { shopToken, exchangeCode, ensureTokenColumns } from './shoptoken.js';
+import { syncShopDaily, noteSyncError, ensureShopDaily } from './shopsync.js';
 import { handleScenario } from './scenario.js';
 import { handleDashboard } from './dashboard.js';
 import { handleInspo } from './inspo.js';
@@ -2704,7 +2705,10 @@ export default {
       if (path === '/api/connections') {
         const accounts = await accountsFor(false);
         /* Never SELECT *: this answer goes to the browser and the row holds the store's tokens. */
-        const { results: shops } = await env.DB.prepare(`SELECT shop, act_id, scopes, installed_at, uninstalled_at, last_sync_at, (access_token <> '') AS access_token FROM p_shopify`).all()
+        /* orders_* (shopsync.js) exist once the first daily sync ran; before that, read the older shape. */
+        const BASE_COLS = `shop, act_id, scopes, installed_at, uninstalled_at, last_sync_at, (access_token <> '') AS access_token`;
+        const { results: shops } = await env.DB.prepare(`SELECT ${BASE_COLS}, orders_sync_at, orders_days, orders_error FROM p_shopify`).all()
+          .catch(() => env.DB.prepare(`SELECT ${BASE_COLS} FROM p_shopify`).all())
           .catch(() => ({ results: [] }));
         const { results: addrRows } = await env.DB.prepare(`SELECT act_id, shop FROM p_shop_address`).all().catch(() => ({ results: [] }));
         const addrBy = Object.fromEntries(addrRows.map(r => [r.act_id, r.shop]));
@@ -2737,6 +2741,8 @@ export default {
             installed_at: live?.installed_at ?? null,
             uninstalled_at: live ? null : (past?.uninstalled_at ?? null),
             last_sync_at: live?.last_sync_at ?? null,
+            // Shopify daily store totals (p_shop_daily): when they last synced, how many days are stored, the last error
+            orders_sync_at: live?.orders_sync_at ?? null, orders_days: live?.orders_days ?? 0, orders_error: live?.orders_error ?? null,
             cohort_months: co?.n ?? 0, cohort_as_of: co?.as_of ?? null,
             install_url: installUrl(addrBy[a.act_id] || live?.shop || past?.shop || a.tw_shop),
           };
@@ -2768,6 +2774,41 @@ export default {
           catch (e) { out.push({ shop: row.shop, act_id: row.act_id, error: e.message }); }
         }
         return json({ ok: out.some(r => r.months), results: out });
+      }
+
+      /* Shopify daily store totals (shopsync.js -> p_shop_daily) for ONE brand's store: a backfill or a re-read.
+       * ?act=<brand>&days=90 (max 400). Money per day comes from ShopifyQL for the whole range; paid orders and new vs
+       * returning come from the orders list, which reaches back 60 days unless the store granted read_all_orders.
+       * One store per call (Shopify rate limits, the subrequest cap); a busy store answers resume_from: call again
+       * with &from=<that day>. The hourly account-health tick keeps the last 3 days fresh after this. */
+      if (path === '/api/shopify/orders-sync' && request.method === 'POST') {
+        const act = url.searchParams.get('act');
+        if (!act || act === 'all') return json({ error: 'one brand at a time: ?act=<brand id>' }, 400);
+        const row = await env.DB.prepare(
+          `SELECT shop, act_id, scopes FROM p_shopify WHERE act_id = ?1 AND uninstalled_at IS NULL AND access_token <> '' ORDER BY installed_at DESC LIMIT 1`,
+        ).bind(act).first().catch(() => null);
+        if (!row) return json({ error: 'no connected store for that client' }, 404);
+        const days = Math.min(400, Math.max(1, Number(url.searchParams.get('days')) || 90));
+        try {
+          const token = await shopToken(env, row.shop);
+          const r = await syncShopDaily(env, row, { token, days, from: url.searchParams.get('from') || undefined });
+          return json({ ok: true, ...r });
+        } catch (e) {
+          await noteSyncError(env, row.shop, e.message);
+          return json({ ok: false, shop: row.shop, act_id: row.act_id, error: e.message }, 502);
+        }
+      }
+
+      /* Shopify daily store totals for one brand, oldest first: ?act=<brand>&days=30. */
+      if (path === '/api/shopify/daily') {
+        const act = url.searchParams.get('act');
+        if (!act) return json({ error: 'act required' }, 400);
+        const days = Math.min(400, Math.max(1, Number(url.searchParams.get('days')) || 30));
+        await ensureShopDaily(env);
+        const { results } = await env.DB.prepare(
+          `SELECT * FROM p_shop_daily WHERE act_id = ?1 ORDER BY day DESC LIMIT ?2`,
+        ).bind(act, days).all().catch(() => ({ results: [] }));
+        return json({ act, rows: results.reverse() });
       }
 
       /* A brand's store address, typed by the team: for brands with no Triple Whale shop to read it from. It gives

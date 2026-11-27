@@ -86,6 +86,20 @@ CREATE TABLE IF NOT EXISTS p_shopify (
 );
 CREATE INDEX IF NOT EXISTS p_shopify_act_idx ON p_shopify (act_id);
 
+-- Shopify daily store totals (src/shopsync.js, 2026-11-26): one row per brand per store day (shop time zone).
+-- sales = total_sales - taxes (THE revenue figure). orders = PAID orders only ($0 / sample orders in zero_orders),
+-- read order by order for the last 60 days (read_orders); older days carry ShopifyQL money and orders_all only
+-- (orders_source 'shopifyql'). p_shopify gains orders_sync_at / orders_days / orders_error (added by the code).
+CREATE TABLE IF NOT EXISTS p_shop_daily (
+  act_id TEXT NOT NULL, day TEXT NOT NULL, shop TEXT NOT NULL,
+  gross_sales REAL, discounts REAL, returns REAL, net_sales REAL, shipping REAL, taxes REAL, total_sales REAL,
+  sales REAL, refunds REAL, orders_all INTEGER,
+  orders INTEGER, zero_orders INTEGER, new_orders INTEGER, returning_orders INTEGER, paid_sales REAL,
+  orders_source TEXT, currency TEXT, synced_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (act_id, day)
+);
+CREATE INDEX IF NOT EXISTS p_shop_daily_shop_idx ON p_shop_daily (shop, day);
+
 -- Short-lived OAuth nonces. The callback must reject any `state` it did not issue,
 -- or the install can be forged.
 -- A code is good for 10 minutes: older rows are rejected by the callback and swept on the next install.

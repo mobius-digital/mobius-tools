@@ -2,6 +2,9 @@ import { useFetch as tiktokFetch, tiktokStatus, tiktokStart, tiktokCallback, tik
 import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick, assetFile, removeLook, tagBacklog } from './assets.js';
 import { guardBrands, brandsFor, openIdsFor, clientScope, isClientEmail } from './brandguard.js';
 import { handleCommand } from './command.js';
+import { remoteRefresh as shopRemote } from './shopifywrite.js';
+import { shopToken } from '../../../profit/worker/src/shoptoken.js';
+import { shopDailyTick } from '../../../profit/worker/src/shopsync.js';
 import { monthPlanned, defaultCovers } from './goalplan.js';
 import { handleAgency } from './agency.js';
 import { handleClients, clientAsk, clientOwnsRun, touchClient, meClient, claimInvite, hqSignin } from './clients.js';
@@ -7518,6 +7521,8 @@ async function hmacKey(env) {
 }
 
 /** Session token: base64url(email|exp) + '.' + HMAC. Verified by every tool worker sharing SESSION_SECRET. */
+/** Token refresh through the profit worker for the hourly Shopify daily sync (shopifywrite.js remoteRefresh). */
+function shopRemoteRefresh(env) { return shopRemote(env, { mintSession }); }
 async function mintSession(env, email) {
   const exp = Date.now() + SESSION_DAYS * 86400e3;
   const payload = btoa(`${email}|${exp}`).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -8442,6 +8447,10 @@ const AH_APP = {
         else ran.alarms = { deferred: 'out of subrequest budget' };
         /* Client drafts held for broken numbers (drafthold.js): a held draft whose numbers came in says "write it again". */
         if (subCanAfford(20)) ran.draftHolds = await recheckHolds(env, holdDeps()).catch(e => ({ error: e.message }));
+        /* Shopify daily store totals (profit shopsync.js -> p_shop_daily, 2026-11-26): the 3 stores synced longest ago,
+           last 3 days each, one at a time. Tokens refresh through the profit worker (it holds the app secret). */
+        if (subCanAfford(40)) ran.shopDaily = await shopDailyTick(env, { F: xfetch, canAfford: n => subCanAfford(n),
+          tokenFor: shop => shopToken(env, shop, { F: xfetch, remote: shopRemoteRefresh(env) }) }).catch(e => ({ error: e.message }));
         /* Cole's task events: catch any he deleted that the Google push missed, and keep the push channels open. */
         if (subCanAfford(30)) ran.blockSync = await blockSyncTick(env, blockDeps()).catch(e => ({ error: e.message }));
         // Whatever budget survived goes to keeping the data fresh. This used to
