@@ -90,7 +90,7 @@ await ok('install: asks only the required scopes, sweeps codes older than 10 min
   seed(); db.exec(`UPDATE p_oauth_state SET created_at = datetime('now', '-11 minutes') WHERE state = 's2'`);
   const r = await worker.fetch(new Request(`${ORIGIN}/shopify/install?shop=${SHOP}`), env, { waitUntil() {} });
   assert.equal(r.status, 302); const to = new URL(r.headers.get('Location'));
-  assert.equal(to.host, SHOP); assert.equal(to.searchParams.get('scope'), 'read_orders,read_customers,read_products,read_reports,read_inventory,read_returns');
+  assert.equal(to.host, SHOP); assert.equal(to.searchParams.get('scope'), 'read_orders,read_customers,read_products,read_reports,read_inventory,read_returns,read_analytics,read_discounts,read_price_rules,read_marketing_events,read_merchant_managed_fulfillment_orders');
   assert.doesNotMatch(to.searchParams.get('scope'), /write_|pixel|customer_events/);
   assert.equal(count('p_oauth_state', `state = 's2'`), 0, 'the stale code was swept');
   const state = to.searchParams.get('state'); assert.equal(count('p_oauth_state', `state = '${state}'`), 1);

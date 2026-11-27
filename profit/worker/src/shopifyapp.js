@@ -19,6 +19,20 @@
  * sentence about an agency, no button that contacts one. Support contact lives in the App Store listing.
  */
 import { shopToken, exchangeSessionToken } from './shoptoken.js';
+/** The REQUIRED scopes, asked at install. ONE list: worker.js SHOPIFY_SCOPES is this joined, and `scopes` in
+ *  profit/shopify.app.toml must be the same (test-shopifyapp.mjs checks it), or the next `shopify app deploy` undoes
+ *  a scope change made in the Dev Dashboard. A store installed before a change is asked for the new ones by Shopify
+ *  (managed installation) the next time its owner opens the app; the page then reports what it holds (tell()).
+ *  The match with the TOML is checked by test-scopes.mjs. */
+export const REQUIRED_SCOPES = ['read_orders', 'read_customers', 'read_products', 'read_reports', 'read_inventory', 'read_returns', 'read_analytics', 'read_discounts', 'read_price_rules', 'read_marketing_events', 'read_merchant_managed_fulfillment_orders'];
+/** Does a granted scope list hold `s`? Shopify lists only write_x when both read_x and write_x are held (the read is
+ *  implied), so a store that allowed product or discount updates holds read_products / read_discounts too. */
+export const holdsScope = (granted, s) => {
+  const g = granted instanceof Set ? granted : new Set(String(granted || '').split(',').map(x => x.trim()).filter(Boolean));
+  return g.has(s) || (s.startsWith('read_') && g.has('write_' + s.slice(5)));
+};
+/** Required scopes a store does not hold yet (an empty list when it holds them all). */
+export const missingScopes = granted => REQUIRED_SCOPES.filter(s => !holdsScope(granted, s));
 /** Asked for inside the app, only by a store that wants them (shopify.app.toml optional_scopes). */
 export const OPTIONAL_SCOPES = ['write_products', 'write_discounts'];
 const API = '2026-07';
@@ -160,7 +174,7 @@ async function opt(){try{const q=await shopify.scopes.query();const has=OPT.ever
 async function tell(){try{const t=await shopify.idToken();await fetch('/shopify/app/api/scopes',{method:'POST',headers:{Authorization:'Bearer '+t}});}catch(e){}}
 $('optAllow').onclick=async()=>{try{await shopify.scopes.request(OPT);}catch(e){}await tell();opt();};
 $('optRemove').onclick=async()=>{try{await shopify.scopes.revoke(OPT);}catch(e){}await tell();opt();};
-load();opt();
+load().then(tell);opt();
 </script></body></html>`;
 }
 
@@ -213,9 +227,14 @@ export async function handleShopifyApp(request, env, url, { F = fetch, saveToken
            so Locus offers a change only where the store said yes. */
         if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
         const d = await gql(F, v.shop, access, `{ currentAppInstallation { accessScopes { handle } } }`);
-        const scopes = (d.currentAppInstallation?.accessScopes || []).map(x => x.handle).filter(Boolean);
-        if (scopes.length) await env.DB.prepare(`UPDATE p_shopify SET scopes = ?2 WHERE shop = ?1`).bind(v.shop, scopes.join(',')).run().catch(() => {});
-        return json({ ok: true, scopes });
+        const scopes = (d.currentAppInstallation?.accessScopes || []).map(x => x.handle).filter(Boolean).join(',');
+        /* The store just accepted a REQUIRED scope it did not hold before (Shopify asked when the app opened after a
+           scope change): buy a fresh token once, so nothing keeps reading with one issued under the old grant. */
+        const was = await env.DB.prepare(`SELECT scopes FROM p_shopify WHERE shop = ?1`).bind(v.shop).first().catch(() => null);
+        const had = String(was?.scopes || '');
+        if (!fresh && was && REQUIRED_SCOPES.some(s => holdsScope(scopes, s) && !holdsScope(had, s))) await connect().catch(() => {});
+        if (scopes) await env.DB.prepare(`UPDATE p_shopify SET scopes = ?2 WHERE shop = ?1`).bind(v.shop, scopes).run().catch(() => {});
+        return json({ ok: true, scopes: scopes ? scopes.split(',') : [] });
       }
       try { return json(await appReport(env, v.shop, access, url.searchParams.get('days'), F)); }
       catch (e) {

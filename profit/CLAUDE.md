@@ -456,7 +456,10 @@ profit/
 - **`SHOPIFY_SCOPES` in the worker must match `scopes` in `profit/shopify.app.toml`.** Shopify
   compares the two at install and re-prompts on a mismatch. Updating one without the
   other is easy to miss because nothing fails until a merchant installs. The two write
-  scopes are `optional_scopes` (2026-11-24) and are NOT in `SHOPIFY_SCOPES`.
+  scopes are `optional_scopes` (2026-11-24) and are NOT in `SHOPIFY_SCOPES`. Since 2026-11-26 the list lives once, in
+  `worker/src/shopifyapp.js` `REQUIRED_SCOPES` (worker.js joins it); `node test-scopes.mjs` fails when the TOML differs.
+  A store installed before a scope change is asked by Shopify the next time its owner opens the app;
+  `/api/connections` `missing_scopes` lists who has not yet (`holdsScope`: write_x implies read_x).
 - **Trailing aMER is a YARDSTICK, never an input.** Any plan implies a rate of buying
   new customers: `(revenue - expected returning) / spend`. Compare that with the
   trailing 28-day aMER and say plainly whether the plan is achievable (<=1.05x),

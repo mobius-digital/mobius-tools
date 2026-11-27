@@ -62,9 +62,14 @@ api_version = "2026-07"
 #   read_reports    grants shopifyqlQuery, the only way to get customers grouped by first-order month
 #   read_inventory  stock per product and cost per item (2026-11-24)
 #   read_returns    refund and return detail, so sales are shown net of returns (2026-11-24)
+#   read_analytics  Shopify's own sales reports and sessions, read through ShopifyQL with read_reports (2026-11-26)
+#   read_discounts  which discount codes drove each sale (2026-11-26)
+#   read_price_rules the rules behind those codes, so a sale's discount is named (2026-11-26)
+#   read_marketing_events which marketing activity Shopify credits with a visit or sale (2026-11-26)
+#   read_merchant_managed_fulfillment_orders  shipped vs waiting orders for the store report (2026-11-26)
 # "Read all orders" (orders older than 60 days) is NOT a scope line: it is a separate request in the Dev Dashboard
 # (Settings > Access requests). Add read_all_orders here only after Shopify grants it.
-scopes = "read_orders,read_customers,read_products,read_reports,read_inventory,read_returns"
+scopes = "read_orders,read_customers,read_products,read_reports,read_inventory,read_returns,read_analytics,read_discounts,read_price_rules,read_marketing_events,read_merchant_managed_fulfillment_orders"
 # OPTIONAL since 2026-11-24: nothing is written to a store unless its owner presses "Allow product and discount
 # updates" inside the app (worker/src/shopifyapp.js OPTIONAL_SCOPES, App Bridge shopify.scopes.request).
 #   write_products   change a product's status, title, tags, price
