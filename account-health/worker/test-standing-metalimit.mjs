@@ -173,6 +173,69 @@ await check('a Holiday campaign starting later no longer blocks a raise (room co
   }
 });
 
+await check('the picked sale campaign always counts in the room, even when none of its sets runs right now', async () => {
+  /* Campaign A: early sets ended at midnight, the next set starts tomorrow. Campaign B runs. Limit 5000. */
+  const now = RealDate.parse('2026-11-26T20:00:00Z');
+  const ml = { campaigns: { A: { status: 'ACTIVE', daily: 500, name: 'BFCM 2026' }, B: { status: 'ACTIVE', daily: 4400, name: 'Evergreen' } },
+    adsets: { a1: { status: 'ACTIVE', campaign: 'A', start: '2026-11-01T00:00:00-0600', end: '2026-11-26T00:00:00-0600' },
+      a2: { status: 'ACTIVE', campaign: 'A', start: '2026-11-27T18:00:00-0600' },
+      b1: { status: 'ACTIVE', campaign: 'B', start: '2026-10-01T00:00:00-0600' } } };
+  assert.equal(NEW.budgetsOn(ml, now), 4400, 'without keep, A is left out');
+  if (OLD) assert.equal(OLD.budgetsOn(ml), 4900);
+  assert.equal(NEW.budgetFor({ pct: 0.5 }, 500, 5000, 4400).to, 750, 'that is how the room was overstated');
+  const on = NEW.budgetsOn(ml, now, { keep: 'A' });
+  assert.equal(on, 4900);
+  const bf = NEW.budgetFor({ pct: 0.5 }, 500, 5000, on);
+  assert.equal(bf.to, 600); assert.ok(on - 500 + bf.to <= 5000, 'capped so the total stays at the limit');
+  /* End to end: the check-in picks A and sizes the raise with A counted, so the total never passes the limit. */
+  at('2026-11-26T20:00:00Z');
+  const meta = { campaigns: [campaign('A', 'BFCM 2026', 500), campaign('B', '[MD] CBO evergreen', 4400, 900)],
+    adsets: [adset('a1', 'A', '2026-11-01T00:00:00-0600', '2026-11-26T00:00:00-0600'), adset('a2', 'A', '2026-11-27T18:00:00-0600'), adset('b1', 'B', '2026-10-01T00:00:00-0600')] };
+  const w = world(meta);
+  w.settings.set('metaLimits', JSON.stringify({ [ACT]: 5000 }));
+  const b = (await NEW.buildStanding(w.env, w.deps, '2026-11-26T14')).brands[0];
+  assert.equal(b.meta.camp.id, 'A');
+  assert.equal(b.meta.on, 4900);
+  assert.ok(b.suggest.to == null || b.meta.on - 500 + b.suggest.to <= 5000, JSON.stringify(b.suggest));
+});
+
+await check('a set starting later today counts at 8am and 2pm; a set starting tomorrow does not', async () => {
+  const ml = { campaigns: { bf: { status: 'ACTIVE', daily: 3000 }, hol: { status: 'ACTIVE', daily: 800 }, ev: { status: 'ACTIVE', daily: 100 } },
+    adsets: { s: { status: 'ACTIVE', campaign: 'bf', start: '2026-11-26T18:00:00-0600', end: '2026-12-04T00:00:00-0600' },
+      h: { status: 'ACTIVE', campaign: 'hol', start: '2026-12-01T00:00:00-0600' },
+      e: { status: 'ACTIVE', campaign: 'ev', start: '2026-10-01T00:00:00-0600' } } };
+  for (const iso of ['2026-11-26T14:00:00Z', '2026-11-26T20:00:00Z']) {   // 8am and 2pm Central
+    const now = RealDate.parse(iso);
+    assert.equal(NEW.budgetsOn(ml, now, { dayEnd: NEW.dayEndIn('America/Chicago', now) }), 3100, iso);
+  }
+  /* Nov 30 at 2pm: the Holiday sets start tomorrow, still left out. */
+  const n30 = RealDate.parse('2026-11-30T20:00:00Z');
+  assert.equal(NEW.budgetsOn(ml, n30, { dayEnd: NEW.dayEndIn('America/Chicago', n30) }), 3100);
+  /* End to end at 2pm Central: the 6pm set's campaign is in the room. */
+  at('2026-11-26T20:00:00Z');
+  const meta = { campaigns: [campaign('c1', 'BFCM 2026', 200, 150), campaign('c2', '[MD] CBO evergreen', 100, 60), campaign('c4', 'Black Friday weekend', 3000)],
+    adsets: [...RUNNING.adsets, adset('s4', 'c4', '2026-11-26T18:00:00-0600', '2026-12-04T00:00:00-0600')] };
+  const w = world(meta);
+  const b = (await NEW.buildStanding(w.env, w.deps, '2026-11-26T14')).brands[0];
+  assert.equal(b.meta.on, 3300);
+});
+
+await check('dayEndIn: the next local midnight, per timezone', () => {
+  const now = RealDate.parse('2026-11-26T20:00:00Z');
+  assert.equal(NEW.dayEndIn('America/Chicago', now), RealDate.parse('2026-11-27T06:00:00Z'));
+  assert.equal(NEW.dayEndIn('America/Los_Angeles', now), RealDate.parse('2026-11-27T08:00:00Z'));
+  assert.equal(NEW.dayEndIn('America/New_York', RealDate.parse('2026-11-27T04:30:00Z')), RealDate.parse('2026-11-27T05:00:00Z'), '11:30pm Eastern: half an hour left');
+  assert.equal(NEW.dayEndIn('Not/AZone', now), RealDate.parse('2026-11-27T06:00:00Z'), 'unknown zone = Central');
+});
+
+await check('a partial ad set read never lowers the count: a campaign with no sets read still counts', () => {
+  const now = RealDate.parse('2026-11-26T20:00:00Z');
+  const ml = { campaigns: { A: { status: 'ACTIVE', daily: 500 }, B: { status: 'ACTIVE', daily: 4400 }, P: { status: 'ACTIVE', daily: 900 } },
+    adsets: { a: { status: 'ACTIVE', campaign: 'A', start: '2026-11-01T00:00:00-0600' },
+      p: { status: 'PAUSED', campaign: 'P', start: '2026-11-01T00:00:00-0600' } } };
+  assert.equal(NEW.budgetsOn(ml, now), 4900, 'B (no sets read) counts; P (sets read, none on) does not');
+});
+
 /* ---------- 2. the limit, set by hand ---------- */
 await check('limit: no Meta read for it; the default, labelled set by hand; an owner number replaces it', async () => {
   at('2026-11-27T20:13:00Z');
@@ -180,6 +243,7 @@ await check('limit: no Meta read for it; the default, labelled set by hand; an o
   const r1 = await NEW.buildStanding(w.env, w.deps, '2026-11-27T14');
   const m1 = r1.brands[0].meta, def = NEW.limitOf(ACT, {}).limit;
   assert.ok(def > 0);
+  assert.match(JSON.stringify(NEW.standingMessage(r1)), /room under Meta's limit \(set by hand\)/);
   assert.equal(m1.limit, def); assert.equal(m1.limit_src, 'known'); assert.equal(m1.limit_label, 'set by hand'); assert.equal(m1.limit_set, 'default'); assert.equal(m1.limit_error, null);
   assert.ok(!w.graph.some(g => /adtrust_dsl/.test(g)), 'the dead field is not asked for');
   /* The owner sets a number: it is used, no deploy. */
@@ -188,6 +252,7 @@ await check('limit: no Meta read for it; the default, labelled set by hand; an o
   assert.equal(JSON.parse(w.settings.get('metaLimits'))[ACT], 1234);
   const m2 = (await NEW.buildStanding(w.env, w.deps, '2026-11-27T14')).brands[0].meta;
   assert.equal(m2.limit, 1234); assert.equal(m2.limit_set, 'owner'); assert.equal(m2.headroom, 1234 - 300);
+  assert.equal(m2.limit_src, 'hand', 'not labelled as the Nov 22 figure once the owner set it');
   /* null = back to the default; bad input refused; only the owner. */
   const back = await (await route(NEW, w, 'PUT', '/api/standing/limits', { act: ACT, limit: null })).json();
   assert.equal(back.limits[ACT].limit, def); assert.equal(back.limits[ACT].set, 'default');

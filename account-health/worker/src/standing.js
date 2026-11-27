@@ -92,17 +92,36 @@ async function spendToday(env, md, act) {
   return out;
 }
 /** Everything that can spend today: ACTIVE campaigns' daily budgets, plus ACTIVE ad sets' own budgets in ACTIVE campaigns
- *  without one. Only what can spend NOW counts (2026-11-26: a Holiday campaign whose sets start Dec 1 made the room
- *  negative and blocked raises): a campaign budget counts when one of its ACTIVE ad sets is running (started, not
- *  ended); an ad set budget when that set is running. A set with no start time read counts as running. When no ad sets
- *  were read at all, every ACTIVE campaign budget counts, as before. */
-export const setRunning = (s, now = Date.now()) => s.status === 'ACTIVE' && !(s.start && Date.parse(s.start) > now) && !(s.end && Date.parse(s.end) <= now);
-export function budgetsOn(ml, now = Date.now()) {
+ *  without one. Only what can spend TODAY counts (2026-11-26: a Holiday campaign whose sets start Dec 1 made the room
+ *  negative and blocked raises). A set can spend today when it is ACTIVE, has not ended, and starts before the end of
+ *  the account's day (`dayEnd`, ms; a Black Friday set starting at 6pm counts at 8am). A set with no start time read
+ *  counts. A campaign budget is left out only when the read HAS ad sets of that campaign and none can spend today; a
+ *  campaign with no sets in the read (a cut or failed ad set read) counts, as before. `keep` = a campaign id that
+ *  always counts (the sale campaign the raise is sized on, so its own budget is always inside the room). */
+export const setRunning = (s, now = Date.now(), dayEnd = now) => s.status === 'ACTIVE' && !(s.start && Date.parse(s.start) >= Math.max(dayEnd, now + 1)) && !(s.end && Date.parse(s.end) <= now);
+export function budgetsOn(ml, now = Date.now(), { dayEnd = now, keep = null } = {}) {
   const C = (ml && ml.campaigns) || {}, S = Object.values((ml && ml.adsets) || {}); let t = 0;
-  const live = new Set(S.filter(s => setRunning(s, now)).map(s => s.campaign));
-  for (const [id, c] of Object.entries(C)) if (c.status === 'ACTIVE' && c.daily && (!S.length || live.has(id))) t += c.daily;
-  for (const s of S) { const c = C[s.campaign]; if (setRunning(s, now) && s.daily && c && c.status === 'ACTIVE' && !c.daily) t += s.daily; }
+  const read = new Set(S.map(s => s.campaign)), live = new Set(S.filter(s => setRunning(s, now, dayEnd)).map(s => s.campaign));
+  for (const [id, c] of Object.entries(C)) if (c.status === 'ACTIVE' && c.daily && (id === keep || !read.has(id) || live.has(id))) t += c.daily;
+  for (const s of S) { const c = C[s.campaign]; if (setRunning(s, now, dayEnd) && s.daily && c && c.status === 'ACTIVE' && !c.daily) t += s.daily; }
   return t;
+}
+/** The end of today (ms) in a timezone: the next local midnight. */
+const dtf = tz => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+export function dayEndIn(tz, now = Date.now()) {
+  let f; try { f = dtf(tz || 'America/Chicago'); } catch { f = dtf('America/Chicago'); }
+  const wall = ms => { const p = Object.fromEntries(f.formatToParts(new Date(ms)).map(x => [x.type, x.value])); return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second); };
+  const w = wall(now), d = new Date(w), mid = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1);
+  let t = mid - (w - now);
+  t += mid - wall(t);   // one correction for a clock change before midnight
+  return t;
+}
+/** The latest end of today across a brand's Meta ad accounts (D1 accounts.tz; Central when unknown). */
+async function brandDayEnd(env, act, now = Date.now()) {
+  const r = await env.DB.prepare(`SELECT a.tz AS tz FROM connections c LEFT JOIN accounts a ON a.act_id = c.external_id WHERE c.brand_id = ?1 AND c.kind = 'meta'`)
+    .bind(act).all().catch(() => ({ results: [] }));
+  const tzs = [...new Set(((r && r.results) || []).map(x => x.tz).filter(Boolean))];
+  return Math.max(...(tzs.length ? tzs : ['America/Chicago']).map(tz => dayEndIn(tz, now)));
 }
 /** The new budget for a suggestion, kept under the Meta daily limit. Returns {to, note} or {to: null, note}. */
 export function budgetFor(sug, from, limit, on) {
@@ -133,11 +152,13 @@ async function metaSide(env, md, act, today) {
   const ml = await metaLive(env, md, act, { season: true });
   if (ml.error) return { error: ml.error };
   const spent = await spendToday(env, md, act).catch(() => null);
-  const camp = pickSaleCamp(ml, today, spent || {}), on = budgetsOn(ml);
+  /* The sale campaign's own budget always counts (budgetFor takes it back out of the room), and a set starting later
+     today counts: it spends against today's limit. */
+  const camp = pickSaleCamp(ml, today, spent || {}), on = budgetsOn(ml, Date.now(), { dayEnd: await brandDayEnd(env, act), keep: camp && camp.id });
   /* Meta has no daily limit field any more (see metaLimits): the number set by hand, labelled as such. */
   const { limit, set } = limitOf(act, await savedLimits(env, md));
   const camps = await campList(env, act, ml, spent || {}, today, md).catch(() => []);
-  return { camps, camp: camp ? { id: camp.id, name: camp.name, daily: camp.daily || null, spent: spent ? (spent[camp.id] || 0) : null } : null, on, limit, limit_src: limit ? 'known' : null, limit_error: null,
+  return { camps, camp: camp ? { id: camp.id, name: camp.name, daily: camp.daily || null, spent: spent ? (spent[camp.id] || 0) : null } : null, on, limit, limit_src: limit ? (set === 'owner' ? 'hand' : 'known') : null, limit_error: null,
     ...(limit ? { limit_label: 'set by hand', limit_set: set } : {}), headroom: limit ? limit - on : null };
 }
 
@@ -316,7 +337,7 @@ export function standingMessage(rec) {
     if (!b.no_sales && s.new_mer != null) sub.push(`New customers: ${kmoney(s.new_rev)} from ${s.new_orders ?? 'n/a'} first orders${s.email_share_new != null ? ` (${Math.round(s.email_share_new * 100)}% from email left out)` : ''}, new-customer MER ${xx(s.new_mer)} (break-even ${xx(b.be_new)})`);
     if (!b.no_sales) sub.push(`Store MER: ${xx(s.mer)} so far, ${xx(l6.mer)} last 6 hours (KPI ${xx(b.kpi)})`);
     sub.push(m.error ? `Budget: Meta did not answer (${m.error})` : !m.camp ? 'Budget: no live sale campaign in Meta'
-      : `Budget: ${m.camp.daily ? `${money(m.camp.daily)}/day` : 'ad set budgets'}${m.limit ? `, ${money(m.headroom)} room under Meta's limit` : ''}`);
+      : `Budget: ${m.camp.daily ? `${money(m.camp.daily)}/day` : 'ad set budgets'}${m.limit ? `, ${money(m.headroom)} room under Meta's limit${m.limit_label ? ` (${m.limit_label})` : ''}` : ''}`);
     if (g.note) sub.push(`Note: ${g.note}`);
     els.push(list([head]), list(sub, 1));
     plain.push(`- ${head}`, ...sub.map(x => `   - ${x}`));
