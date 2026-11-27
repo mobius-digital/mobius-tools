@@ -2,7 +2,7 @@
 
 Made by `node engine/worker/tools/gen-lists.mjs`. Do not edit by hand.
 
-Every statement the engine can run. 177 in all, 12 of them writes.
+Every statement the engine can run. 181 in all, 12 of them writes.
 
 | Name | Scope | Write | Why no brand | SQL |
 |---|---|---|---|---|
@@ -112,6 +112,8 @@ Every statement the engine can run. 177 in all, 12 of them writes.
 | metrics.expensesOf | brands |  |  | `SELECT * FROM p_expense WHERE {{brands:act_id}} AND act_id IN (:acts) ORDER BY id` |
 | metrics.metaSpendDays | brands |  |  | `SELECT c.brand_id AS act_id, d.date AS date, SUM(d.spend) AS spend FROM daily_insights d JOIN (SELECT DISTINCT brand_id, external_id FROM connections WHERE kind = 'meta') c ON c.external_id = d.act_id WHERE {{brands:c.brand_id}} AND c.brand_id IN (:acts) AND d.date BETWEEN :from AND :to GROUP BY c.brand_id, d.date` |
 | metrics.planRow | brand |  |  | `SELECT * FROM p_plan WHERE {{brand:act_id}} AND act_id = :act AND month = :month` |
+| metrics.shopDays | brands |  |  | `SELECT act_id, day, sales, total_sales, taxes, shipping, gross_sales, refunds, orders, new_orders, returning_orders, zero_orders, orders_source, synced_at FROM p_shop_daily WHERE {{brands:act_id}} AND act_id IN (:acts) AND day BETWEEN :from AND :to` |
+| metrics.storeModes | brands |  |  | `SELECT b.act_id AS act_id, s.value AS value FROM brand_accounts b JOIN settings s ON s.key = 'storeSource:' // b.act_id WHERE {{brands:b.act_id}} AND b.act_id IN (:acts)` |
 | metrics.twDays | brands |  |  | `SELECT act_id, date, metric, value FROM tw_daily WHERE {{brands:act_id}} AND act_id IN (:acts) AND date BETWEEN :from AND :to AND metric IN ('netSales', 'totalSales', 'totalNetTaxes', 'totalShippingPrice', 'totalShippingCosts', 'totalHandlingFees', 'totalOrders', 'ga_adCost', 'blendedAds', 'newCustomerSales', 'rcRevenue', 'totalProductCosts', 'totalPaymentGatewayCosts', 'newCustomersOrders', 'klaviyoPlacedOrderSales', 'tiktokAdsSpend', 'tiktokSpend', 'tk_adCost', 'pinterestAdsSpend', 'pinterestSpend', 'pi_adCost', 'totalKlaviyoPlacedOrderTotalPriceCampaigns', 'totalKlaviyoPlacedOrderTotalPriceFlows')` |
 | metrics.twMetaDays | brand |  |  | `SELECT t.date AS date, SUM(CASE WHEN (t.platform = 'meta' OR (t.platform IS NULL AND a.ad_id IS NOT NULL)) THEN t.revenue ELSE 0 END) AS rev, SUM(CASE WHEN (t.platform = 'meta' OR (t.platform IS NULL AND a.ad_id IS NOT NULL)) THEN t.orders ELSE 0 END) AS ord FROM tw_ad_attr t LEFT JOIN ads a ON a.ad_id = t.ad_id AND a.act_id IN (SELECT external_id FROM connections WHERE brand_id = :act AND kind = 'meta') WHERE {{brand:t.act_id}} AND t.act_id = :act AND t.model = 'lastPlatformClick' AND t.date >= :from AND t.date <= :to GROUP BY t.date` |
 | orgs.brandNames | none |  | names for brand ids the handler already cut down to the brands of the caller | `SELECT id, name FROM brands WHERE id IN (:ids)` |
@@ -181,5 +183,7 @@ Every statement the engine can run. 177 in all, 12 of them writes.
 | store.ordersAll | brands |  |  | `SELECT order_id, customer_id, date, total, products_json, source FROM tw_orders WHERE {{brands:act_id}} AND act_id = :act ORDER BY date, order_id` |
 | store.ordersWindow | brands |  |  | `SELECT products_json, total FROM tw_orders WHERE {{brands:act_id}} AND act_id = :act AND date BETWEEN :from AND :to AND products_json IS NOT NULL` |
 | store.productNames | brands |  |  | `SELECT key, value FROM settings WHERE key IN ('productTitles:' // :act, 'productNames:' // :act) AND EXISTS (SELECT 1 FROM brands WHERE {{brands:id}} AND id = :act)` |
+| store.shopAny | brands |  |  | `SELECT act_id FROM p_shop_daily WHERE {{brands:act_id}} AND act_id IN (:acts) LIMIT 1` |
 | store.storeDays | brands |  |  | `SELECT act_id, date, metric, value FROM tw_daily WHERE {{brands:act_id}} AND act_id IN (:acts) AND date BETWEEN :from AND :to AND metric IN ('totalNewGrossSales', 'totalSales', 'netSales', 'totalRefunds', 'totalTaxes', 'totalNetTaxes', 'totalShippingPrice', 'totalOrders', 'totalOrdersCombinedItemsQuantity', 'newCustomersOrders', 'newCustomerSales', 'rcRevenue', 'klaviyoPlacedOrderSales', 'totalAmazonSales', 'totalAmazonOrders', 'amazonNetSales', 'totalAmazonFees', 'totalAmazonRefunds', 'totalTiktokShopsSales', 'totalTiktokShopsOrders', 'totalTiktokShopsNetSales', 'totalTiktokShopsRefunds', 'totalTiktokShopsFees', 'pixelCostPerSession', 'pixelCostPerAtc', 'pixelPurchases', 'blendedAds')` |
+| store.storeModeAny | brands |  |  | `SELECT b.act_id AS act_id FROM brand_accounts b JOIN settings s ON s.key = 'storeSource:' // b.act_id WHERE {{brands:b.act_id}} AND b.act_id IN (:acts) LIMIT 1` |
 | store.touchOrders | brands |  |  | `SELECT t.ad_id, o.products_json FROM tw_order_touch t JOIN tw_orders o ON o.act_id = t.act_id AND o.order_id = t.order_id WHERE {{brands:t.act_id}} AND t.act_id = :act AND t.model = 'lastPlatformClick' AND t.date >= :from` |

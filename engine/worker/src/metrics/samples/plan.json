@@ -122,7 +122,8 @@
   "mtd_spend": 8395.52,
   "spend_per_day": 350.03,
   "projected": 43723.53,
-  "at_pace": 42626.3
+  "at_pace": 42626.3,
+  "store_source": "triple_whale"
  },
  "goals": {
   "sales": 52000,
@@ -150,5 +151,7 @@
  "at_current_pace": {
   "projected": 42626.3,
   "month": "2026-01"
- }
+ },
+ "store_source": "triple_whale",
+ "store_label": "Store numbers: Triple Whale (Shopify not synced yet)"
 }

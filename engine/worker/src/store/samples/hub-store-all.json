@@ -67,7 +67,9 @@
           "revenue": 1000,
           "orders": 20
         }
-      ]
+      ],
+      "store_source": "triple_whale",
+      "store_label": "Store numbers: Triple Whale (Shopify not synced yet)"
     },
     {
       "act_id": "brand_river_tea",
@@ -125,7 +127,9 @@
           "revenue": 9000,
           "orders": 90
         }
-      ]
+      ],
+      "store_source": "triple_whale",
+      "store_label": "Store numbers: Triple Whale (Shopify not synced yet)"
     }
   ]
 }

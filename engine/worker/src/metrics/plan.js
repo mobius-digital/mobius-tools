@@ -7,6 +7,7 @@ import { safeJson } from '../platform/text.js';
 import { goalsFor, goalsPlanned, pubAccount, daysInMonth } from './series.js';
 import { forecastFor, forecastWindow, monthHistory, historyMonths, planMath } from './forecast.js';
 import { oneAccount, loadRaw } from './load.js';
+import { storeTag } from './storesource.js';
 
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 const HISTORY_MONTHS = 8;
@@ -85,6 +86,7 @@ const paceOf = fc => ({
   days_in_month: fc.days_in_month, mtd_sales: fc.mtd?.sales ?? null,
   mtd_spend: fc.mtd?.spend ?? null, spend_per_day: fc.basis?.spend_per_day ?? null,
   projected: fc.projected, at_pace: fc.at_current_pace?.sales ?? null,
+  store_source: fc.store_source,
 });
 
 /** GET /pw/api/plan: the plan of one month for one brand. */
@@ -118,5 +120,7 @@ export async function plan(ctx, input) {
     planned: goalsPlanned(acct, ym),
     current_month: curMonth,
     at_current_pace: fc ? { projected: fc.at_current_pace?.sales ?? null, month: fc.month } : null,
+    // Where the history's store numbers came from (storesource.js); the pace has its own store_source.
+    ...storeTag(history.store),
   };
 }

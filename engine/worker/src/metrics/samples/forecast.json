@@ -73,5 +73,7 @@
    "sales": 10986.77,
    "spend": 2572.71
   }
- ]
+ ],
+ "store_source": "triple_whale",
+ "store_label": "Store numbers: Triple Whale (Shopify not synced yet)"
 }

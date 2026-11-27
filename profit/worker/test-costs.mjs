@@ -97,7 +97,26 @@ async function capture() {
 }
 /* NO GOAL SET (2026-11-26) added goals_planned to /api/client and goals_planned + month to each /api/overview row.
    Without exactly those keys the answer is the one MAIN hashed: everything else in the payload is unchanged. */
-function beforeGoalsPlanned(k, text) {
+/* STORE SOURCE (2026-11-26, storesource.js) added store_source + store_label wherever store numbers are shown. With no
+   Shopify rows they must say Triple Whale, not synced yet; without them the answer is the one MAIN hashed. */
+function withoutStoreSource(text) {
+  const j = JSON.parse(text);
+  let seen = 0;
+  const walk = o => {
+    if (Array.isArray(o)) { o.forEach(walk); return; }
+    if (!o || typeof o !== 'object') return;
+    if ('store_source' in o) {
+      assert.equal(o.store_source, 'triple_whale');
+      if ('store_label' in o) assert.equal(o.store_label, 'Store numbers: Triple Whale (Shopify not synced yet)');
+      delete o.store_source; delete o.store_label; seen++;
+    }
+    Object.values(o).forEach(walk);
+  };
+  walk(j);
+  return seen ? JSON.stringify(j) : text;
+}
+function beforeGoalsPlanned(k, text0) {
+  const text = withoutStoreSource(text0);
   if (k !== 'client' && k !== 'overview') return text;
   const j = JSON.parse(text);
   if (k === 'client') { assert.equal(typeof j.goals_planned, 'boolean'); delete j.goals_planned; }

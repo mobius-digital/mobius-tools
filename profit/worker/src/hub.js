@@ -28,6 +28,7 @@
  */
 import { metaOf } from './brandids.js';
 import { rulesFor, goalOf, LEAD_CPL } from './brand.js';
+import { storeSwitchMany, markSource, sourceOf, storeTag, SHOP_METRICS } from './storesource.js';
 import { memo } from './memo.js';
 /* Speed (2026-10-26): the buyer's list is built once for a page that asks for /api/hub/kept and /api/hub/today at the
    same moment (in-flight calls share, then 20 seconds), and the Agency view's command answer is kept 3 minutes. Keys
@@ -773,6 +774,15 @@ async function twPivotMany(env, acts, from, to, ids) {
     .bind(from, to, ...acts, ...ids).all();
   const out = Object.fromEntries(acts.map(a => [a, {}]));
   for (const r of results || []) ((out[r.act_id] ??= {})[r.metric] ??= {})[r.date] = r.value;
+  /* Store numbers from Shopify when its days cover the window (storesource.js, 2026-11-26); else untouched.
+     Only when a store metric was asked for, and only the asked metrics are kept. sourceOf(out[act]) says which. */
+  if (ids.some(id => SHOP_METRICS.includes(id))) {
+    const dec = await storeSwitchMany(env, acts, out, from, to);
+    for (const a of acts) {
+      if (dec[a]?.source === 'shopify') for (const m of SHOP_METRICS) if (!ids.includes(m)) delete out[a][m];
+      markSource(out[a], dec[a]);
+    }
+  }
   return out;
 }
 /** Attribution per brand per day for one platform and model, in one query. */
@@ -1043,7 +1053,7 @@ async function storeMany(env, ctx, accts, w) {
   const lo = w.pf && w.pf < w.from ? w.pf : w.from;
   const pivs = await twPivotMany(env, acts, lo, w.to, STORE_IDS);
   if (accts.length > 1) return accts.map(a => { const piv = pivs[a.act_id] || {}; return { act_id: a.act_id, name: a.name, currency: a.currency, cur: storeRoll(piv, w.from, w.to, ctx.addDays), prev: w.pf ? storeRoll(piv, w.pf, w.pt, ctx.addDays) : null,
-    series: dates(w.from, w.to, ctx.addDays).map(d => { const r = storeRoll(piv, d, d, ctx.addDays); return { date: d, revenue: r.revenue, orders: r.orders }; }) }; });
+    series: dates(w.from, w.to, ctx.addDays).map(d => { const r = storeRoll(piv, d, d, ctx.addDays); return { date: d, revenue: r.revenue, orders: r.orders }; }), ...storeTag(sourceOf(piv)) }; });
   return [await storeBrand(env, ctx, accts[0], w, pivs[accts[0].act_id] || {})];
 }
 async function emailMany(env, ctx, accts, w) {
@@ -1293,7 +1303,9 @@ async function storeBrand(env, ctx, a, w, piv) {
   for (const o of ords || []) { let p = []; try { p = JSON.parse(o.products_json); } catch {} for (const id of p.slice(0, 3)) { const b = pc[id] ||= { id, orders: 0, revenue: 0 }; b.orders++; b.revenue += num(o.total) / Math.max(1, Math.min(3, p.length)); } }
   const top = Object.values(pc).sort((x, y) => y.orders - x.orders).slice(0, 12);
   const titles = await ctx.productTitles(a, top.map(t => t.id)).catch(() => ({}));
-  return { act_id: a.act_id, name: a.name, currency: a.currency, cur, prev, series, prev_series, products: top.map(t => ({ ...t, title: titles[t.id] || `Product ${t.id}` })), product_orders: (ords || []).length };
+  return { act_id: a.act_id, name: a.name, currency: a.currency, cur, prev, series, prev_series, products: top.map(t => ({ ...t, title: titles[t.id] || `Product ${t.id}` })), product_orders: (ords || []).length,
+    /* Where the store numbers came from (storesource.js). What sells first stays Triple Whale's order list. */
+    ...storeTag(sourceOf(piv)) };
 }
 
 /* ---------- Email ---------- */

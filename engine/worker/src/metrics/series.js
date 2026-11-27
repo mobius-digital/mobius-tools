@@ -7,6 +7,7 @@ import { safeJson } from '../platform/text.js';
 import { dayEconomics } from './money.js';
 import { shippingRuled } from './costs.js';
 import { spread, applyAdSpend } from './expenses.js';
+import { switchStore } from './storesource.js';
 
 export const daysInMonth = ym => new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate();
 
@@ -92,10 +93,12 @@ export function shippingMode(piv) {
 }
 
 /** The day rows of one brand over [from, to], from loaded rows. `raw` is what load.js returns.
- *  Returns { rows, margin_pct, shipping, piv, exp, rules }, the old seriesFor answer. */
+ *  Returns { rows, margin_pct, shipping, piv, exp, rules, store }, the old seriesFor answer. `store` says where
+ *  the store numbers came from (storesource.js): Shopify's days replace the tracker's when they cover the window. */
 export function buildSeries(raw, acct, from, to) {
   const id = acct.act_id;
   const piv = within(raw.piv[id], from, to);
+  const store = switchStore(piv, raw.shop, acct, from, to, raw.shop ? raw.shop.now : Date.now());
   const meta = raw.meta[id] || {};
   const marginPct = marginOverride(acct, monthOf(to));
   let ship = shippingMode(piv);
@@ -112,7 +115,7 @@ export function buildSeries(raw, acct, from, to) {
   /* Extra costs marked "counts as ad spend" join spend here, so every number that rests on spend holds them. */
   const exp = raw.exp[id] || [];
   if (exp.some(e => +e.is_ad_spend)) applyAdSpend(rows, spread(exp, from, to, rows).adByDate);
-  return { rows, margin_pct: marginPct, shipping: ship, piv, exp, rules };
+  return { rows, margin_pct: marginPct, shipping: ship, piv, exp, rules, store };
 }
 
 /* The first of these tracker metrics that has a value in the window, summed over it. */

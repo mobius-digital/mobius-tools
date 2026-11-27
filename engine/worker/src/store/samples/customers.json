@@ -64,6 +64,8 @@
       "repeat_share": 0.6
     }
   ],
+  "store_source": "triple_whale",
+  "store_label": "Store numbers: Triple Whale (Shopify not synced yet)",
   "journey": {
     "have": true,
     "history": {

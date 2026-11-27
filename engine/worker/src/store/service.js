@@ -4,7 +4,7 @@
 // from profit/worker/src/worker.js (the /api/customers route) and profit/worker/src/hub.js (handleHub)
 import { isEngineError } from '../platform/errors.js';
 import { swallowed } from '../platform/log.js';
-import { NeedsOld, soft, hubBrands, oneBrand, askedRange, sharedWindow } from './shared.js';
+import { NeedsOld, soft, hubBrands, oneBrand, askedRange, sharedWindow, shopifyInPlay } from './shared.js';
 import { windowFor } from '../platform/time.js';
 import { customerEconomics } from './economics.js';
 import { customerJourney } from './journey.js';
@@ -59,6 +59,7 @@ export const customers = orForward(async (ctx, input) => {
   const acct = await oneBrand(ctx);
   const full = await needsFullModel(ctx, acct.act_id);
   if (full) throw new NeedsOld(full);
+  if (await shopifyInPlay(ctx, [acct.act_id])) throw new NeedsOld(SHOPIFY_WHY);
   const asked = askedRange(q);
   const range = asked.from || asked.to ? windowFor(acct.tz, asked, ctx.now) : null;
   const snap = await soft(ctx.db.one('store.costHealth', { act: acct.act_id }), null, 'no cost check row could be read');
@@ -69,9 +70,12 @@ export const customers = orForward(async (ctx, input) => {
     meta: { window: { from: r.window.from, to: r.window.to, tz: acct.tz } } };
 });
 
+const SHOPIFY_WHY = 'the brand has Shopify store totals or a store source setting, the old worker holds the switch';
+
 /* The shared start of the two windowed hub reads. */
 async function hubRead(ctx, input, rowsFor) {
   const accts = await hubBrands(ctx);
+  if (await shopifyInPlay(ctx, accts.map(a => a.act_id))) throw new NeedsOld(SHOPIFY_WHY);
   const base = hubBase(input.query);
   const w = sharedWindow(ctx, accts, askedRange(input.query), base.cmp);
   return { data: { ...base, window: w, brands: await rowsFor(ctx, accts, w) },

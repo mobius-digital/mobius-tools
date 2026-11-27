@@ -363,6 +363,21 @@ profit/
   `POST /api/shopify/orders-sync?act=<brand>&days=90` (answers `resume_from` on a very busy store: call again with
   `&from=`). Read: `GET /api/shopify/daily?act=<brand>&days=30`. Incremental: account-health's hourly tick
   (`shopDailyTick`, 3 stalest stores, last 3 days, no new cron). Tests: `node test-shopsync.mjs`.
+- **Store numbers come from Shopify once it covers the window (src/storesource.js, 2026-11-26, Cole).** Sales,
+  orders, AOV, refunds and new vs returning ORDERS are Shopify's (p_shop_daily); Triple Whale stays for attribution,
+  ad spend, costs, email and the new vs returning REVENUE split. The switch replaces the store metrics inside the
+  tracker pivot (netSales = total_sales, totalNetTaxes = taxes, totalOrders = PAID orders, newCustomersOrders,
+  totalShippingPrice, totalSales = total_sales + refunds, totalRefunds, totalNewGrossSales), so every formula stays
+  one formula. Covered = every day from `from` to min(`to`, yesterday in the brand's tz) has money, paid orders read
+  order by order (`orders_source = 'orders'`) and a sync stamped after that day ended; today's row is used when
+  present. ANY gap: the whole window is Triple Whale, unchanged byte for byte except `store_source` /
+  `store_label`. Setting `settings.storeSource:<brand>` = auto (default) | tw | shopify (`GET/PUT /api/store-source`).
+  Wired in: `pivot()` (so seriesFor and every route on it: client, overview, plan, forecast, quarter, customers,
+  rhythm, profit share, plan share, War Room `/api/season/standing` labels), hub.js `twPivotMany` (every hub
+  surface; hub/store carries the label), account-health briefData / reportData / storePeriod and the client daily's
+  gray line, engine metrics (ported, parity tested) and engine store routes (sent to this worker when a brand has
+  Shopify rows or a setting). Today's LIVE row (Triple Whale /api/tw-day) is still Triple Whale's. Tests:
+  `node test-storesource.mjs`, engine `test/metrics/storesource.test.mjs`.
 - **`read_orders` only reaches back 60 DAYS.** Older orders need `read_all_orders`,
   which is a separate approval request in the Partner Dashboard with a written
   justification, not a checkbox. Today's cohorts avoid this because ShopifyQL

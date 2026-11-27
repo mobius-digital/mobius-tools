@@ -23,6 +23,20 @@ export async function soft(promise, fallback, reason) {
   }
 }
 
+/* Where the store numbers came from (profit storesource.js, 2026-11-26). The engine answers these reads only
+   for a brand with no Shopify store totals and no store source setting (shopifyInPlay sends the rest on), and
+   for such a brand the old route says exactly this. Same words as storeLabel there. */
+export const TRACKER_STORE = { store_source: 'triple_whale', store_label: 'Store numbers: Triple Whale (Shopify not synced yet)' };
+
+/** Do any of these brands have Shopify store totals or a store source setting? Then the old worker answers,
+ *  where the switch (storesource.js) lives. A missing table reads as none. */
+export async function shopifyInPlay(ctx, acts) {
+  const why = 'the Shopify table is not there yet, which the old route reads as none';
+  const rows = await soft(ctx.db.all('store.shopAny', { acts }), [], why);
+  const set = await soft(ctx.db.all('store.storeModeAny', { acts }), [], why);
+  return rows.length > 0 || set.length > 0;
+}
+
 /** The brand as the old answers show it. */
 export const pubAccount = a => ({ act_id: a.act_id, name: a.name, currency: a.currency, tz: a.tz, tw_shop: a.tw_shop });
 

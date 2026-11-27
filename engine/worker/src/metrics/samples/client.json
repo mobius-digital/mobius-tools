@@ -206,5 +206,7 @@
  },
  "live_as_of": null,
  "hours": null,
- "goals_planned": true
+ "goals_planned": true,
+ "store_source": "triple_whale",
+ "store_label": "Store numbers: Triple Whale (Shopify not synced yet)"
 }

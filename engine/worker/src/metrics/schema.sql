@@ -58,3 +58,13 @@ CREATE TABLE IF NOT EXISTS p_expense (
   is_ad_spend INTEGER NOT NULL DEFAULT 0, notes TEXT, created_by TEXT, created_name TEXT,
   created_at TEXT DEFAULT (datetime('now')), updated_by TEXT, updated_at TEXT DEFAULT (datetime('now')), legacy_id INTEGER
 );
+
+-- Shopify daily store totals (profit/worker/src/shopsync.js), read by the store source switch (storesource.js).
+CREATE TABLE IF NOT EXISTS p_shop_daily (
+  act_id TEXT NOT NULL, day TEXT NOT NULL, shop TEXT NOT NULL,
+  gross_sales REAL, discounts REAL, returns REAL, net_sales REAL, shipping REAL, taxes REAL, total_sales REAL,
+  sales REAL, refunds REAL, orders_all INTEGER,
+  orders INTEGER, zero_orders INTEGER, new_orders INTEGER, returning_orders INTEGER, paid_sales REAL,
+  orders_source TEXT, currency TEXT, synced_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (act_id, day)
+);

@@ -5,6 +5,7 @@ import { handleCommand } from './command.js';
 import { remoteRefresh as shopRemote } from './shopifywrite.js';
 import { shopToken } from '../../../profit/worker/src/shoptoken.js';
 import { shopDailyTick } from '../../../profit/worker/src/shopsync.js';
+import { storeSwitch, storeTag } from '../../../profit/worker/src/storesource.js';
 import { monthPlanned, defaultCovers } from './goalplan.js';
 import { handleAgency } from './agency.js';
 import { handleClients, clientAsk, clientOwnsRun, touchClient, meClient, claimInvite, hqSignin } from './clients.js';
@@ -2368,6 +2369,8 @@ async function briefData(env, acct, upTo) {
   ).bind(acct.act_id, histFrom, upTo).all();
   const piv = {};
   for (const r of twRows) (piv[r.metric] ??= {})[r.date] = r.value;
+  /* Store numbers from Shopify when its days cover the window (profit storesource.js, 2026-11-26); else untouched. */
+  const storeSrc = await storeSwitch(env, acct, piv, histFrom, upTo);
   const { results: metaRows } = await env.DB.prepare(
     `SELECT date, SUM(spend) AS spend, SUM(purchases) AS purchases, SUM(revenue) AS revenue FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date >= ?2 AND date <= ?3 GROUP BY date`,
   ).bind(acct.act_id, histFrom, upTo).all();
@@ -2612,6 +2615,8 @@ async function briefData(env, acct, upTo) {
       by_date: Object.fromEntries(done.filter(x => x.a.issues?.length).map(x => [x.date, x.a.issues])),
     },
     ...(fixedBlock ? { fixed: fixedBlock } : {}),
+    /* Where the store numbers came from: 'shopify' or 'triple_whale', and the plain line. */
+    ...storeTag(storeSrc),
   };
 }
 
@@ -2728,6 +2733,8 @@ function buildBriefText(data, dates, narrative) {
       ? `_Note: no target has been set for ${MONTH_OF(data.month)} yet, so these are measured against ${MONTH_OF(data.goals_inherited_from)}'s plan._`
       : `_Note: no target has been set for ${MONTH_OF(data.month)} yet, so these are measured against the last plan on file._`);
   }
+  // Where the store numbers came from (storesource.js), only once Shopify is the source: before that, the text is as it was.
+  if (data.store_source === 'shopify' && data.store_label) L.push('', `_${data.store_label}_`);
   return L.join('\n') + (narrative ? `\n\n${narrative}` : '');
 }
 
@@ -3576,6 +3583,8 @@ async function clientDailyFor(env, acct, date, text, data, { next = true, card =
     /* No goal typed for the month: no inherited number reaches the client, "No goal set for <Month>" instead. */
     goal_set: data?.goals_planned !== false,
     today: today || localDate(acct.tz || BRIEF_TZ), thread: !!th,
+    /* Where the store numbers came from (storesource.js): the gray context line says it. */
+    store: data?.store_source ?? null, store_label: data?.store_label ?? null,
   });
   return card ? m : m.plain;
 }
@@ -3966,6 +3975,7 @@ async function storePeriod(env, acct, from, to) {
   const { results: twRows } = await env.DB.prepare(`SELECT date, metric, value FROM tw_daily WHERE act_id = ?1 AND date >= ?2 AND date <= ?3`).bind(acct.act_id, from, to).all();
   const piv = {};
   for (const r of twRows || []) (piv[r.metric] ??= {})[r.date] = r.value;
+  const storeSrc = await storeSwitch(env, acct, piv, from, to);   // Shopify when it covers the window (storesource.js)
   const { results: metaRows } = await env.DB.prepare(`SELECT date, SUM(spend) AS spend, SUM(impressions) AS impressions, SUM(clicks) AS clicks, SUM(link_clicks) AS link_clicks, SUM(purchases) AS purchases, SUM(revenue) AS revenue FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date >= ?2 AND date <= ?3 GROUP BY date`).bind(acct.act_id, from, to).all();
   const metaBy = Object.fromEntries((metaRows || []).map(r => [r.date, r]));
   const cmPct = goalsFor(acct, monthOf(to))?.cm_pct ?? null;
@@ -3990,7 +4000,8 @@ async function storePeriod(env, acct, from, to) {
     cac: t.ncpa,
     first_order_margin: t.new_orders && t.margin != null ? ((t.new_rev ?? 0) / t.new_orders) * t.margin : null,
     email_revenue: email, email_share_of_revenue: email != null && t.sales > 0 ? email / t.sales : null,
-    how_to_read: 'All Triple Whale store-level (blended), revenue = Shopify total sales less tax. aov = revenue / orders. new_customers = first-time orders (TW newCustomersOrders); cac = ad_spend / new_customers (the same number Reports call New-customer CPA and Customers calls Cost to acquire). first_order_margin = new_customer_aov x gross margin: the money the first order leaves to pay back the cac. email_revenue is Klaviyo-attributed and overlaps new and returning, never added to them. A null means Triple Whale has not synced that metric for the range.',
+    ...storeTag(storeSrc),
+    how_to_read: (storeSrc?.source === 'shopify' ? 'Store numbers come from Shopify (revenue, paid orders, new customers); ad spend, costs and the new vs returning revenue split from Triple Whale. ' : '') + 'All Triple Whale store-level (blended), revenue = Shopify total sales less tax. aov = revenue / orders. new_customers = first-time orders (TW newCustomersOrders); cac = ad_spend / new_customers (the same number Reports call New-customer CPA and Customers calls Cost to acquire). first_order_margin = new_customer_aov x gross margin: the money the first order leaves to pay back the cac. email_revenue is Klaviyo-attributed and overlaps new and returning, never added to them. A null means Triple Whale has not synced that metric for the range.',
   };
 }
 
@@ -4729,6 +4740,8 @@ async function reportData(env, acct, period, start, end) {
   ).bind(acct.act_id, histFrom, end).all();
   const piv = {};
   for (const r of twRows) (piv[r.metric] ??= {})[r.date] = r.value;
+  /* Store numbers from Shopify when its days cover the whole report window (storesource.js); else untouched. */
+  const storeSrc = await storeSwitch(env, acct, piv, histFrom, end);
   const { results: metaRows } = await env.DB.prepare(
     `SELECT date, SUM(spend) AS spend, SUM(impressions) AS impressions, SUM(clicks) AS clicks, SUM(link_clicks) AS link_clicks, SUM(purchases) AS purchases, SUM(revenue) AS revenue FROM daily_insights
      WHERE act_id IN ${metaOf(1)} AND date >= ?2 AND date <= ?3 GROUP BY date`,
@@ -5222,6 +5235,7 @@ async function reportData(env, acct, period, start, end) {
     cm_ok: cmOk, cogs_quality: cogsQuality, margin_28d: margin28, cm_pct: cmPct,
     generated_at: new Date().toISOString(),
     ...(netCur ? { fixed: { in_posts: true } } : {}),
+    ...storeTag(storeSrc),
   };
 }
 
