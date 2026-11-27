@@ -27,7 +27,7 @@ const DASHBOARD_URL = 'https://locus.go-mobius-digital.com/profit/';
 import { handleSeason, seasonPublic } from './season.js';
 import { handleShopifyApp } from './shopifyapp.js';
 import { shopToken, exchangeCode, ensureTokenColumns } from './shoptoken.js';
-import { syncShopDaily, noteSyncError } from './shopsync.js';
+import { syncShopDaily, noteSyncError, ensureShopDaily } from './shopsync.js';
 import { storeSwitch, markSource, sourceOf, storeTag, storeDaily, storeMode, storeSettingKey, STORE_MODES } from './storesource.js';
 import { handleScenario } from './scenario.js';
 import { handleDashboard } from './dashboard.js';
@@ -2820,6 +2820,9 @@ export default {
         if (!(await isOwner(request, env))) return json({ error: 'owner only' }, 403);
         const act = url.searchParams.get('act');
         if (!act || act === 'all') return json({ error: 'one brand at a time: ?act=<brand id>' }, 400);
+        /* The SELECT below names columns shopsync.js adds (orders_denied_at): make them first, or on a database the
+           hourly tick has not touched yet the read throws and every store reads as not connected. */
+        await ensureShopDaily(env);
         const row = await env.DB.prepare(
           `SELECT shop, act_id, scopes, orders_denied_at, orders_error FROM p_shopify WHERE act_id = ?1 AND uninstalled_at IS NULL AND access_token <> '' ORDER BY installed_at DESC LIMIT 1`,
         ).bind(act).first().catch(() => null);
