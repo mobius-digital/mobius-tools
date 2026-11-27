@@ -24,7 +24,8 @@ async function fetchBoot() {
       return { me: { email: c.email, name: c.name, role: 'client', client: c }, brands: c.brands.map(x => ({ id: x.id, name: x.name, status: 'active' })) };
     }
     const [me, b] = await Promise.all([fixture('_sample/me.json'), fixture('_sample/brands.json')]);
-    return { me, brands: b.brands };
+    /* sample mode is the owner (the workshop shows); ?as=team previews the team's view */
+    return { me: { ...me, role: QS.get('as') === 'team' ? 'team' : 'owner' }, brands: b.brands };
   }
   const [me, b] = await Promise.all([
     api('/api/me', { worker: 'ah' }),

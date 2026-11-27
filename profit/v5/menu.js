@@ -9,13 +9,14 @@
    The page file for a route is always pages/<line id>/<tab id>.js */
 
 import { AI_NAME, ORG_SHORT } from './config.js';
+import { tabsFor, arrange } from './workshop.js';
 
 const t = (id, label, legacy = null, team = false) => ({ id, label, legacy, team });
 const one = (legacy = null) => [t('index', '', legacy)];
 /** A route that works but is not drawn as a tab (reached from a link on another page). */
 const hide = tab => ({ ...tab, hidden: true });
 /** The tabs drawn across the top of a line's page. */
-export const shownTabs = (line, role) => line.tabs.filter(x => !x.hidden && (role !== 'client' || !x.team));
+export const shownTabs = (line, role) => tabsFor(line, role).filter(x => !x.hidden && (role !== 'client' || !x.team));
 
 /* Automations is one line in BOTH side menus (team only). In a brand view its pages show that brand's rows,
    in the agency view every brand's. viewOf() answers null for a line that sits in both, so the view you are in is kept. */
@@ -173,9 +174,10 @@ const canSee = (who, role) => (who === 'owner' ? role === 'owner' : who === 'all
 
 /** The menu for a view and a role. role: 'owner' | 'team' | 'client'. The client's is the trimmed brand menu.
     A line whose feature is off is left out. { allFeatures: true } keeps it (the router: a page still opens by URL). */
-export function menuFor(view, role, { allFeatures = false } = {}) {
+export function menuFor(view, role, { allFeatures = false, workshop = false } = {}) {
   const src = view === 'agency' && role !== 'client' ? AGENCY_MENU : BRAND_MENU;
-  return src.map(g => ({ ...g, lines: g.lines.filter(l => canSee(l.who, role) && (allFeatures || featureOk(l))).map(l => ({ ...l, tabs: l.tabs.filter(x => role !== 'client' || !x.team) })) }))
+  /* workshop.js: the owner gets the Workshop group, anyone else the live lines only; { workshop: true } keeps every line (the router) */
+  return arrange(src.map(g => ({ ...g, lines: g.lines.filter(l => canSee(l.who, role) && (allFeatures || featureOk(l))).map(l => ({ ...l, tabs: tabsFor(l, role).filter(x => role !== 'client' || !x.team) })).filter(l => l.tabs.length) })), role, workshop)
     .filter(g => g.lines.length);
 }
 

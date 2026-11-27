@@ -111,13 +111,13 @@ const lines = (view, role, o) => menu.menuFor(view, role, o).flatMap(g => g.line
 
 ok('Creators shows by default', () => {
   assert.equal(menu.featuresNow().creatorProgram, true);
-  assert.ok(lines('brand', 'team').includes('creators'));
+  assert.ok(lines('brand', 'owner').includes('creators'));   // owner: Creators is in the workshop (workshop.js)
   assert.ok(lines('agency', 'owner').includes('a-creators'));
 });
 
 ok('creatorProgram off drops creators and a-creators; the page still opens', () => {
   assert.equal(menu.setFeatures({ creatorProgram: false, socialPosting: false }), true);
-  assert.equal(lines('brand', 'team').includes('creators'), false);
+  assert.equal(lines('brand', 'owner').includes('creators'), false);
   assert.equal(lines('brand', 'client').includes('creators'), false);
   assert.equal(lines('agency', 'owner').includes('a-creators'), false);
   assert.ok(lines('agency', 'owner', { allFeatures: true }).includes('a-creators'));
@@ -129,8 +129,8 @@ ok('creatorProgram off drops creators and a-creators; the page still opens', () 
 
 ok('back on brings them back', () => {
   assert.equal(menu.setFeatures({ creatorProgram: true }), true);
-  assert.ok(lines('brand', 'team').includes('creators'));
-  assert.ok(lines('agency', 'team').includes('a-creators'));
+  assert.ok(lines('brand', 'owner').includes('creators'));   // owner: Creators is in the workshop (workshop.js)
+  assert.ok(lines('agency', 'owner').includes('a-creators'));
 });
 
 ok('the client page: its own list, the same rules, its own brand, client words', () => {
