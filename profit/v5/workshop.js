@@ -7,6 +7,8 @@
    A live line shows only its live tabs to the team; a link to one of its other tabs opens its first live tab.
    The owner is ctx.me role owner (shell.js realRole), the same check v5 uses everywhere. */
 
+import { explainFor } from './workshop-pages.js';
+
 /** line id: the live tab ids of that line. The brand switcher is in the top bar and always there. */
 export const LIVE = {
   /* Black Friday War Room: agency and brand. The brand plan is a route opened from the War Room's plan table. */
@@ -42,24 +44,33 @@ export const canOpen = (role, lineId, tabId) => seesWorkshop(role) || isLive(lin
 export const tabsFor = (line, role) => seesWorkshop(role) || !lineLive(line.id) ? line.tabs : line.tabs.filter(x => isLive(line.id, x.id));
 
 /** The menu groups as this role sees them (menu.js menuFor). keepAll (the router) keeps every line in place so a
-    workshop address still resolves. The owner gets live lines where they were and the rest in one Workshop group,
-    tagged. Anyone else gets the live lines only. */
+    workshop address still resolves. The owner and the team keep every line where it is; a line still in the workshop
+    carries workshop: true and the shell draws the workshop icon beside it (Cole, 2026-11-27: "just an icon next to it").
+    A client gets the live lines only. */
 export function arrange(groups, role, keepAll = false) {
   if (keepAll) return groups;
-  if (!seesWorkshop(role)) return groups.map(g => ({ ...g, lines: g.lines.filter(l => lineLive(l.id)) }));
-  const shop = [];
-  const live = groups.map(g => ({ ...g, lines: g.lines.filter(l => lineLive(l.id) || (shop.push({ ...l, note: WORKSHOP_NOTE, foot: false, gap: false }), false)) }));
-  return shop.length ? live.concat({ group: WORKSHOP_GROUP, workshop: true, lines: shop }) : live;
+  if (role === 'client') return groups.map(g => ({ ...g, lines: g.lines.filter(l => lineLive(l.id)) }));
+  return groups.map(g => ({ ...g, lines: g.lines.map(l => (lineLive(l.id) ? l : { ...l, workshop: true })) }));
 }
 
-/** The page drawn for a workshop address when the viewer is not the owner. No module, no data call. */
+/** The page drawn for a workshop address when the viewer is not the owner. No module, no data call.
+    It says what the page is for, the data it will hold, how the team uses it and how it helps a brand scale
+    (workshop-pages.js), so the team knows what is coming and can tell us what they want on it. */
 export function renderBuilding(el, ctx) {
   const doc = el.ownerDocument || document;
-  const box = doc.createElement('div'); box.className = 'lx-empty';
-  const eyebrow = doc.createElement('span'); eyebrow.className = 'lx-eyebrow';
-  eyebrow.textContent = ctx && ctx.view === 'agency' ? 'All brands' : ctx && ctx.brand ? ctx.brand.name : '';
-  const h3 = doc.createElement('h3'); h3.textContent = (ctx && ctx.title) || 'This page';
-  const p = doc.createElement('p'); p.textContent = 'This page is being built.';
-  box.append(eyebrow, h3, p);
+  const mk = (tag, cls, text) => { const n = doc.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  const box = mk('div', 'lx-empty lx-ws');
+  const eyebrow = mk('span', 'lx-eyebrow', ctx && ctx.view === 'agency' ? 'All brands' : ctx && ctx.brand ? ctx.brand.name : '');
+  const h3 = mk('h3', null, (ctx && ctx.title) || 'This page');
+  const pill = mk('span', 'lx-ws-pill', WORKSHOP_NOTE);
+  const ex = explainFor(ctx && ctx.line && ctx.line.id);
+  if (!ex) { box.append(eyebrow, h3, pill, mk('p', null, 'This page is being built.')); el.replaceChildren(box); return; }
+  const sec = (label, body) => { const s = mk('div', 'lx-ws-sec'); s.append(mk('b', null, label), body); return s; };
+  const list = mk('ul');
+  ex.data.forEach(d => list.append(mk('li', null, d)));
+  box.append(eyebrow, h3, pill, mk('p', 'lx-ws-lead', ex.what));
+  if (ex.data.length) box.append(sec('The data it will have', list));
+  box.append(sec('How you will use it', mk('p', null, ex.use)), sec('How it helps a brand scale', mk('p', null, ex.scale)),
+    mk('p', 'lx-ws-foot', 'This page is being built and opens after its review. Want something on it? Post it in the team channel.'));
   el.replaceChildren(box);
 }
