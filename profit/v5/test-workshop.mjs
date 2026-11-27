@@ -102,6 +102,19 @@ await ok('a live line, non live tab: opens its first live tab', () => {
   assert.deepEqual(router.normalise({ view: 'brand', brand: 'northlake', line: 'profile', tab: 'index' }).tab, 'delivery');
   assert.deepEqual(router.normalise({ view: 'brand', brand: 'northlake', line: 'black-friday', tab: 'plan' }).tab, 'plan');
 });
+await ok('the shell buttons (brand switcher, phone tabs) never end on a workshop page for the team', () => {
+  as('team');
+  /* the switcher asks for a line with no tab: All brands, and a brand from the agency view */
+  assert.deepEqual(router.normalise({ view: 'agency', line: 'a-today' }), { view: 'agency', brand: 'all', line: 'a-meta', tab: 'suggestions' });
+  assert.deepEqual(router.normalise({ view: 'brand', brand: 'northlake', line: 'home' }), { view: 'brand', brand: 'northlake', line: 'meta', tab: 'suggestions' });
+  assert.equal(router.normalise({ view: 'brand', brand: 'northlake', line: 'platforms' }).line, 'meta');
+  /* a live line with no tab keeps its line; a typed workshop address keeps its page ("being built") */
+  assert.equal(router.normalise({ view: 'brand', brand: 'northlake', line: 'production' }).line, 'production');
+  assert.equal(router.normalise({ view: 'brand', brand: 'northlake', line: 'my-day' }).line, 'my-day');
+  assert.equal(router.normalise({ view: 'brand', brand: 'northlake', line: 'home', tab: 'index' }).line, 'home');
+  as('owner');
+  assert.equal(router.normalise({ view: 'agency', line: 'a-today' }).line, 'a-today');
+});
 await ok('the owner keeps every tab', () => {
   as('owner');
   assert.equal(router.normalise({ view: 'brand', brand: 'northlake', line: 'meta', tab: 'overview' }).tab, 'overview');
@@ -118,6 +131,8 @@ await ok('a direct link to a workshop page as team: "being built", no data call'
   assert.equal(box.className, 'lx-empty');
   assert.ok(box.kids.some(k => k.textContent === 'This page is being built.'));
   assert.equal(fetched, before);
+  /* a blocked page is never kept as the page the app reopens on */
+  assert.ok(![...store.values()].some(v => String(v).includes('customers')));
   go('#/agency/all/a-today/index');
   await new Promise(r => setTimeout(r, 0));
   assert.equal(drawn.line.id, 'a-today');

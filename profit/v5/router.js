@@ -11,7 +11,7 @@ import { SAMPLE, cached, getSaved, putSaved, pageKey, fixture, api, STALE_MS, se
 import { lineOf, viewOf, menuFor } from './menu.js';
 import { legacyUrl, LS5, APP_NAME } from './config.js';
 import { gateOf, gateRoute, heldBrand } from './gate.js';
-import { seesWorkshop, tabsFor, canOpen, renderBuilding } from './workshop.js';
+import { seesWorkshop, lineLive, tabsFor, canOpen, renderBuilding } from './workshop.js';
 
 let host = null;          // { state(), frame(route, line, tab), brandBySlug(slug) } from the shell
 let current = null;       // the route on screen
@@ -53,8 +53,10 @@ export function normalise(r) {
   /* every line, even one whose agency feature is off: it leaves the menu, but its page still opens by its address */
   const menu = menuFor(view, role, { allFeatures: true, workshop: true }).flatMap(g => g.lines);
   const top = line && line.top && (line.who === 'all' || role !== 'client');
-  /* no line asked for: the owner lands where they always did, anyone else on the first live line (workshop.js) */
-  if (!line || !(top || menu.some(l => l.id === line.id))) line = seesWorkshop(role) ? menu[0] : menuFor(view, role, { allFeatures: true }).flatMap(g => g.lines)[0] || menu[0];
+  /* no line asked for: the owner lands where they always did, anyone else on the first live line (workshop.js).
+     A workshop line asked for with no tab is a button of the shell (the brand switcher, the phone tabs), not a typed
+     address: it goes to the first live line too, so switching brands never ends on "being built". */
+  if (!line || !(top || menu.some(l => l.id === line.id)) || (!r.tab && !seesWorkshop(role) && !lineLive(line.id))) line = seesWorkshop(role) ? menu[0] : menuFor(view, role, { allFeatures: true }).flatMap(g => g.lines)[0] || menu[0];
   const tabs = tabsFor(line, role).filter(x => role !== 'client' || !x.team);
   const tab = tabs.find(x => x.id === r.tab) || tabs[0];
   let brand = 'all';
@@ -121,9 +123,9 @@ async function show(route, { soft = false, fresh = false } = {}) {
   const ctx = ctxFor(route, line, tab, ctl.signal, frame);
   currentCtx = ctx;
   document.title = `${ctx.title} · ${APP_NAME}`;
-  try { localStorage.setItem(LS5.last, href(route)); } catch {}
-  /* a page in the workshop, for anyone but the owner: "being built", no page code, no data call */
-  if (!canOpen(ctx.role, line.id, tab.id)) { frame.setRanges(false); frame.setAsOf(null); frame.setTitle(null); renderBuilding(frame.el, ctx); if (!soft) scrollTop(); return; }
+  /* a page in the workshop, for anyone but the owner: "being built", no page code, no data call (and never the page the app reopens on) */
+  if (canOpen(ctx.role, line.id, tab.id)) { try { localStorage.setItem(LS5.last, href(route)); } catch {} }
+  else { frame.setRanges(false); frame.setAsOf(null); frame.setTitle(null); renderBuilding(frame.el, ctx); if (!soft) scrollTop(); return; }
   const mod = await importPage(line.id, tab.id);
   if (my !== ticket) return;
   const el = frame.el;
@@ -224,6 +226,8 @@ export function start(shellHost) {
   });
   if (!location.hash || location.hash === '#' || location.hash === '#/') {
     let last = null; try { last = localStorage.getItem(LS5.last); } catch {}
+    /* a page kept from before it went into the workshop is not where the team starts */
+    if (last) { const p = parse(last); if (!canOpen(host.state().role, p.line, p.tab)) last = null; }
     history.replaceState(null, '', last && !SAMPLE ? last : href(normalise({})));
   }
   onHash();
