@@ -359,10 +359,13 @@ profit/
   `returning_orders` from `customerJourneySummary.customerOrderIndex`. Money comes from ShopifyQL `FROM sales ...
   GROUP BY day` for any range; order counts come from the orders list for the last 60 days (`orders_source =
   'orders'`), older days carry ShopifyQL money and `orders_all` only (`'shopifyql'`). `p_shopify.last_sync_at` is the
-  COHORT sync; the daily totals stamp `orders_sync_at` / `orders_days` / `orders_error`. Backfill one store:
+  COHORT sync; the daily totals stamp `orders_sync_at` / `orders_days` / `orders_error`, and the tick stamps
+  `orders_try_at` before every try (so a store that keeps failing goes to the back of the line, never starving the
+  rest). Per day, `synced_at` moves whenever the money is rewritten; `orders_at` moves only when the orders pass
+  finished that day, so "are the counts whole?" reads `orders_at`. Backfill one store (OWNER ONLY):
   `POST /api/shopify/orders-sync?act=<brand>&days=90` (answers `resume_from` on a very busy store: call again with
   `&from=`). Read: `GET /api/shopify/daily?act=<brand>&days=30`. Incremental: account-health's hourly tick
-  (`shopDailyTick`, 3 stalest stores, last 3 days, no new cron). Tests: `node test-shopsync.mjs`.
+  (`shopDailyTick`, 3 stores tried longest ago, last 3 days, no new cron). Tests: `node test-shopsync.mjs`.
 - **`read_orders` only reaches back 60 DAYS.** Older orders need `read_all_orders`,
   which is a separate approval request in the Partner Dashboard with a written
   justification, not a checkbox. Today's cohorts avoid this because ShopifyQL

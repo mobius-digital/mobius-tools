@@ -14,6 +14,9 @@
  *     zero_orders = $0 orders (creator samples, giveaways, replacements); never counted as orders
  *     new_orders / returning_orders = the customer's first paid order or a later one (customerOrderIndex)
  *     orders_source = 'orders' for days read order by order, 'shopifyql' where only the aggregate exists
+ *   two stamps: synced_at = the last time the MONEY for the day was written (every run that reached ShopifyQL);
+ *     orders_at = the last time the ORDERS pass finished that day. A run whose orders pass fails or stops at the page
+ *     cap still bumps synced_at, so "is this whole day counted?" (storesource.js) must read orders_at for the counts.
  *
  * Owner route (worker.js): POST /api/shopify/orders-sync?act=<brand>&days=90 backfills one store.
  * Incremental: account-health's hourly tick calls shopDailyTick (days=3, the stalest stores first, no new cron).
@@ -32,15 +35,20 @@ export const SHOP_DAILY_DDL = [
     gross_sales REAL, discounts REAL, returns REAL, net_sales REAL, shipping REAL, taxes REAL, total_sales REAL,
     sales REAL, refunds REAL, orders_all INTEGER,
     orders INTEGER, zero_orders INTEGER, new_orders INTEGER, returning_orders INTEGER, paid_sales REAL,
-    orders_source TEXT, currency TEXT, synced_at TEXT NOT NULL DEFAULT (datetime('now')),
+    orders_source TEXT, currency TEXT, synced_at TEXT NOT NULL DEFAULT (datetime('now')), orders_at TEXT,
     PRIMARY KEY (act_id, day))`,
   `CREATE INDEX IF NOT EXISTS p_shop_daily_shop_idx ON p_shop_daily (shop, day)`,
 ];
-const SHOPIFY_COLS = ['orders_sync_at TEXT', 'orders_days INTEGER', 'orders_error TEXT'];
+/* Columns added after the table first shipped (each ALTER fails on its own once done). */
+const SHOP_DAILY_COLS = ['orders_at TEXT'];
+/* orders_sync_at = the last run that finished; orders_try_at = the last run the hourly tick started, failed or not, so a
+   store that keeps failing goes to the back of the line instead of starving the healthy ones. */
+const SHOPIFY_COLS = ['orders_sync_at TEXT', 'orders_days INTEGER', 'orders_error TEXT', 'orders_try_at TEXT'];
 
 /** Make the table and the p_shopify sync columns if they are missing. Each statement fails on its own when done. */
 export async function ensureShopDaily(env) {
   for (const s of SHOP_DAILY_DDL) await env.DB.prepare(s).run().catch(() => {});
+  for (const c of SHOP_DAILY_COLS) await env.DB.prepare(`ALTER TABLE p_shop_daily ADD COLUMN ${c}`).run().catch(() => {});
   for (const c of SHOPIFY_COLS) await env.DB.prepare(`ALTER TABLE p_shopify ADD COLUMN ${c}`).run().catch(() => {});
 }
 
@@ -206,11 +214,11 @@ export async function syncShopDaily(env, row, opts = {}) {
     await env.DB.batch(orderDays.map(day => {
       const c = byDay[day] || { orders: 0, zero_orders: 0, new_orders: 0, returning_orders: 0, paid_sales: 0 };
       return env.DB.prepare(
-        `INSERT INTO p_shop_daily (act_id, day, shop, orders, zero_orders, new_orders, returning_orders, paid_sales, orders_source, currency, synced_at)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,'orders',?9,?10)
+        `INSERT INTO p_shop_daily (act_id, day, shop, orders, zero_orders, new_orders, returning_orders, paid_sales, orders_source, currency, synced_at, orders_at)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,'orders',?9,?10,?10)
          ON CONFLICT(act_id, day) DO UPDATE SET orders = excluded.orders, zero_orders = excluded.zero_orders,
            new_orders = excluded.new_orders, returning_orders = excluded.returning_orders, paid_sales = excluded.paid_sales,
-           orders_source = 'orders', synced_at = excluded.synced_at`,
+           orders_source = 'orders', synced_at = excluded.synced_at, orders_at = excluded.orders_at`,
       ).bind(row.act_id, day, row.shop, c.orders, c.zero_orders, c.new_orders, c.returning_orders, c.paid_sales, currency, stamp);
     }));
   }
@@ -222,6 +230,7 @@ export async function syncShopDaily(env, row, opts = {}) {
     orders_from: start, pages, ...(more ? { resume_from: doneUntil } : {}), rows: cnt?.[0]?.n ?? null, as_of: stamp };
 }
 
+const stampOf = ms => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
 function nextDay(d) { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + 1); return x.toISOString().slice(0, 10); }
 
 /** Note a failed run on the store so the Connections screen can say why its numbers stopped. */
@@ -233,18 +242,22 @@ export async function noteSyncError(env, shop, message) {
 /**
  * The hourly incremental (account-health's '0 * * * *' tick, no new cron): the `limit` stores synced longest ago,
  * last 3 days each, one at a time. `tokenFor(shop)` returns a working token or null. `canAfford(n)` guards the
- * tick's subrequest budget. A store is skipped when it synced in the last `minMinutes`.
+ * tick's subrequest budget. A store is skipped when the tick tried it in the last `minMinutes`. Each try is stamped
+ * (orders_try_at) BEFORE it runs, so a store that keeps failing (lost token, orders refused, a ShopifyQL error) moves
+ * to the back of the line like a synced one and never holds the healthy stores off the tick.
  */
 export async function shopDailyTick(env, { tokenFor, F = fetch, canAfford = () => true, limit = 3, minMinutes = 50, now = Date.now } = {}) {
   await ensureShopDaily(env);
-  const cutoff = new Date(now() - minMinutes * 60000).toISOString().slice(0, 19).replace('T', ' ');
+  const cutoff = stampOf(now() - minMinutes * 60000);
   const { results } = await env.DB.prepare(
     `SELECT shop, act_id, scopes FROM p_shopify WHERE act_id IS NOT NULL AND uninstalled_at IS NULL AND access_token <> ''
-       AND (orders_sync_at IS NULL OR orders_sync_at < ?1) ORDER BY COALESCE(orders_sync_at, '') ASC LIMIT ?2`,
+       AND COALESCE(orders_try_at, orders_sync_at, '') < ?1
+     ORDER BY COALESCE(orders_try_at, orders_sync_at, '') ASC LIMIT ?2`,
   ).bind(cutoff, limit).all().catch(() => ({ results: [] }));
   const out = [];
   for (const row of results) {
     if (!canAfford(12)) { out.push({ shop: row.shop, deferred: 'out of subrequest budget' }); break; }
+    await env.DB.prepare(`UPDATE p_shopify SET orders_try_at = ?2 WHERE shop = ?1`).bind(row.shop, stampOf(now())).run().catch(() => {});
     try {
       const token = await tokenFor(row.shop);
       if (!token) { await noteSyncError(env, row.shop, 'not connected: the store has to open the app once'); out.push({ shop: row.shop, error: 'not connected' }); continue; }

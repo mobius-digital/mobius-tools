@@ -3,7 +3,7 @@
  * day boundary, the 60-day read_orders window, a page cap that never writes a half-counted day, and the hourly tick.
  *   node test-shopsync.mjs   (from profit/worker) */
 import assert from 'node:assert/strict';
-import { syncShopDaily, shopDailyTick, moneyRows, classifyOrder, ordersStart, dayIn, salesQuery } from './src/shopsync.js';
+import { syncShopDaily, shopDailyTick, moneyRows, classifyOrder, ordersStart, dayIn, salesQuery, ensureShopDaily } from './src/shopsync.js';
 import { makeDb } from './test-d1.mjs';
 
 const SHOP = 'test-store.myshopify.com', ACT = 'brand_test';
@@ -109,8 +109,43 @@ await ok('the hourly tick syncs matched stores only, skips fresh ones, and notes
   assert.equal(out.stores.find(s => s.shop === 'gone.myshopify.com').error, 'not connected');
   assert.equal(db.prepare(`SELECT orders_error FROM p_shopify WHERE shop = 'gone.myshopify.com'`).get().orders_error.startsWith('not connected'), true);
   assert.equal(db.prepare(`SELECT orders_sync_at FROM p_shopify WHERE shop = 'other.myshopify.com'`).get().orders_sync_at, null);
+  /* Both were tried this hour (one synced, one failed): neither runs again for 50 minutes. */
   const again = await shopDailyTick({ DB }, { F, now, tokenFor: async () => 'tok' });
-  assert.deepEqual(again.stores.map(s => s.shop), ['gone.myshopify.com']);   // the synced one is fresh for 50 minutes
+  assert.equal(again.skipped, 'every store is fresh');
+  assert.ok(db.prepare(`SELECT orders_try_at FROM p_shopify WHERE shop = 'gone.myshopify.com'`).get().orders_try_at);
+});
+
+await ok('a store that keeps failing goes to the back of the line and never starves the healthy ones', async () => {
+  const { db, DB } = makeDb();
+  for (const i of [1, 2, 3]) put(db, { shop: `bad${i}.myshopify.com`, act_id: `brand_bad${i}` });
+  put(db, { shop: SHOP, act_id: ACT });
+  const F = async (url, init) => fakeShop()(url.replace(/https:\/\/[^/]+/, `https://${SHOP}`), init);
+  const tokenFor = async shop => (shop === SHOP ? 'tok' : null);
+  /* The healthy store synced a while ago; the three failing ones never did, so they go first once. */
+  await ensureShopDaily({ DB }); db.prepare(`UPDATE p_shopify SET orders_sync_at = '2026-11-20 10:00:00' WHERE shop = ?`).run(SHOP);
+  let t = NOW;
+  const first = await shopDailyTick({ DB }, { F, now: () => t, tokenFor });
+  assert.deepEqual(first.stores.map(s => s.shop).sort(), ['bad1.myshopify.com', 'bad2.myshopify.com', 'bad3.myshopify.com']);
+  t += 60 * 60000;                                                      // the next hour: the healthy store goes first
+  const next = await shopDailyTick({ DB }, { F, now: () => t, tokenFor });
+  assert.equal(next.stores[0].shop, SHOP); assert.equal(next.stores[0].error, undefined);
+  assert.ok(db.prepare(`SELECT orders_sync_at FROM p_shopify WHERE shop = ?`).get(SHOP).orders_sync_at > '2026-11-20 10:00:00');
+});
+
+await ok('a failed orders pass leaves orders_at alone while the money stamp moves', async () => {
+  const { db, DB } = makeDb(); put(db);
+  const sqlRows = [{ day: '2026-11-19', orders: '1', total_sales: '54', taxes: '4', returns: '0' }];
+  const early = Date.parse('2026-11-19T20:00:00Z');
+  await syncShopDaily({ DB }, { shop: SHOP, act_id: ACT }, { token: 'tok', F: fakeShop({ sqlRows, orders: [order('2026-11-19T15:00:00Z', 54)] }), wait, now: () => early, days: 3 });
+  const before = db.prepare(`SELECT synced_at, orders_at FROM p_shop_daily WHERE day = '2026-11-19'`).get();
+  assert.equal(before.orders_at, before.synced_at);
+  const ok200 = fakeShop({ sqlRows });
+  const broken = async (url, init) => (JSON.parse(init.body).query.includes('orders(') ? new Response('', { status: 503 }) : ok200(url, init));
+  await assert.rejects(syncShopDaily({ DB }, { shop: SHOP, act_id: ACT }, { token: 'tok', F: broken, wait, now, days: 3 }), /503/);
+  const after = db.prepare(`SELECT synced_at, orders_at, orders FROM p_shop_daily WHERE day = '2026-11-19'`).get();
+  assert.ok(after.synced_at > before.synced_at);                       // money re-read after the day ended
+  assert.equal(after.orders_at, before.orders_at);                     // the counts are still the mid-day ones
+  assert.equal(after.orders, 1);
 });
 
 console.log(`\n${n} passed`);
