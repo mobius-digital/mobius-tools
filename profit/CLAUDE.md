@@ -370,11 +370,17 @@ profit/
   lacks ("Access denied for shopifyqlQuery field"). On that refusal, or setting `settings.shopMoney:<brand>` =
   `orders`, the money comes from the orders list (order money fields only, no customer fields) for the last 59 days
   (`money_source = 'orders'`; older days stay empty, so a window reaching past them stays Triple Whale). total_sales =
-  totalPrice - totalRefunded per order, booked on the ORDER day (ShopifyQL books refunds and edits on their own day).
+  totalPrice - totalRefunded - tips per order, booked on the ORDER day (ShopifyQL books refunds and edits on their own
+  day). GIFT CARD PURCHASES STAY IN (Shopify leaves them out of total sales and counts the redemption; here both count):
+  a brand selling gift cards reads high by its gift card sales until ShopifyQL access arrives (needs line items).
   `orders_error` = "Needs read_reports and Shopify protected customer data Level 2", `orders_denied_at` holds ShopifyQL
-  off for 6 hours (orders keep syncing hourly; once a day the tick reads 14 days for late refunds). A store that
-  refuses the orders list too ("Needs read_orders ... Level 1") is skipped by the tick for 6 hours. Route:
-  `&money=orders` forces orders-only for one run.
+  off for 6 hours while orders_error says that (orders keep syncing hourly; once a day the tick reads 14 days for late
+  refunds, stamped `orders_wide_at` only when the read was not cut short). A store that refuses the orders list too
+  ("Needs read_orders ... Level 1") is skipped by the tick for 6 hours; that is not a ShopifyQL refusal. When ShopifyQL
+  answers, the run re-reads ShopifyQL back to the oldest orders-money day (the seam), so no refund is counted twice.
+  QUERY COST: Shopify refuses a query over 1,000 points before it runs (MAX_COST_EXCEEDED): orders pages are 45 with
+  money, 200 counts only (`ordersQueryCost`, tested). Route: `&money=orders` forces orders-only for one run,
+  `&reprobe=1` asks ShopifyQL inside the hold.
 - **Store numbers come from Shopify once it covers the window (src/storesource.js, 2026-11-26, Cole).** Sales,
   orders, AOV, refunds and new vs returning ORDERS are Shopify's (p_shop_daily); Triple Whale stays for attribution,
   ad spend, costs, email and the new vs returning REVENUE split. The switch replaces the store metrics inside the

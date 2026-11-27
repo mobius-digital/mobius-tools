@@ -5,7 +5,8 @@
  *   node test-shopsync.mjs   (from profit/worker) */
 import assert from 'node:assert/strict';
 import { syncShopDaily, shopDailyTick, moneyRows, classifyOrder, ordersStart, dayIn, salesQuery, ensureShopDaily,
-  orderMoney, ordersQuery, ACCESS_REPORTS, ACCESS_ORDERS, isAccessNote, shopMoneyKey } from './src/shopsync.js';
+  orderMoney, ordersQuery, ordersQueryCost, ACCESS_REPORTS, ACCESS_ORDERS, isAccessNote, shopMoneyKey, noteSyncError,
+  PAGE_MONEY, PAGE_COUNTS, MAX_QUERY_COST } from './src/shopsync.js';
 import { dayComplete, overlayShopify } from './src/storesource.js';
 import { makeDb } from './test-d1.mjs';
 
@@ -230,7 +231,7 @@ await ok('inside 6 hours ShopifyQL is not asked again; after that it is, and onc
   const F1 = deniedShop({ orders });
   await syncShopDaily({ DB }, { shop: SHOP, act_id: ACT }, { token: 'tok', F: F1, wait, now, days: 3 });
   assert.equal(asked(F1, 'shopifyqlQuery'), 1);
-  const row = () => ({ shop: SHOP, act_id: ACT, ...db.prepare(`SELECT orders_denied_at FROM p_shopify WHERE shop = ?`).get(SHOP) });
+  const row = () => ({ shop: SHOP, act_id: ACT, ...db.prepare(`SELECT orders_denied_at, orders_error FROM p_shopify WHERE shop = ?`).get(SHOP) });
   const F2 = deniedShop({ orders });
   const r2 = await syncShopDaily({ DB }, row(), { token: 'tok', F: F2, wait, now: () => NOW + 3600000, days: 3 });
   assert.equal(asked(F2, 'shopifyqlQuery'), 0); assert.equal(r2.money_source, 'orders');
@@ -299,6 +300,81 @@ await ok('the hourly tick keeps a ShopifyQL-refused store syncing from orders, w
   const three = await shopDailyTick({ DB }, { F, now: () => t, tokenFor: async () => 'tok' });
   assert.equal(three.stores[0].money_days, 3);                                           // wide read done for today
   assert.equal(asked(F, 'shopifyqlQuery'), 1);
+});
+
+/* ---- Review fixes: query cost, tips, the seam, the hold label, the wide read cut short ---- */
+/** Shopify's requested cost of an orders query string: 2 + first x (1 + 2 per money set + 1 for the journey). */
+const costOf = q => {
+  const first = Number((q.match(/orders\(first: (\d+)/) || [])[1]);
+  const sets = (q.match(/shopMoney \{ amount \}/g) || []).length, journey = q.includes('customerJourneySummary') ? 1 : 0;
+  return { first, cost: 2 + first * (1 + 2 * sets + journey) };
+};
+
+await ok('every orders query stays under Shopify\'s 1,000-point limit, with the page size the cost allows', async () => {
+  for (const money of [true, false]) for (const journey of [true, false]) {
+    const { first, cost } = costOf(ordersQuery({ money, journey }));
+    assert.equal(first, money ? PAGE_MONEY : PAGE_COUNTS);
+    assert.ok(cost <= MAX_QUERY_COST, `money ${money} journey ${journey}: ${cost}`);
+    assert.equal(cost, ordersQueryCost({ money, journey }));
+  }
+  assert.ok(PAGE_MONEY <= 50 && PAGE_COUNTS <= 200);
+  assert.ok(ordersQuery({ money: true }).includes('totalTipReceivedSet'));
+});
+
+await ok('a tip is not a sale: it comes out of total sales', async () => {
+  const m = orderMoney(money('2026-11-19T15:00:00Z', { total: 113, extra: { totalTipReceivedSet: { shopMoney: { amount: '5' } } } }));
+  assert.equal(m.total_sales, 108); assert.equal(m.taxes, 8);
+});
+
+await ok('the seam: the first ShopifyQL answer re-reads every orders-money day, so no refund is booked twice', async () => {
+  const { db, DB } = makeDb(); put(db);
+  /* Orders-only for 20 days, one order on Nov 5 refunded later (booked on Nov 5 by orders). */
+  await syncShopDaily({ DB }, { shop: SHOP, act_id: ACT, scopes: 'read_orders' }, { token: 'tok',
+    F: deniedShop({ orders: [money('2026-11-05T15:00:00Z', { refunded: 30 })] }), wait, now, days: 20 });
+  assert.equal(rows(db).find(x => x.day === '2026-11-05').money_source, 'orders');
+  /* Access arrives: a 3-day run asks ShopifyQL back to Nov 1, and days it sends no row for are zero under its name. */
+  const seen = [];
+  const base = deniedShop({ orders: [money('2026-11-05T15:00:00Z', { refunded: 30 })], sqlOk: true,
+    sqlRows: [{ day: '2026-11-12', orders: '1', total_sales: '78', taxes: '8', returns: '-30' }] });
+  const F = async (url, init) => { const b = JSON.parse(init.body); if (b.query.includes('shopifyqlQuery')) seen.push(b.variables.q); return base(url, init); };
+  const r = await syncShopDaily({ DB }, { shop: SHOP, act_id: ACT, scopes: 'read_orders' }, { token: 'tok', F, wait, now, days: 3 });
+  assert.equal(r.money_source, 'shopifyql'); assert.equal(r.seam_from, '2026-11-01');
+  assert.match(seen[0], /SINCE -20d UNTIL today/);
+  const d = rows(db);
+  assert.equal(d.filter(x => x.money_source === 'orders').length, 0);
+  assert.equal(d.find(x => x.day === '2026-11-05').sales, 0);
+  assert.equal(d.find(x => x.day === '2026-11-12').refunds, 30);
+  assert.equal(d.find(x => x.day === '2026-11-05').orders, 1);                            // the counts stay
+  /* The next run is back to 3 days: nothing left to re-read. */
+  const r2 = await syncShopDaily({ DB }, { shop: SHOP, act_id: ACT }, { token: 'tok', F: deniedShop({ sqlOk: true }), wait, now, days: 3 });
+  assert.equal(r2.seam_from, undefined);
+});
+
+await ok('a store held for refusing the orders list was never refused ShopifyQL: the next run asks it', async () => {
+  const { db, DB } = makeDb(); put(db);
+  await noteSyncError({ DB }, SHOP, ACCESS_ORDERS, NOW);
+  const s = db.prepare(`SELECT orders_denied_at, orders_error FROM p_shopify WHERE shop = ?`).get(SHOP);
+  const F = deniedShop({ orders: [money('2026-11-19T15:00:00Z')], sqlOk: true, sqlRows: [{ day: '2026-11-19', orders: '1', total_sales: '108', taxes: '8', returns: '0' }] });
+  const r = await syncShopDaily({ DB }, { shop: SHOP, act_id: ACT, ...s }, { token: 'tok', F, wait, now: () => NOW + 3600000, days: 3 });
+  assert.equal(asked(F, 'shopifyqlQuery'), 1); assert.equal(r.money_source, 'shopifyql');
+  assert.equal(shopRow(db).orders_error, null);                                          // never says read_reports
+});
+
+await ok('a wide read cut short by the page cap is not stamped done, and the money path gets more pages', async () => {
+  const { db, DB } = makeDb(); put(db);
+  await ensureShopDaily({ DB });
+  db.prepare(`UPDATE p_shopify SET orders_error = ?, orders_denied_at = ?, orders_sync_at = ? WHERE shop = ?`).run(ACCESS_REPORTS, '2026-11-20 16:00:00', '2026-11-20 16:00:00', SHOP);
+  const orders = Array.from({ length: 30 }, (_, i) => money(`2026-11-${String(7 + Math.floor(i / 3)).padStart(2, '0')}T15:00:00Z`));
+  /* A budget for 12 calls: the tick picks 8 pages (the largest step it can afford); the fake serves 1 order a page. */
+  const F1 = fakeShop({ orders, per: 1 });
+  const out = await shopDailyTick({ DB }, { F: F1, now, tokenFor: async () => 'tok', canAfford: n => n <= 12 });
+  assert.equal(out.stores[0].money_source, 'orders'); assert.ok(out.stores[0].resume_from);
+  assert.equal(F1.calls.filter(c => c.query.includes('orders(')).length, 8);
+  assert.equal(shopRow(db).orders_wide_at, null);
+  /* With room for 80 pages the read finishes and the wide read is stamped. */
+  const t = NOW + 3600000;
+  const done = await shopDailyTick({ DB }, { F: fakeShop({ orders, per: 1 }), now: () => t, tokenFor: async () => 'tok' });
+  assert.equal(done.stores[0].resume_from, undefined); assert.ok(shopRow(db).orders_wide_at);
 });
 
 console.log(`\n${n} passed`);

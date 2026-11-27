@@ -2821,16 +2821,18 @@ export default {
         const act = url.searchParams.get('act');
         if (!act || act === 'all') return json({ error: 'one brand at a time: ?act=<brand id>' }, 400);
         const row = await env.DB.prepare(
-          `SELECT shop, act_id, scopes FROM p_shopify WHERE act_id = ?1 AND uninstalled_at IS NULL AND access_token <> '' ORDER BY installed_at DESC LIMIT 1`,
+          `SELECT shop, act_id, scopes, orders_denied_at, orders_error FROM p_shopify WHERE act_id = ?1 AND uninstalled_at IS NULL AND access_token <> '' ORDER BY installed_at DESC LIMIT 1`,
         ).bind(act).first().catch(() => null);
         if (!row) return json({ error: 'no connected store for that client' }, 404);
         const days = Math.min(400, Math.max(1, Number(url.searchParams.get('days')) || 90));
         try {
           const token = await shopToken(env, row.shop);
           /* &money=orders: money from the orders list for this run (ShopifyQL is asked otherwise, and a refusal
-             falls back to the orders list by itself). */
+             falls back to the orders list by itself). Inside the 6-hour hold after a ShopifyQL refusal it is not asked;
+             &reprobe=1 asks it anyway (to check whether the access has arrived). */
           const money = url.searchParams.get('money') === 'orders' ? 'orders' : undefined;
-          const r = await syncShopDaily(env, row, { token, days, money, from: url.searchParams.get('from') || undefined });
+          const r = await syncShopDaily(env, row, { token, days, money, reprobe: url.searchParams.get('reprobe') === '1',
+            from: url.searchParams.get('from') || undefined });
           return json({ ok: true, ...r });
         } catch (e) {
           await noteSyncError(env, row.shop, e.message);
