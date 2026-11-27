@@ -106,7 +106,7 @@ export function overlayShopify(piv, rows, from, to) {
     set('totalRefunds', d, z(r.refunds));
     if (r.orders_source === 'orders' && r.orders != null) {
       set('totalOrders', d, +r.orders);
-      set('newCustomersOrders', d, z(r.new_orders));
+      if (r.new_orders != null) set('newCustomersOrders', d, +r.new_orders);   // not read: missing, never 0
     }
   }
   return piv;

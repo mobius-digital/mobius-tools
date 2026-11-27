@@ -366,6 +366,15 @@ profit/
   `POST /api/shopify/orders-sync?act=<brand>&days=90` (answers `resume_from` on a very busy store: call again with
   `&from=`). Read: `GET /api/shopify/daily?act=<brand>&days=30`. Incremental: account-health's hourly tick
   (`shopDailyTick`, 3 stores tried longest ago, last 3 days, no new cron). Tests: `node test-shopsync.mjs`.
+  ORDERS-ONLY MONEY (2026-11-26): ShopifyQL needs `read_reports` AND protected customer data Level 2, which the app
+  lacks ("Access denied for shopifyqlQuery field"). On that refusal, or setting `settings.shopMoney:<brand>` =
+  `orders`, the money comes from the orders list (order money fields only, no customer fields) for the last 59 days
+  (`money_source = 'orders'`; older days stay empty, so a window reaching past them stays Triple Whale). total_sales =
+  totalPrice - totalRefunded per order, booked on the ORDER day (ShopifyQL books refunds and edits on their own day).
+  `orders_error` = "Needs read_reports and Shopify protected customer data Level 2", `orders_denied_at` holds ShopifyQL
+  off for 6 hours (orders keep syncing hourly; once a day the tick reads 14 days for late refunds). A store that
+  refuses the orders list too ("Needs read_orders ... Level 1") is skipped by the tick for 6 hours. Route:
+  `&money=orders` forces orders-only for one run.
 - **Store numbers come from Shopify once it covers the window (src/storesource.js, 2026-11-26, Cole).** Sales,
   orders, AOV, refunds and new vs returning ORDERS are Shopify's (p_shop_daily); Triple Whale stays for attribution,
   ad spend, costs, email and the new vs returning REVENUE split. The switch replaces the store metrics inside the

@@ -2827,7 +2827,10 @@ export default {
         const days = Math.min(400, Math.max(1, Number(url.searchParams.get('days')) || 90));
         try {
           const token = await shopToken(env, row.shop);
-          const r = await syncShopDaily(env, row, { token, days, from: url.searchParams.get('from') || undefined });
+          /* &money=orders: money from the orders list for this run (ShopifyQL is asked otherwise, and a refusal
+             falls back to the orders list by itself). */
+          const money = url.searchParams.get('money') === 'orders' ? 'orders' : undefined;
+          const r = await syncShopDaily(env, row, { token, days, money, from: url.searchParams.get('from') || undefined });
           return json({ ok: true, ...r });
         } catch (e) {
           await noteSyncError(env, row.shop, e.message);

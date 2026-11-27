@@ -18,6 +18,23 @@
  *     orders_at = the last time the ORDERS pass finished that day. A run whose orders pass fails or stops at the page
  *     cap still bumps synced_at, so "is this whole day counted?" (storesource.js) must read orders_at for the counts.
  *
+ * ORDERS-ONLY MONEY (2026-11-26): ShopifyQL needs read_reports AND Shopify's protected customer data Level 2, which the
+ * app does not have yet ("Access denied for shopifyqlQuery field"). When ShopifyQL is denied, or the brand setting
+ * `shopMoney:<brand>` is 'orders', the money columns are built from the same orders list instead (orderMoney below),
+ * using only order money fields (no customer name, email, address or phone), for the last 59 days only (the whole
+ * range with read_all_orders). Those days carry money_source 'orders' and orders_source 'orders', so the switch
+ * (storesource.js) treats them as covered; older days stay empty and the switch keeps Triple Whale for any window
+ * reaching past them. The ShopifyQL path stays and takes over by itself once the access arrives.
+ *   Differences from ShopifyQL total_sales, all by ORDER date where ShopifyQL books each event on its own date:
+ *     refunds and order edits land on the day the order was placed (ShopifyQL: the day of the refund or edit), and
+ *     a refund on an order older than the read is never seen (the tick re-reads 14 days once a day to catch most);
+ *     shipping is the shipping charged (ShopifyQL nets shipping refunds out of shipping; here they sit in refunds);
+ *     cancelled, test, voided and expired orders are left out (ShopifyQL books a cancelled order as a sale and a
+ *     return, which nets out the same once refunded).
+ *   The access error is written once per store in orders_error ("Needs read_reports and Shopify protected customer
+ *   data Level 2") and ShopifyQL is not asked again for 6 hours (orders_denied_at); the orders keep syncing hourly.
+ *   A store that refuses the orders list too gets "Needs read_orders and ... Level 1" and the tick leaves it for 6 hours.
+ *
  * Owner route (worker.js): POST /api/shopify/orders-sync?act=<brand>&days=90 backfills one store.
  * Incremental: account-health's hourly tick calls shopDailyTick (days=3, the stalest stores first, no new cron).
  *
@@ -40,10 +57,22 @@ export const SHOP_DAILY_DDL = [
   `CREATE INDEX IF NOT EXISTS p_shop_daily_shop_idx ON p_shop_daily (shop, day)`,
 ];
 /* Columns added after the table first shipped (each ALTER fails on its own once done). */
-const SHOP_DAILY_COLS = ['orders_at TEXT'];
+const SHOP_DAILY_COLS = ['orders_at TEXT', 'money_source TEXT'];
 /* orders_sync_at = the last run that finished; orders_try_at = the last run the hourly tick started, failed or not, so a
    store that keeps failing goes to the back of the line instead of starving the healthy ones. */
-const SHOPIFY_COLS = ['orders_sync_at TEXT', 'orders_days INTEGER', 'orders_error TEXT', 'orders_try_at TEXT'];
+const SHOPIFY_COLS = ['orders_sync_at TEXT', 'orders_days INTEGER', 'orders_error TEXT', 'orders_try_at TEXT',
+  'orders_denied_at TEXT', 'orders_wide_at TEXT'];
+
+/* The plain lines written to p_shopify.orders_error when Shopify refuses a field. Both start with "Needs read_". */
+export const ACCESS_REPORTS = 'Needs read_reports and Shopify protected customer data Level 2';
+export const ACCESS_ORDERS = 'Needs read_orders and Shopify protected customer data Level 1';
+export const isAccessNote = m => /^Needs read_/.test(String(m || ''));
+/** Shopify's "Access denied for <field> field" (GraphQL ACCESS_DENIED) or an HTTP 403. */
+export const isAccessDenied = e => !!e && (e.status === 403 || (e.codes || []).includes('ACCESS_DENIED') || /access denied/i.test(String(e.message || '')));
+/* How long a refused ShopifyQL (or a store that refused everything) is left alone. */
+export const DENIED_HOLD_HOURS = 6;
+/* Brand setting (settings table): where the money comes from. 'auto' (ShopifyQL, orders when refused) | 'orders'. */
+export const shopMoneyKey = act => `shopMoney:${act}`;
 
 /** Make the table and the p_shopify sync columns if they are missing. Each statement fails on its own when done. */
 export async function ensureShopDaily(env) {
@@ -90,6 +119,49 @@ export function classifyOrder(o) {
   return PAID.has(String(o.displayFinancialStatus || '').toUpperCase()) ? 'paid' : null;
 }
 
+const amt = m => num(m?.shopMoney?.amount);
+
+/**
+ * One order's money for the orders-only path, or null when it is not a sale (test, cancelled, voided, expired).
+ * Fields used (order money only, none of them protected customer fields): totalPriceSet, totalRefundedSet,
+ * currentTotalTaxSet, totalShippingPriceSet, totalDiscountsSet, subtotalPriceSet, totalTaxSet, taxesIncluded.
+ *   total_sales = totalPrice - totalRefunded   (= gross - discounts + shipping + tax - every refund)
+ *   taxes = currentTotalTax (tax after returns), shipping = shipping charged, refunds = totalRefunded,
+ *   gross = subtotal (after discounts) + discounts, less the tax inside it when the store's prices include tax.
+ * currentTotalPriceSet is not used: a refund with no item returned (a goodwill refund) does not lower it, while
+ * totalRefundedSet counts every refund. Pending (unpaid) orders are in, like ShopifyQL's sales; the paid-orders COUNT
+ * stays classifyOrder's.
+ */
+export function orderMoney(o) {
+  if (!o || o.test || o.cancelledAt) return null;
+  const st = String(o.displayFinancialStatus || '').toUpperCase();
+  if (st === 'VOIDED' || st === 'EXPIRED') return null;
+  const total = amt(o.totalPriceSet), refunded = amt(o.totalRefundedSet), disc = amt(o.totalDiscountsSet);
+  const gross = amt(o.subtotalPriceSet) + disc - (o.taxesIncluded ? amt(o.totalTaxSet) : 0);
+  return { total_sales: total - refunded, taxes: amt(o.currentTotalTaxSet), shipping: amt(o.totalShippingPriceSet),
+    discounts: -disc, refunds: refunded, gross_sales: gross };
+}
+
+const MONEY_KEYS = ['gross_sales', 'discounts', 'refunds', 'shipping', 'taxes', 'total_sales'];
+const money0 = () => ({ gross_sales: 0, discounts: 0, refunds: 0, shipping: 0, taxes: 0, total_sales: 0, orders_all: 0 });
+
+/** Add one order's money to the per-day sums (orders-only path). */
+export function addMoney(byDay, o, tz) {
+  const m = orderMoney(o);
+  if (!m) return;
+  const c = (byDay[dayIn(o.createdAt, tz)] ??= money0());
+  c.orders_all++;
+  for (const k of MONEY_KEYS) c[k] = round2(c[k] + m[k]);
+}
+
+/** Per-day sums -> the p_shop_daily money columns, derived the same way moneyRows derives ShopifyQL's. */
+export function moneyFromOrders(c) {
+  const m = c || money0();
+  return { gross_sales: m.gross_sales, discounts: m.discounts, returns: round2(-m.refunds), refunds: m.refunds,
+    shipping: m.shipping, taxes: m.taxes, total_sales: m.total_sales, sales: round2(m.total_sales - m.taxes),
+    net_sales: round2(m.total_sales - m.shipping - m.taxes), orders_all: m.orders_all };
+}
+
 /** The calendar day of an ISO timestamp in the store's time zone. */
 export function dayIn(iso, tz) {
   const d = new Date(iso);
@@ -120,10 +192,17 @@ export function ordersStart(today, days, scopes) {
   return d.toISOString().slice(0, 10);
 }
 
-const ORDERS_Q = `query($q: String!, $after: String) { orders(first: 250, after: $after, query: $q, sortKey: CREATED_AT) {
+/* The orders list. Money fields only when the money comes from orders. customerJourneySummary needs read_orders only
+   (Shopify's docs give it no protected customer data level beyond the Order itself); a store that refuses it anyway
+   is read again without it, and new vs returning stay empty (null) for those days. */
+const M = f => `${f} { shopMoney { amount } }`;
+export function ordersQuery({ money = false, journey = true } = {}) {
+  const moneyF = money ? ' ' + ['totalRefundedSet', 'currentTotalTaxSet', 'totalShippingPriceSet', 'totalDiscountsSet',
+    'subtotalPriceSet', 'totalTaxSet'].map(M).join(' ') + ' taxesIncluded' : '';
+  return `query($q: String!, $after: String) { orders(first: 250, after: $after, query: $q, sortKey: CREATED_AT) {
   pageInfo { hasNextPage endCursor }
-  nodes { createdAt test cancelledAt displayFinancialStatus totalPriceSet { shopMoney { amount } }
-    customerJourneySummary { customerOrderIndex } } } }`;
+  nodes { createdAt test cancelledAt displayFinancialStatus ${M('totalPriceSet')}${moneyF}${journey ? ' customerJourneySummary { customerOrderIndex }' : ''} } } }`;
+}
 
 /** A small GraphQL client with the throttle handled. `F` = fetch. Throws on HTTP or GraphQL errors. */
 export function shopGql(F, shop, token, { wait = sleep } = {}) {
@@ -134,10 +213,12 @@ export function shopGql(F, shop, token, { wait = sleep } = {}) {
         body: JSON.stringify({ query, variables }),
       });
       if (res.status === 429) { await wait(2000 * (attempt + 1)); continue; }
-      if (!res.ok) throw new Error(`Shopify returned ${res.status}`);
+      if (!res.ok) throw Object.assign(new Error(`Shopify returned ${res.status}`), { status: res.status });
       const b = await res.json().catch(() => ({}));
       if (b.errors?.some(e => e.extensions?.code === 'THROTTLED')) { await wait(2000 * (attempt + 1)); continue; }
-      if (b.errors?.length) throw new Error(b.errors.map(e => e.message).join('; '));
+      if (b.errors?.length) {
+        throw Object.assign(new Error(b.errors.map(e => e.message).join('; ')), { codes: b.errors.map(e => e.extensions?.code).filter(Boolean) });
+      }
       /* Leave room in the bucket: when under 300 points are left, wait for it to refill before the next call. */
       const t = b.extensions?.cost?.throttleStatus;
       if (t && t.currentlyAvailable < 300 && t.restoreRate > 0) await wait(Math.ceil((300 - t.currentlyAvailable) / t.restoreRate) * 1000);
@@ -147,10 +228,17 @@ export function shopGql(F, shop, token, { wait = sleep } = {}) {
   };
 }
 
+/** The brand's money setting: 'orders' or 'auto'. A missing settings table reads as 'auto'. */
+export async function moneyMode(env, act) {
+  const r = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(shopMoneyKey(act)).first().catch(() => null);
+  return r?.value === 'orders' ? 'orders' : 'auto';
+}
+
 /**
- * Sync one connected store. row = { shop, act_id, scopes }. opts: days (default 3, max 400), token, F, wait,
- * maxPages (default 40), now (ms), from (YYYY-MM-DD: resume the orders pass here).
- * Returns { shop, act_id, days, money_days, order_days, orders_from, resume_from?, error? }.
+ * Sync one connected store. row = { shop, act_id, scopes, orders_denied_at? }. opts: days (default 3, max 400), token,
+ * F, wait, maxPages (default 40), now (ms), from (YYYY-MM-DD: resume the orders pass here), money ('auto' | 'orders':
+ * overrides the brand setting), reprobe (ask ShopifyQL even inside the 6-hour hold).
+ * Returns { shop, act_id, days, money_source, money_days, order_days, orders_from, resume_from?, access? }.
  */
 export async function syncShopDaily(env, row, opts = {}) {
   const { token, F = fetch, wait = sleep, maxPages = 40, now = Date.now } = opts;
@@ -158,85 +246,147 @@ export async function syncShopDaily(env, row, opts = {}) {
   if (!token) throw new Error('the store has to open the Mobius Digital app in Shopify once to reconnect');
   await ensureShopDaily(env);
   const gql = shopGql(F, row.shop, token, { wait });
-  const stamp = new Date(now()).toISOString().slice(0, 19).replace('T', ' ');
+  const stamp = stampOf(now());
 
   const info = await gql(`{ shop { ianaTimezone currencyCode } }`);
   const tz = info?.shop?.ianaTimezone || 'UTC', currency = info?.shop?.currencyCode || null;
   const today = dayIn(new Date(now()).toISOString(), tz);
 
-  /* 1. Money per day (ShopifyQL fails soft: parseErrors with HTTP 200, so check both). */
-  const q = await gql(`query($q: String!) { shopifyqlQuery(query: $q) { tableData { columns { name } rows } parseErrors } }`, { q: salesQuery(days) });
-  const r = q?.shopifyqlQuery;
-  if (r?.parseErrors?.length) throw new Error('ShopifyQL: ' + r.parseErrors.join('; '));
-  if (!r?.tableData) throw new Error('ShopifyQL returned no data');
-  const money = moneyRows(r.tableData.rows);
+  /* 1. Money per day from ShopifyQL, unless the brand reads money from orders, or ShopifyQL was refused in the last
+     6 hours (no asking a refused field every hour). A refusal switches this run to orders-only money. */
+  const mode = opts.money === 'orders' || opts.money === 'auto' ? opts.money : await moneyMode(env, row.act_id);
+  const held = !opts.reprobe && row.orders_denied_at && String(row.orders_denied_at) > stampOf(now() - DENIED_HOLD_HOURS * 3600000);
+  let fromOrders = mode === 'orders' || !!held, access = held && mode !== 'orders' ? ACCESS_REPORTS : null;
+  let money = [];
+  if (!fromOrders) {
+    try {
+      /* ShopifyQL fails soft: parseErrors with HTTP 200, so check both. */
+      const q = await gql(`query($q: String!) { shopifyqlQuery(query: $q) { tableData { columns { name } rows } parseErrors } }`, { q: salesQuery(days) });
+      const r = q?.shopifyqlQuery;
+      if (r?.parseErrors?.length) throw new Error('ShopifyQL: ' + r.parseErrors.join('; '));
+      if (!r?.tableData) throw new Error('ShopifyQL returned no data');
+      money = moneyRows(r.tableData.rows);
+    } catch (e) {
+      if (!isAccessDenied(e)) throw e;
+      fromOrders = true; access = ACCESS_REPORTS;
+      await env.DB.prepare(`UPDATE p_shopify SET orders_denied_at = ?2, orders_error = ?3 WHERE shop = ?1`)
+        .bind(row.shop, stamp, ACCESS_REPORTS).run().catch(() => {});
+    }
+  }
   if (money.length) {
     await env.DB.batch(money.map(m => env.DB.prepare(
       `INSERT INTO p_shop_daily (act_id, day, shop, gross_sales, discounts, returns, net_sales, shipping, taxes, total_sales,
-         sales, refunds, orders_all, orders_source, currency, synced_at)
-       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,'shopifyql',?14,?15)
+         sales, refunds, orders_all, orders_source, money_source, currency, synced_at)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,'shopifyql','shopifyql',?14,?15)
        ON CONFLICT(act_id, day) DO UPDATE SET shop = excluded.shop, gross_sales = excluded.gross_sales,
          discounts = excluded.discounts, returns = excluded.returns, net_sales = excluded.net_sales,
          shipping = excluded.shipping, taxes = excluded.taxes, total_sales = excluded.total_sales, sales = excluded.sales,
-         refunds = excluded.refunds, orders_all = excluded.orders_all, currency = excluded.currency, synced_at = excluded.synced_at`,
+         refunds = excluded.refunds, orders_all = excluded.orders_all, money_source = 'shopifyql',
+         currency = excluded.currency, synced_at = excluded.synced_at`,
     ).bind(row.act_id, m.day, row.shop, m.gross_sales, m.discounts, m.returns, m.net_sales, m.shipping, m.taxes,
       m.total_sales, m.sales, m.refunds, m.orders_all, currency, stamp)));
   }
 
-  /* 2. Paid orders per day, read order by order inside the read_orders window. */
+  /* 2. Paid orders per day (and, orders-only, the money), read order by order inside the read_orders window. */
   let start = ordersStart(today, days, row.scopes);
   if (opts.from && /^\d{4}-\d{2}-\d{2}$/.test(opts.from) && opts.from > start) start = opts.from;
-  const byDay = {};
-  let after = null, pages = 0, more = false, lastDay = null;
   /* created_at with the store's offset is not known here, so read from a day early in UTC and drop what is outside. */
   const since = new Date(start + 'T00:00:00Z'); since.setUTCDate(since.getUTCDate() - 1);
   const filter = `created_at:>='${since.toISOString()}'`;
-  do {
-    const d = await gql(ORDERS_Q, { q: filter, after });
-    const page = d?.orders;
-    for (const o of page?.nodes || []) {
-      const day = dayIn(o.createdAt, tz);
-      if (day < start) continue;
-      lastDay = day;
-      countOrder(byDay, o, tz);
+  const read = async journey => {
+    const byDay = {}, cash = {};
+    let after = null, pages = 0, more = false, lastDay = null;
+    const query = ordersQuery({ money: fromOrders, journey });
+    do {
+      const d = await gql(query, { q: filter, after });
+      const page = d?.orders;
+      for (const o of page?.nodes || []) {
+        const day = dayIn(o.createdAt, tz);
+        if (day < start) continue;
+        lastDay = day;
+        countOrder(byDay, o, tz);
+        if (fromOrders) addMoney(cash, o, tz);
+      }
+      pages++;
+      more = !!page?.pageInfo?.hasNextPage;
+      after = page?.pageInfo?.endCursor || null;
+    } while (more && after && pages < maxPages);
+    return { byDay, cash, pages, more, lastDay, journey };
+  };
+  let got;
+  try { got = await read(true); } catch (e) {
+    if (!isAccessDenied(e) && !/customerJourneySummary/.test(String(e.message))) throw e;
+    try { got = await read(false); } catch (e2) {
+      if (isAccessDenied(e2)) throw Object.assign(new Error(ACCESS_ORDERS), { access: true, cause: e2 });
+      throw e2;
     }
-    pages++;
-    more = !!page?.pageInfo?.hasNextPage;
-    after = page?.pageInfo?.endCursor || null;
-  } while (more && after && pages < maxPages);
+  }
+  const { byDay, cash, pages, more, lastDay, journey } = got;
 
   /* Every day from start to today gets a row (a day with no orders is a real zero). When the page cap stopped the
      read early, the last day seen may be half counted: leave it and everything after for the next call. */
   const doneUntil = more ? lastDay : today;
   const orderDays = [];
   for (let d = start; d <= today && (!more || d < doneUntil); d = nextDay(d)) orderDays.push(d);
-  if (orderDays.length) {
+  const zero = { orders: 0, zero_orders: 0, new_orders: 0, returning_orders: 0, paid_sales: 0 };
+  if (orderDays.length && !fromOrders) {
     await env.DB.batch(orderDays.map(day => {
-      const c = byDay[day] || { orders: 0, zero_orders: 0, new_orders: 0, returning_orders: 0, paid_sales: 0 };
+      const c = byDay[day] || zero, nr = journey ? c.new_orders : null, rr = journey ? c.returning_orders : null;
       return env.DB.prepare(
         `INSERT INTO p_shop_daily (act_id, day, shop, orders, zero_orders, new_orders, returning_orders, paid_sales, orders_source, currency, synced_at, orders_at)
          VALUES (?1,?2,?3,?4,?5,?6,?7,?8,'orders',?9,?10,?10)
          ON CONFLICT(act_id, day) DO UPDATE SET orders = excluded.orders, zero_orders = excluded.zero_orders,
            new_orders = excluded.new_orders, returning_orders = excluded.returning_orders, paid_sales = excluded.paid_sales,
            orders_source = 'orders', synced_at = excluded.synced_at, orders_at = excluded.orders_at`,
-      ).bind(row.act_id, day, row.shop, c.orders, c.zero_orders, c.new_orders, c.returning_orders, c.paid_sales, currency, stamp);
+      ).bind(row.act_id, day, row.shop, c.orders, c.zero_orders, nr, rr, c.paid_sales, currency, stamp);
+    }));
+  }
+  if (orderDays.length && fromOrders) {
+    /* Orders-only: the whole row (money and counts) comes from this read, both stamps set together. */
+    await env.DB.batch(orderDays.map(day => {
+      const c = byDay[day] || zero, m = moneyFromOrders(cash[day]);
+      const nr = journey ? c.new_orders : null, rr = journey ? c.returning_orders : null;
+      return env.DB.prepare(
+        `INSERT INTO p_shop_daily (act_id, day, shop, gross_sales, discounts, returns, net_sales, shipping, taxes, total_sales,
+           sales, refunds, orders_all, orders, zero_orders, new_orders, returning_orders, paid_sales, orders_source, money_source,
+           currency, synced_at, orders_at)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,'orders','orders',?19,?20,?20)
+         ON CONFLICT(act_id, day) DO UPDATE SET shop = excluded.shop, gross_sales = excluded.gross_sales,
+           discounts = excluded.discounts, returns = excluded.returns, net_sales = excluded.net_sales,
+           shipping = excluded.shipping, taxes = excluded.taxes, total_sales = excluded.total_sales, sales = excluded.sales,
+           refunds = excluded.refunds, orders_all = excluded.orders_all, orders = excluded.orders,
+           zero_orders = excluded.zero_orders, new_orders = excluded.new_orders, returning_orders = excluded.returning_orders,
+           paid_sales = excluded.paid_sales, orders_source = 'orders', money_source = 'orders', currency = excluded.currency,
+           synced_at = excluded.synced_at, orders_at = excluded.orders_at`,
+      ).bind(row.act_id, day, row.shop, m.gross_sales, m.discounts, m.returns, m.net_sales, m.shipping, m.taxes,
+        m.total_sales, m.sales, m.refunds, m.orders_all, c.orders, c.zero_orders, nr, rr, c.paid_sales, currency, stamp);
     }));
   }
 
   const { results: cnt } = await env.DB.prepare(`SELECT COUNT(*) AS n FROM p_shop_daily WHERE act_id = ?1`).bind(row.act_id).all().catch(() => ({ results: [{ n: null }] }));
-  await env.DB.prepare(`UPDATE p_shopify SET orders_sync_at = ?2, orders_days = ?3, orders_error = NULL WHERE shop = ?1`)
-    .bind(row.shop, stamp, cnt?.[0]?.n ?? null).run().catch(() => {});
-  return { shop: row.shop, act_id: row.act_id, days, tz, money_days: money.length, order_days: orderDays.length,
-    orders_from: start, pages, ...(more ? { resume_from: doneUntil } : {}), rows: cnt?.[0]?.n ?? null, as_of: stamp };
+  /* A refused ShopifyQL stays noted (orders_error keeps the plain line); a ShopifyQL that answered clears it. */
+  await env.DB.prepare(`UPDATE p_shopify SET orders_sync_at = ?2, orders_days = ?3, orders_error = ?4
+      ${fromOrders ? '' : ', orders_denied_at = NULL'} WHERE shop = ?1`)
+    .bind(row.shop, stamp, cnt?.[0]?.n ?? null, access).run().catch(() => {});
+  return { shop: row.shop, act_id: row.act_id, days, tz, money_source: fromOrders ? 'orders' : 'shopifyql',
+    money_days: fromOrders ? orderDays.length : money.length, order_days: orderDays.length, orders_from: start, pages,
+    ...(journey ? {} : { new_vs_returning: 'not read (Shopify refused customerJourneySummary)' }),
+    ...(more ? { resume_from: doneUntil } : {}), ...(access ? { access } : {}), rows: cnt?.[0]?.n ?? null, as_of: stamp };
 }
 
 const stampOf = ms => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
 function nextDay(d) { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + 1); return x.toISOString().slice(0, 10); }
 
-/** Note a failed run on the store so the Connections screen can say why its numbers stopped. */
-export async function noteSyncError(env, shop, message) {
+/** Note a failed run on the store so the Connections screen can say why its numbers stopped. An access refusal is
+    stamped too (orders_denied_at), so the hourly tick leaves the store alone for 6 hours. */
+export async function noteSyncError(env, shop, message, nowMs = Date.now()) {
   await ensureShopDaily(env);
-  await env.DB.prepare(`UPDATE p_shopify SET orders_error = ?2 WHERE shop = ?1`).bind(shop, String(message || '').slice(0, 300)).run().catch(() => {});
+  const msg = String(message || '').slice(0, 300);
+  if (isAccessNote(msg)) {
+    await env.DB.prepare(`UPDATE p_shopify SET orders_error = ?2, orders_denied_at = ?3 WHERE shop = ?1`).bind(shop, msg, stampOf(nowMs)).run().catch(() => {});
+  } else {
+    await env.DB.prepare(`UPDATE p_shopify SET orders_error = ?2 WHERE shop = ?1`).bind(shop, msg).run().catch(() => {});
+  }
 }
 
 /**
@@ -245,15 +395,22 @@ export async function noteSyncError(env, shop, message) {
  * tick's subrequest budget. A store is skipped when the tick tried it in the last `minMinutes`. Each try is stamped
  * (orders_try_at) BEFORE it runs, so a store that keeps failing (lost token, orders refused, a ShopifyQL error) moves
  * to the back of the line like a synced one and never holds the healthy stores off the tick.
+ * A store whose last run was refused outright ("Needs read_..." in orders_error, nothing synced since) is skipped for
+ * 6 hours. A store whose ShopifyQL is refused but whose orders read fine keeps syncing hourly from orders (syncShopDaily
+ * does not ask ShopifyQL again inside the 6 hours), and once a day reads 14 days instead of 3 so refunds on recent
+ * orders reach their order day.
  */
 export async function shopDailyTick(env, { tokenFor, F = fetch, canAfford = () => true, limit = 3, minMinutes = 50, now = Date.now } = {}) {
   await ensureShopDaily(env);
-  const cutoff = stampOf(now() - minMinutes * 60000);
+  const cutoff = stampOf(now() - minMinutes * 60000), hold = stampOf(now() - DENIED_HOLD_HOURS * 3600000);
   const { results } = await env.DB.prepare(
-    `SELECT shop, act_id, scopes FROM p_shopify WHERE act_id IS NOT NULL AND uninstalled_at IS NULL AND access_token <> ''
+    `SELECT shop, act_id, scopes, orders_denied_at, orders_wide_at FROM p_shopify
+     WHERE act_id IS NOT NULL AND uninstalled_at IS NULL AND access_token <> ''
        AND COALESCE(orders_try_at, orders_sync_at, '') < ?1
+       AND NOT (COALESCE(orders_error, '') LIKE 'Needs read_%' AND COALESCE(orders_denied_at, '') >= ?3
+                AND COALESCE(orders_sync_at, '') < orders_denied_at)
      ORDER BY COALESCE(orders_try_at, orders_sync_at, '') ASC LIMIT ?2`,
-  ).bind(cutoff, limit).all().catch(() => ({ results: [] }));
+  ).bind(cutoff, limit, hold).all().catch(() => ({ results: [] }));
   const out = [];
   for (const row of results) {
     if (!canAfford(12)) { out.push({ shop: row.shop, deferred: 'out of subrequest budget' }); break; }
@@ -261,10 +418,15 @@ export async function shopDailyTick(env, { tokenFor, F = fetch, canAfford = () =
     try {
       const token = await tokenFor(row.shop);
       if (!token) { await noteSyncError(env, row.shop, 'not connected: the store has to open the app once'); out.push({ shop: row.shop, error: 'not connected' }); continue; }
-      const r = await syncShopDaily(env, row, { token, F, days: 3, maxPages: 20, now });
-      out.push({ shop: r.shop, money_days: r.money_days, order_days: r.order_days });
+      const fromOrders = !!row.orders_denied_at || (await moneyMode(env, row.act_id)) === 'orders';
+      const wide = fromOrders && String(row.orders_wide_at || '') < stampOf(now() - 24 * 3600000);
+      const r = await syncShopDaily(env, row, { token, F, days: wide ? 14 : 3, maxPages: 20, now });
+      if (wide && r.money_source === 'orders') {
+        await env.DB.prepare(`UPDATE p_shopify SET orders_wide_at = ?2 WHERE shop = ?1`).bind(row.shop, stampOf(now())).run().catch(() => {});
+      }
+      out.push({ shop: r.shop, money_source: r.money_source, money_days: r.money_days, order_days: r.order_days, ...(r.access ? { access: r.access } : {}) });
     } catch (e) {
-      await noteSyncError(env, row.shop, e.message);
+      await noteSyncError(env, row.shop, e.message, now());
       out.push({ shop: row.shop, error: e.message });
     }
   }
