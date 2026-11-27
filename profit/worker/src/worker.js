@@ -735,16 +735,18 @@ async function liveDay(env, request, acct) {
   /* The brand's own cost rules price today's row too, the way seriesFor prices every stored day. None: unchanged. */
   const rules = (await loadCostRules(env, [acct.act_id]).catch(() => ({})))[acct.act_id] || [];
   const row = liveRow(acct, day, rules);
-  const twSpend = +(day.map && day.map.blendedAds) || 0;
-  if (twSpend > 0) return { date, hours: hrs, as_of: day.as_of, row };
+  /* 2026-11-27 (Yak, Black Friday): the fill keyed on TW's TOTAL spend, so Yak's $29 of Google spend blocked it and
+     the War Room read $29 against $339 of real Meta spend (client update said $0, MER 21x). Key on TW's META spend:
+     when TW has none, Meta's own hours replace the Meta part and every other channel TW has stays. */
+  const twMeta = +(day.map && day.map.fb_ads_spend) || 0;
+  if (twMeta > 0) return { date, hours: hrs, as_of: day.as_of, row };
   const m = await metaHours().catch(() => null);
-  if (!m) return { date, hours: hrs, as_of: day.as_of, row };
-  /* TW saw no ad spend today: Meta's hours go in, the hour list grows to the last hour Meta spent in. */
+  if (!m || !m.some(v => v > 0)) return { date, hours: hrs, as_of: day.as_of, row };
   const last = m.reduce((l, v, i) => v > 0 ? i : l, -1);
   while (hrs.length < last + 1) hrs.push({ hour: hrs.length, sales: 0, spend: 0, orders: 0, meta: 0, google: 0 });
-  hrs.forEach((x, i) => { x.meta = m[i] || 0; x.spend = (x.google || 0) + x.meta; });
-  const spend = hrs.reduce((t, x) => t + x.spend, 0);
-  const out = row ? { ...row, spend, meta_spend: spend - (row.google_spend || 0), mer: spend > 0 && row.sales != null ? row.sales / spend : null } : row;
+  hrs.forEach((x, i) => { x.spend = Math.max(0, (+x.spend || 0) - (x.meta || 0)) + (m[i] || 0); x.meta = m[i] || 0; });
+  const spend = hrs.reduce((t, x) => t + x.spend, 0), metaSpend = m.reduce((t, v) => t + v, 0);
+  const out = row ? { ...row, spend, meta_spend: metaSpend, mer: spend > 0 && row.sales != null ? row.sales / spend : null } : row;
   return { date, hours: hrs, as_of: day.as_of, row: out, spend_src: 'meta' };
 }
 /** Today so far as ONE synthetic row, through the same dayEconomics as every
