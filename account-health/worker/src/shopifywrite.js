@@ -26,7 +26,7 @@ const FIX = need => `The Shopify connection can only read this store (it lacks $
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
 
 /** Asks the profit worker (it holds the app secret) to refresh this shop's token in the shared table. */
-function remoteRefresh(env, d) {
+export function remoteRefresh(env, d) {
   if (!env.PROFIT || !d?.mintSession) return undefined;
   return async shop => {
     const { token } = await d.mintSession(env, env.OWNER_EMAIL || 'cole@go-mobius-digital.com');

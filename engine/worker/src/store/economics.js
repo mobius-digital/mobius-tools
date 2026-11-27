@@ -10,7 +10,7 @@
 import { aov, cpa, mer, pct, safeDiv } from '../numbers/defs.js';
 import { safeJson } from '../platform/text.js';
 import { dayIn, addDays, monthOf } from '../platform/time.js';
-import { pubAccount, pivotOf } from './shared.js';
+import { pubAccount, pivotOf, TRACKER_STORE } from './shared.js';
 
 const prevMonth = ym => {
   const [y, m] = ym.split('-').map(Number);
@@ -125,5 +125,5 @@ export async function customerEconomics(ctx, acct, months, days, range) {
   for (const r of rows) (byMonth[monthOf(r.date)] ??= []).push(r);
   return { account: pubAccount(acct), months: list, margin_pct, window: { days, from: winFrom, to },
     headline: headlineOf(totalsOf(rows.filter(r => r.date >= winFrom), piv)),
-    series: list.map(ym => monthRow(ym, byMonth[ym] || [], piv, thisYm)) };
+    series: list.map(ym => monthRow(ym, byMonth[ym] || [], piv, thisYm)), ...TRACKER_STORE };
 }

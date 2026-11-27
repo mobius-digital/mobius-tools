@@ -21,6 +21,17 @@ const tone = (v, kpi) => v == null || !kpi ? '' : v >= kpi ? 'good' : v >= kpi *
 const hourOf = slot => { const h = +String(slot || '').split('T')[1]; return isNaN(h) ? '' : h === 12 ? '12pm' : h === 0 ? '12am' : h < 12 ? `${h}am` : `${h - 12}pm`; };
 const dayName = slot => new Date(String(slot).split('T')[0] + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
 
+/* Where the sales came from (profit storesource.js, 2026-11-26): each brand of the standing payload carries
+   store_source for its whole sale days; today so far is always Triple Whale's live read. Until a brand is on
+   Shopify the words are exactly the old ones. */
+const onShopify = b => b && b.store_source === 'shopify';
+export function salesSource(rec) {
+  const live = (rec.brands || []).filter(b => !b.no_sales), n = live.filter(onShopify).length;
+  if (!n) return 'Triple Whale';
+  return n === live.length ? 'Shopify for whole days, Triple Whale today' : 'Shopify or Triple Whale per brand, Triple Whale today';
+}
+const brandSource = b => (onShopify(b) ? 'Shopify for whole days, Triple Whale today' : 'Triple Whale');
+
 function totals(rec) {
   const ok = rec.brands.filter(b => !b.no_sales && b.so_far && b.so_far.sales != null), live = ok.filter(b => counted(rec, b));
   const s = live.reduce((t, b) => t + b.so_far.sales, 0), p = live.reduce((t, b) => t + b.so_far.spend, 0), g = ok.reduce((t, b) => t + (b.goal || 0), 0);
@@ -67,7 +78,7 @@ function wcBlocks(rec, prev, link) {
     return { type: 'mrkdwn', text: lines.join('\n') };
   };
   for (let i = 0; i < B.length; i += 2) blocks.push({ type: 'section', fields: B.slice(i, i + 2).map(field) });
-  blocks.push({ type: 'divider' }, { type: 'context', elements: [{ type: 'mrkdwn', text: `Sales and MER: Triple Whale · Budgets: Meta${rec.next ? ` · Next check-in ${rec.next}` : ''} · Nothing changes until you tap Approve · <${link()}|Open the War Room>` }] });
+  blocks.push({ type: 'divider' }, { type: 'context', elements: [{ type: 'mrkdwn', text: `Sales and MER: ${salesSource(rec)} · Budgets: Meta${rec.next ? ` · Next check-in ${rec.next}` : ''} · Nothing changes until you tap Approve · <${link()}|Open the War Room>` }] });
   return { blocks };
 }
 
@@ -100,7 +111,7 @@ function boardBlocks(rec, prev, link) {
     return { color: ap ? COLOR.done : COLOR[g.call] || COLOR.hold, blocks: [sec, { type: 'section', fields }, ...(why ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: why }] }] : [])] };
   });
   attachments.push({ color: '#4C7AE6', blocks: [{ type: 'actions', elements: [btn('Open the War Room', link())] },
-    { type: 'context', elements: [{ type: 'mrkdwn', text: 'Sales and MER from Triple Whale, budgets from Meta. Nothing changes until you tap Approve.' }] }] });
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `Sales and MER from ${salesSource(rec)}, budgets from Meta. Nothing changes until you tap Approve.` }] }] });
   return { blocks, attachments };
 }
 
@@ -131,7 +142,7 @@ function needBlocks(rec, link) {
       accessory: apBtn(rec, b.act_id, (b.suggest.call === 'scale' || b.suggest.call === 'raise') ? 'primary' : 'danger') },
     ...(b.suggest.why ? [CTX(b.suggest.why)] : [])])];
 }
-const foot = (rec, link) => [DIV, CTX(`Sales and MER: Triple Whale · Budgets: Meta · Nothing changes until you tap Approve · <${link()}|Open the War Room>`)];
+const foot = (rec, link) => [DIV, CTX(`Sales and MER: ${salesSource(rec)} · Budgets: Meta · Nothing changes until you tap Approve · <${link()}|Open the War Room>`)];
 
 /* A: Well Copy, line for line: each brand's name in orange code, then one quote line (own gray bar) per number. */
 function aBlocks(rec, prev, link) {
@@ -211,7 +222,7 @@ export function clientCard(rec, act, style, prev, opt = {}) {
   const text = `${b.name}, ${hourOf(rec.slot)}: ${k(s.sales)} in sales (${pct(s.sales || 0, b.goal)}% of the weekend goal), MER ${x(s.mer)}.`;
   const head = [H(`${b.name} · Black Friday weekend`), CTX(when)];
   const plan = { type: 'section', text: { type: 'mrkdwn', text: planLine(b) } };
-  const src = CTX('Sales from Triple Whale · ad spend from Meta · MER = store sales ÷ ad spend');
+  const src = CTX(`Sales from ${brandSource(b)} · ad spend from Meta · MER = store sales ÷ ad spend`);
   if (style === 'a') {
     const q = (label, value, note) => ({ type: 'rich_text_quote', elements: [{ type: 'text', text: `${label}: `, style: { bold: true } }, { type: 'text', text: value }, ...(note ? [{ type: 'text', text: `,  ${note}`, style: { italic: true } }] : [])] });
     return { text, blocks: [...head, DIV, { type: 'rich_text', elements: [

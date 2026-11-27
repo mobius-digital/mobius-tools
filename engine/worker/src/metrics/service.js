@@ -10,6 +10,7 @@ import { buildSeries, channelsFor, goalsFor, goalsPlanned, planFor, pubAccount, 
 import { spread } from './expenses.js';
 import { inlineHealth, checkIsStale } from './health.js';
 import { listAccounts, oneAccount, loadRaw, loadDays, loadCards } from './load.js';
+import { storeTag } from './storesource.js';
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 const STALE_WAIT_MS = 10 * 60e3;
@@ -49,7 +50,7 @@ function compareRows(a, w, cmp, allRows, yoyRaw) {
 
 /* One brand's card on the home page. */
 function card(a, w, raw, yoyRaw, cards, { cmp, wantSeries }) {
-  const { rows: allRows, margin_pct, shipping, piv } = buildSeries(raw, a, w.fetchFrom, w.to);
+  const { rows: allRows, margin_pct, shipping, piv, store } = buildSeries(raw, a, w.fetchFrom, w.to);
   const rows = allRows.filter(r => r.date >= w.from && r.date <= w.to);
   const prevRows = compareRows(a, w, cmp, allRows, yoyRaw);
   const channels = wantSeries ? channelsFor(raw.attr[a.act_id], rows, piv, w.from, w.to) : null;
@@ -78,6 +79,8 @@ function card(a, w, raw, yoyRaw, cards, { cmp, wantSeries }) {
     brief_enabled: !!a.brief_enabled,
     review_first: !!a.review_first,
     report_config: safeJson(a.report_config_json, {}),
+    // Where the store numbers came from (storesource.js).
+    ...storeTag(store),
   };
 }
 
@@ -131,7 +134,7 @@ export async function client(ctx, input) {
   const ym = monthOf(today);
   const monthStart = `${ym}-01`;
   const raw = await loadRaw(ctx, [acct.act_id], from < monthStart ? from : monthStart, to);
-  const { rows: allRows, margin_pct, shipping, exp } = buildSeries(raw, acct, from < monthStart ? from : monthStart, to);
+  const { rows: allRows, margin_pct, shipping, exp, store } = buildSeries(raw, acct, from < monthStart ? from : monthStart, to);
   const rows = allRows.filter(r => r.date >= from && r.date <= to);
   // The plan is spread over the days gone by in the month, so it sees month to date, not the window.
   const mtdRows = allRows.filter(r => r.date >= monthStart);
@@ -145,6 +148,7 @@ export async function client(ctx, input) {
     goals: goalsFor(acct, ym), plan: planFor(acct, ym, wholeDays(mtdRows, today)),
     live_as_of: null, hours: null,
     goals_planned: goalsPlanned(acct, ym),
+    ...storeTag(store),
   };
   return { data, meta: { window: { from, to, tz: acct.tz } } };
 }

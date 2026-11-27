@@ -353,6 +353,37 @@ profit/
   grants `shopifyqlQuery`, and the cohort data comes from ShopifyQL `FROM customers` -
   the only place Shopify exposes customers grouped by their first-order month. It is
   easy to miss because the obvious three (orders, customers, products) look sufficient.
+- **Shopify daily store totals live in `p_shop_daily` (src/shopsync.js, 2026-11-26).** One row per brand per
+  store day (shop time zone). `sales` = total_sales - taxes (the one revenue definition); `orders` = PAID orders only
+  (not test, not cancelled, above $0, paid or authorized), `$0` creator samples in `zero_orders`, `new_orders` /
+  `returning_orders` from `customerJourneySummary.customerOrderIndex`. Money comes from ShopifyQL `FROM sales ...
+  GROUP BY day` for any range; order counts come from the orders list for the last 60 days (`orders_source =
+  'orders'`), older days carry ShopifyQL money and `orders_all` only (`'shopifyql'`). `p_shopify.last_sync_at` is the
+  COHORT sync; the daily totals stamp `orders_sync_at` / `orders_days` / `orders_error`, and the tick stamps
+  `orders_try_at` before every try (so a store that keeps failing goes to the back of the line, never starving the
+  rest). Per day, `synced_at` moves whenever the money is rewritten; `orders_at` moves only when the orders pass
+  finished that day, so "are the counts whole?" reads `orders_at`. Backfill one store (OWNER ONLY):
+  `POST /api/shopify/orders-sync?act=<brand>&days=90` (answers `resume_from` on a very busy store: call again with
+  `&from=`). Read: `GET /api/shopify/daily?act=<brand>&days=30`. Incremental: account-health's hourly tick
+  (`shopDailyTick`, 3 stores tried longest ago, last 3 days, no new cron). Tests: `node test-shopsync.mjs`.
+- **Store numbers come from Shopify once it covers the window (src/storesource.js, 2026-11-26, Cole).** Sales,
+  orders, AOV, refunds and new vs returning ORDERS are Shopify's (p_shop_daily); Triple Whale stays for attribution,
+  ad spend, costs, email and the new vs returning REVENUE split. The switch replaces the store metrics inside the
+  tracker pivot (netSales = total_sales, totalNetTaxes = taxes, totalOrders = PAID orders, newCustomersOrders,
+  totalShippingPrice, totalSales = total_sales + refunds, totalRefunds, totalNewGrossSales), so every formula stays
+  one formula. Covered = every day from `from` to min(`to`, yesterday in the brand's tz) has money, paid orders read
+  order by order (`orders_source = 'orders'`), and both the money (`synced_at`) and the orders (`orders_at`) stamped
+  after that day ended; today's row is used when present. ANY gap: the whole window is Triple Whale, unchanged byte
+  for byte except `store_source` / `store_label`. Setting `settings.storeSource:<brand>` = auto (default) | tw |
+  shopify (`GET /api/store-source` team, `PUT` OWNER ONLY).
+  Wired in: `pivot()` (so seriesFor and every route on it: client, overview, plan, forecast, quarter, customers,
+  rhythm, profit share, plan share, War Room `/api/season/standing` labels), hub.js `twPivotMany` (every hub
+  surface; hub/store carries the label), account-health briefData / reportData / storePeriod and the client daily's
+  gray line (the CLIENT sees only "Shopify" or "Triple Whale", never sync status), the War Room DM footers
+  (standingdm.js; the scoreboard image in standingimg.js still says Triple Whale), engine metrics (ported, parity
+  tested), engine store routes and engine Paid > All channels (sent to this worker when a brand has Shopify rows or a
+  setting). Today's LIVE row (Triple Whale /api/tw-day) is still Triple Whale's. Tests:
+  `node test-storesource.mjs`, engine `test/metrics/storesource.test.mjs`.
 - **`read_orders` only reaches back 60 DAYS.** Older orders need `read_all_orders`,
   which is a separate approval request in the Partner Dashboard with a written
   justification, not a checkbox. Today's cohorts avoid this because ShopifyQL

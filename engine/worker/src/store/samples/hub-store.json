@@ -178,7 +178,9 @@
           "title": "Blue Kite"
         }
       ],
-      "product_orders": 3
+      "product_orders": 3,
+      "store_source": "triple_whale",
+      "store_label": "Store numbers: Triple Whale (Shopify not synced yet)"
     }
   ]
 }

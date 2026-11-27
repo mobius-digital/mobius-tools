@@ -2,7 +2,7 @@
 // from profit/worker/src/hub.js (storeRoll, storeBrand, storeMany, emailFrom, emailMany)
 import { aov, cvr, pct, safeDiv } from '../numbers/defs.js';
 import { safeJson } from '../platform/text.js';
-import { num, soft, pivotsOf, sumMetric, daysBetween } from './shared.js';
+import { num, soft, pivotsOf, sumMetric, daysBetween, TRACKER_STORE } from './shared.js';
 import { productTitles } from './titles.js';
 
 /* Visits and carts are worked out from the tracker's daily cost per visit, cost per cart and spend. */
@@ -72,7 +72,8 @@ async function storeBrand(ctx, a, w, piv) {
   const top = topProducts(orders);
   const titles = await soft(productTitles(ctx, a, top.map(t => t.id)), {}, 'product names could not be read, ids are shown instead');
   return { act_id: a.act_id, name: a.name, currency: a.currency, cur, prev, series, prev_series,
-    products: top.map(t => ({ ...t, title: titles[t.id] || `Product ${t.id}` })), product_orders: orders.length };
+    products: top.map(t => ({ ...t, title: titles[t.id] || `Product ${t.id}` })), product_orders: orders.length,
+    ...TRACKER_STORE };
 }
 
 /** One row per brand. One brand gets the full row with products, many brands the short row. */
@@ -88,7 +89,7 @@ export async function storeMany(ctx, accts, w) {
       series: daysBetween(w.from, w.to).map(d => {
         const r = storeRoll(piv, d, d);
         return { date: d, revenue: r.revenue, orders: r.orders };
-      }) };
+      }), ...TRACKER_STORE };
   });
 }
 

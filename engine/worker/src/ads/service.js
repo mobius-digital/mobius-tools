@@ -5,6 +5,8 @@ import { metaBrand } from './metabrand.js';
 import { metaMany } from './metamany.js';
 import { platformMany, allChannelsMany } from './channels.js';
 import { creativeBrand } from './creative.js';
+import { isEngineError } from '../platform/errors.js';
+import { swallowed } from '../platform/log.js';
 
 const PLATFORMS = ['meta', 'google', 'tiktok', 'all'];
 
@@ -16,6 +18,20 @@ function sharedWindow(brands, query, cmp, now) {
 /* A statement takes 100 values at most. The brand ids, the caller's own ids and about 30 metric ids all count. */
 const tooMany = (ctx, brands) => brands.length > MAX_BRANDS || brands.length + (ctx.scope.ids || []).length > MAX_BRANDS + 20;
 
+/* All channels reads the store's sales and new orders from the tracker rows. A brand with Shopify store totals or a
+   store source setting gets those from Shopify on the old route (hub.js twPivotMany runs the switch), so such a read
+   goes there. A missing table (before the first sync) reads as none, which is what the old route does too. */
+async function shopifyInPlay(ctx, acts) {
+  const read = async name => {
+    try { return await ctx.db.all(name, { acts }); } catch (e) {
+      if (isEngineError(e)) throw e;
+      swallowed('the Shopify table is not there yet, which the old route reads as none', e);
+      return [];
+    }
+  };
+  return (await read('ads.shopAny')).length > 0 || (await read('ads.storeModeAny')).length > 0;
+}
+
 /** GET /pw/api/hub/paid: spend, delivery and credited sales per brand for Meta, Google, TikTok or all channels. */
 export async function hubPaid(ctx, input) {
   const q = input.query, base = switches(q);
@@ -23,6 +39,9 @@ export async function hubPaid(ctx, input) {
   if (tooMany(ctx, brands)) return ctx.forward('more brands than one statement can name');
   const w = sharedWindow(brands, q, base.cmp, ctx.now);
   const platform = PLATFORMS.includes(q.platform) ? q.platform : 'meta';
+  if (platform === 'all' && await shopifyInPlay(ctx, brands.map(b => b.act_id))) {
+    return ctx.forward('the brand has Shopify store totals or a store source setting, the old worker holds the switch');
+  }
   let out;
   if (platform === 'meta') out = brands.length === 1 ? [await metaBrand(ctx, brands[0], w, base.model)] : await metaMany(ctx, brands, w, base.model);
   else if (platform === 'all') out = await allChannelsMany(ctx, brands, w, base.model);

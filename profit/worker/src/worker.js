@@ -27,6 +27,8 @@ const DASHBOARD_URL = 'https://locus.go-mobius-digital.com/profit/';
 import { handleSeason, seasonPublic } from './season.js';
 import { handleShopifyApp } from './shopifyapp.js';
 import { shopToken, exchangeCode, ensureTokenColumns } from './shoptoken.js';
+import { syncShopDaily, noteSyncError } from './shopsync.js';
+import { storeSwitch, markSource, sourceOf, storeTag, storeDaily, storeMode, storeSettingKey, STORE_MODES } from './storesource.js';
 import { handleScenario } from './scenario.js';
 import { handleDashboard } from './dashboard.js';
 import { handleInspo } from './inspo.js';
@@ -226,6 +228,20 @@ async function authKind(request, env) {
 }
 
 const isAdmin = async (request, env) => (await authKind(request, env)) === 'admin';
+
+/** The owner only: the machine token, the owner's own email, or a session the auth worker marks as the owner.
+ *  For routes that write store data every surface reads (the Shopify daily sync). */
+async function isOwner(request, env) {
+  const auth = request.headers.get('Authorization') || '';
+  if (env.ADMIN_TOKEN && auth === `Bearer ${env.ADMIN_TOKEN}`) return true;
+  if ((await authKind(request, env)) !== 'admin') return false;
+  const owner = String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
+  const email = await sessionEmail(env, request);
+  if (email && email.toLowerCase() === owner) return true;
+  const tok = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  const who = /^mds\./.test(tok) ? await delegateWho(env, tok) : null;
+  return !!who && (who.master || who.role === 'owner');
+}
 
 /* ---- Roles ----
    TWO roles and no more: admin, and viewer. `settings.userRoles` maps an email
@@ -536,13 +552,17 @@ const pubAccount = a => ({ act_id: a.act_id, name: a.name, currency: a.currency,
  * exactly the bug that inflated every revenue figure here by 4-13%. */
 const SALES_IDS = ['netSales', 'totalSales'];
 
-async function pivot(env, actId, from, to) {
+/* The tracker pivot of one brand, with its store numbers from the source the switch picks (storesource.js, 2026-11-26):
+   Shopify when its days cover the window, else Triple Whale exactly as before. sourceOf(piv) says which. `acct` is the
+   brand ({ act_id, tz }) or its id. */
+async function pivot(env, acct, from, to) {
+  const actId = typeof acct === 'string' ? acct : acct.act_id;
   const { results } = await env.DB.prepare(
     `SELECT date, metric, value FROM tw_daily WHERE act_id = ?1 AND date BETWEEN ?2 AND ?3`,
   ).bind(actId, from, to).all();
   const piv = {};
   for (const r of results) (piv[r.metric] ??= {})[r.date] = r.value;
-  return piv;
+  return markSource(piv, await storeSwitch(env, acct, piv, from, to));
 }
 const pick = (piv, date, ids) => { for (const id of ids) { const v = piv[id]?.[date]; if (v != null) return v; } return null; };
 
@@ -606,7 +626,7 @@ function dayEconomics(piv, meta, date, marginPct, rules) {
 }
 
 async function seriesFor(env, acct, from, to) {
-  const piv = await pivot(env, acct.act_id, from, to);
+  const piv = await pivot(env, acct, from, to);
   const { results: metaRows } = await env.DB.prepare(
     `SELECT date, SUM(spend) AS spend FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date BETWEEN ?2 AND ?3 GROUP BY date`,
   ).bind(acct.act_id, from, to).all();
@@ -625,7 +645,8 @@ async function seriesFor(env, acct, from, to) {
      CAC and CM include them on every screen that reads this series. `exp` rides along for the live row and Net profit. */
   const exp = (await loadExpenses(env, [acct.act_id]).catch(() => ({})))[acct.act_id] || [];
   if (exp.some(e => +e.is_ad_spend)) applyAdSpend(rows, spread(exp, from, to, rows).adByDate);
-  return { rows, margin_pct: marginPct, shipping: ship, piv, exp, rules };
+  /* store: where the store numbers came from (storesource.js): { source: 'shopify' | 'triple_whale', label, ... }. */
+  return { rows, margin_pct: marginPct, shipping: ship, piv, exp, rules, store: sourceOf(piv) };
 }
 
 /* ---------- Channels (Home, 2026-10-07) ----------
@@ -819,7 +840,7 @@ function shippingMode(piv) {
 /** The same daily series with the flat-margin override deliberately ignored,
  *  so the Costs page can diagnose the real underlying cost data. */
 async function seriesRaw(env, acct, from, to) {
-  const piv = await pivot(env, acct.act_id, from, to);
+  const piv = await pivot(env, acct, from, to);
   const { results: metaRows } = await env.DB.prepare(
     `SELECT date, SUM(spend) AS spend FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date BETWEEN ?2 AND ?3 GROUP BY date`,
   ).bind(acct.act_id, from, to).all();
@@ -926,9 +947,9 @@ async function monthHistory(env, acct, upToYm, n = 6) {
   for (let i = 0; i < n; i++) { months.unshift(m); m = prevMonth(m); }
   const from = `${months[0]}-01`;
   const to = `${upToYm}-${String(daysInMonth(upToYm)).padStart(2, '0')}`;
-  const { rows } = await seriesFor(env, acct, from, to);
+  const { rows, store } = await seriesFor(env, acct, from, to);
   const today = localDate(acct.tz);
-  return months.map(ym => {
+  const out = months.map(ym => {
     const mr = rows.filter(r => r.date.startsWith(ym));
     if (!mr.length) return { month: ym, empty: true };
     const t = totals(mr);
@@ -939,6 +960,9 @@ async function monthHistory(env, acct, upToYm, n = 6) {
       cm: t.cm, margin: t.margin, mer: t.mer, amer: t.amer, new_share: t.new_share,
     };
   });
+  /* Where the store numbers came from (storesource.js). On the array itself: JSON leaves it out, callers read it. */
+  out.store = store;
+  return out;
 }
 
 /** The three ways of saying the same plan.
@@ -1032,7 +1056,7 @@ async function forecastFor(env, acct, ym) {
   // Reuse the same day model the rest of the tool uses, so revenue means exactly
   // what it means everywhere else (net sales + shipping, gated) and the forecast
   // can never drift onto a different basis from the numbers it is compared against.
-  const { rows } = await seriesFor(env, acct, tFrom, monthEnd);
+  const { rows, store } = await seriesFor(env, acct, tFrom, monthEnd);
   const byDate = Object.fromEntries(rows.map(r => [r.date, r]));
   const trailing = rows.filter(r => r.date >= tFrom && r.date <= lastActual);
   if (!trailing.length) return null;
@@ -1040,7 +1064,7 @@ async function forecastFor(env, acct, ym) {
   // Returning is the predictable base, so give it a day-of-week shape.
   const retByDow = Array.from({ length: 7 }, () => []);
   let tNew = 0, tSpend = 0, tEmail = 0, tSales = 0;
-  const piv = await pivot(env, acct.act_id, tFrom, lastActual);
+  const piv = await pivot(env, acct, tFrom, lastActual);
   for (const r of trailing) {
     if (r.ret_rev != null) retByDow[dowOf(r.date)].push(r.ret_rev);
     tNew += r.new_rev ?? 0;
@@ -1126,6 +1150,7 @@ async function forecastFor(env, acct, ym) {
     spend_ramp: spendPerDay > 0 ? plannedPerDay / spendPerDay : null,
     to_hit: toHit,
     weeks: weekBuckets(rows, ym, dim, goals, retAll, amer),
+    ...storeTag(store),
   };
 }
 
@@ -1251,7 +1276,7 @@ async function cohorts(env, acct) {
   // orders we already sync. Pairing a Shopify LTV with a Triple Whale CAC is the
   // whole point - neither source can produce both.
   const from = `${results[0].cohort_month}-01`;
-  const piv = await pivot(env, acct.act_id, from, today);
+  const piv = await pivot(env, acct, from, today);
   const monthly = {};
   for (const metric of ['blendedAds', 'newCustomersOrders']) {
     for (const [d, v] of Object.entries(piv[metric] || {})) {
@@ -1331,8 +1356,7 @@ async function customerEconomics(env, acct, months = 6, days = 30, range = null)
   const winFrom = range?.from || addDays(today, -days);
   const monthsFrom = `${list[0]}-01`;
   const from = winFrom < monthsFrom ? winFrom : monthsFrom;
-  const { rows, margin_pct } = await seriesFor(env, acct, from, to);
-  const piv = await pivot(env, acct.act_id, from, to);
+  const { rows, margin_pct, store, piv } = await seriesFor(env, acct, from, to);
 
   const byMonth = {};
   for (const r of rows) (byMonth[monthOf(r.date)] ??= []).push(r);
@@ -1416,6 +1440,7 @@ async function customerEconomics(env, acct, months = 6, days = 30, range = null)
       thin: agg.newOrders < 50,
     },
     series,
+    ...storeTag(store),
   };
 }
 
@@ -1500,7 +1525,7 @@ async function customerJourney(env, acct, winFrom, winTo) {
 
   /* CAC by the month the customer was acquired: Triple Whale spend over its new customers,
      the same figure as everywhere else in Locus. */
-  const piv = await pivot(env, acct.act_id, `${monthOf(histFrom)}-01`, today);
+  const piv = await pivot(env, acct, `${monthOf(histFrom)}-01`, today);
   const monthly = {};
   for (const [m, k] of [['blendedAds', 'spend'], ['newCustomersOrders', 'newOrders']]) for (const [d, v] of Object.entries(piv[m] || {})) (monthly[monthOf(d)] ??= { spend: 0, newOrders: 0 })[k] += v || 0;
   const cacOf = ym => { const mm = monthly[ym]; return mm && mm.newOrders > 0 ? mm.spend / mm.newOrders : null; };
@@ -1590,7 +1615,7 @@ async function weekdayRhythm(env, acct, months = 3) {
   for (let i = 0; i < months; i++) { wanted.unshift(m); m = prevMonth(m); }
   const from = `${wanted[0]}-01`;
   const to = `${wanted[wanted.length - 1]}-${String(daysInMonth(wanted[wanted.length - 1])).padStart(2, '0')}`;
-  const { rows } = await seriesFor(env, acct, from, to);   // same revenue basis as everywhere else
+  const { rows, store } = await seriesFor(env, acct, from, to);   // same revenue basis as everywhere else
   const byMonth = {};
   for (const r of rows) if (r.sales != null) (byMonth[monthOf(r.date)] ??= []).push(r);
 
@@ -1655,7 +1680,7 @@ async function weekdayRhythm(env, acct, months = 3) {
   const consistent = out.filter(x => x.verdict === 'strong' || x.verdict === 'soft');
   const idxs = out.map(x => x.index).filter(v => v != null);
   return {
-    account: pubAccount(acct), months: used, enough: true,
+    account: pubAccount(acct), months: used, enough: true, ...storeTag(store),
     days: out,
     consistent_days: consistent.length,
     // A pattern worth acting on needs at least two weekdays that behaved the same
@@ -1919,6 +1944,7 @@ export default {
              trailing windows onto a client link would be workings, not the plan. */
           assumptions: safeJson(row.assumptions_json, null),
           history: history.filter(h => !h.empty).map(h => ({ month: h.month, sales: h.sales, spend: h.spend, partial: h.partial })),
+          ...storeTag(history.store),
         });
       } catch (e) { return json({ error: e.message }, 500); }
     }
@@ -1956,7 +1982,7 @@ export default {
           from = qf > to ? to : qf;
           fixed = true;
         }
-        const { rows, margin_pct, exp, rules } = await seriesFor(env, acct, from, to);
+        const { rows, margin_pct, exp, rules, store } = await seriesFor(env, acct, from, to);
         const t = totals(rows);
         const g = goalsFor(acct, ym);
         const planned = goalsPlanned(acct, ym); // own sales goal, not a key a margin save made
@@ -2010,6 +2036,8 @@ export default {
              month's target across it would invent a comparison nobody agreed to. */
           plan: !fixed && planned && (g.sales != null || g.spend != null) ? planFor(acct, ym, rows) : null,
           history,
+          /* Where the store numbers came from (storesource.js): 'shopify' or 'triple_whale', and the line the page shows. */
+          ...storeTag(store),
         });
       } catch (e) { return json({ error: e.message }, 500); }
     }
@@ -2341,7 +2369,7 @@ export default {
           if (cmp === 'prev') { pTo = addDays(from, -1); pFrom = addDays(pTo, -(span - 1)); }
           else if (cmp === 'yoy') { pFrom = `${+from.slice(0, 4) - 1}${from.slice(4)}`; pTo = `${+to.slice(0, 4) - 1}${to.slice(4)}`; }
           const fetchFrom = [from, monthStart, cmp === 'prev' ? pFrom : from].sort()[0];
-          const { rows: allRows, margin_pct, shipping, piv, exp, rules } = await seriesFor(env, a, fetchFrom, to);
+          const { rows: allRows, margin_pct, shipping, piv, exp, rules, store } = await seriesFor(env, a, fetchFrom, to);
           const rows = allRows.filter(r => r.date >= from && r.date <= to);
           let prevRows = [];
           if (cmp === 'prev') prevRows = allRows.filter(r => r.date >= pFrom && r.date <= pTo);
@@ -2389,6 +2417,9 @@ export default {
             brief_enabled: !!a.brief_enabled,
             review_first: !!a.review_first,
             report_config: safeJson(a.report_config_json, {}),
+            /* Where the store numbers came from (storesource.js). Today's live row, when the window has today, is
+               always Triple Whale's live read. */
+            ...storeTag(store),
           };
         }));
         return { days, from: qFrom, to: qTo, accounts: out, kind };
@@ -2409,7 +2440,7 @@ export default {
         const { today, from, to } = windowFor(acct);
         const ym = monthOf(today);
         const monthStart = `${ym}-01`;
-        const { rows: allRows, margin_pct, shipping, exp, rules } = await seriesFor(env, acct, from < monthStart ? from : monthStart, to);
+        const { rows: allRows, margin_pct, shipping, exp, rules, store } = await seriesFor(env, acct, from < monthStart ? from : monthStart, to);
         const rows = allRows.filter(r => r.date >= from && r.date <= to);
         // planFor spreads the month goal over the days ELAPSED, so it must see the
         // month-to-date rows - the whole window here once pro-rated a plan past 100%.
@@ -2438,6 +2469,8 @@ export default {
           live_as_of: liveAsOf, hours,
           /* The month goals and plan are for (the brand's own month today) has its own sales goal typed (goalsPlanned). */
           goals_planned: goalsPlanned(acct, ym),
+          /* Where the store numbers came from (storesource.js); today's live row is Triple Whale's live read. */
+          ...storeTag(store),
         });
       }
 
@@ -2542,6 +2575,7 @@ export default {
             days_in_month: fc.days_in_month, mtd_sales: fc.mtd?.sales ?? null,
             mtd_spend: fc.mtd?.spend ?? null, spend_per_day: fc.basis?.spend_per_day ?? null,
             projected: fc.projected, at_pace: fc.at_current_pace?.sales ?? null,
+            store_source: fc.store_source,
           } : null,
           goals: goalsFor(acct, ym), plan: saved || null,
           // A month only counts as planned if somebody planned THAT month. The
@@ -2551,6 +2585,8 @@ export default {
           planned: goalsPlanned(acct, ym),
           current_month: today2,
           at_current_pace: fc ? { projected: fc.at_current_pace?.sales ?? null, month: fc.month } : null,
+          /* Where the history's store numbers came from (storesource.js); the pace has its own store_source. */
+          ...storeTag(history.store),
         });
       }
 
@@ -2704,7 +2740,10 @@ export default {
       if (path === '/api/connections') {
         const accounts = await accountsFor(false);
         /* Never SELECT *: this answer goes to the browser and the row holds the store's tokens. */
-        const { results: shops } = await env.DB.prepare(`SELECT shop, act_id, scopes, installed_at, uninstalled_at, last_sync_at, (access_token <> '') AS access_token FROM p_shopify`).all()
+        /* orders_* (shopsync.js) exist once the first daily sync ran; before that, read the older shape. */
+        const BASE_COLS = `shop, act_id, scopes, installed_at, uninstalled_at, last_sync_at, (access_token <> '') AS access_token`;
+        const { results: shops } = await env.DB.prepare(`SELECT ${BASE_COLS}, orders_sync_at, orders_days, orders_error FROM p_shopify`).all()
+          .catch(() => env.DB.prepare(`SELECT ${BASE_COLS} FROM p_shopify`).all())
           .catch(() => ({ results: [] }));
         const { results: addrRows } = await env.DB.prepare(`SELECT act_id, shop FROM p_shop_address`).all().catch(() => ({ results: [] }));
         const addrBy = Object.fromEntries(addrRows.map(r => [r.act_id, r.shop]));
@@ -2737,6 +2776,8 @@ export default {
             installed_at: live?.installed_at ?? null,
             uninstalled_at: live ? null : (past?.uninstalled_at ?? null),
             last_sync_at: live?.last_sync_at ?? null,
+            // Shopify daily store totals (p_shop_daily): when they last synced, how many days are stored, the last error
+            orders_sync_at: live?.orders_sync_at ?? null, orders_days: live?.orders_days ?? 0, orders_error: live?.orders_error ?? null,
             cohort_months: co?.n ?? 0, cohort_as_of: co?.as_of ?? null,
             install_url: installUrl(addrBy[a.act_id] || live?.shop || past?.shop || a.tw_shop),
           };
@@ -2768,6 +2809,69 @@ export default {
           catch (e) { out.push({ shop: row.shop, act_id: row.act_id, error: e.message }); }
         }
         return json({ ok: out.some(r => r.months), results: out });
+      }
+
+      /* Shopify daily store totals (shopsync.js -> p_shop_daily) for ONE brand's store: a backfill or a re-read.
+       * ?act=<brand>&days=90 (max 400). Money per day comes from ShopifyQL for the whole range; paid orders and new vs
+       * returning come from the orders list, which reaches back 60 days unless the store granted read_all_orders.
+       * One store per call (Shopify rate limits, the subrequest cap); a busy store answers resume_from: call again
+       * with &from=<that day>. The hourly account-health tick keeps the last 3 days fresh after this. */
+      if (path === '/api/shopify/orders-sync' && request.method === 'POST') {
+        if (!(await isOwner(request, env))) return json({ error: 'owner only' }, 403);
+        const act = url.searchParams.get('act');
+        if (!act || act === 'all') return json({ error: 'one brand at a time: ?act=<brand id>' }, 400);
+        const row = await env.DB.prepare(
+          `SELECT shop, act_id, scopes FROM p_shopify WHERE act_id = ?1 AND uninstalled_at IS NULL AND access_token <> '' ORDER BY installed_at DESC LIMIT 1`,
+        ).bind(act).first().catch(() => null);
+        if (!row) return json({ error: 'no connected store for that client' }, 404);
+        const days = Math.min(400, Math.max(1, Number(url.searchParams.get('days')) || 90));
+        try {
+          const token = await shopToken(env, row.shop);
+          const r = await syncShopDaily(env, row, { token, days, from: url.searchParams.get('from') || undefined });
+          return json({ ok: true, ...r });
+        } catch (e) {
+          await noteSyncError(env, row.shop, e.message);
+          return json({ ok: false, shop: row.shop, act_id: row.act_id, error: e.message }, 502);
+        }
+      }
+
+      /* Shopify daily store totals for one brand, oldest first: ?act=<brand>&days=30. */
+      if (path === '/api/shopify/daily') {
+        const act = url.searchParams.get('act');
+        if (!act) return json({ error: 'act required' }, 400);
+        const days = Math.min(400, Math.max(1, Number(url.searchParams.get('days')) || 30));
+        /* A read only: no CREATE or ALTER here. Before the first sync the table is missing, which reads as no rows. */
+        const { results } = await env.DB.prepare(
+          `SELECT * FROM p_shop_daily WHERE act_id = ?1 ORDER BY day DESC LIMIT ?2`,
+        ).bind(act, days).all().catch(() => ({ results: [] }));
+        return json({ act, rows: results.reverse() });
+      }
+
+      /* Where one brand's store numbers come from (storesource.js, 2026-11-26).
+         GET ?act=<brand>&days=30: the setting, the source the window picks and the daily totals from it.
+         PUT { act, mode: 'auto' | 'tw' | 'shopify' }: the brand setting (team only). 'auto' = Shopify once it covers
+         the window, else Triple Whale; 'tw' and 'shopify' force one. */
+      if (path === '/api/store-source') {
+        const act = request.method === 'GET' ? url.searchParams.get('act') : null;
+        if (request.method === 'GET') {
+          const acct = (await accountsFor(false)).find(a => a.act_id === act);
+          if (!acct) return json({ error: 'unknown account' }, 404);
+          const d = Math.min(400, Math.max(1, Number(url.searchParams.get('days')) || 30));
+          const to = addDays(localDate(acct.tz), -1), from = addDays(to, -(d - 1));
+          return json({ act, from, to, modes: STORE_MODES, ...(await storeDaily(env, acct, from, to)) });
+        }
+        if (request.method === 'PUT') {
+          /* Owner only: 'shopify' blanks out the days Shopify lacks on every surface, client dailies included. */
+          if (!(await isOwner(request, env))) return json({ error: 'owner only' }, 403);
+          const b = await request.json().catch(() => ({}));
+          const acct = (await accountsFor(false)).find(a => a.act_id === b.act);
+          if (!acct) return json({ error: 'unknown account' }, 404);
+          if (!STORE_MODES.includes(b.mode)) return json({ error: `mode must be one of ${STORE_MODES.join(', ')}` }, 400);
+          await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+            .bind(storeSettingKey(acct.act_id), storeMode(b.mode)).run();
+          return json({ ok: true, act: acct.act_id, mode: storeMode(b.mode) });
+        }
+        return json({ error: 'GET or PUT' }, 405);
       }
 
       /* A brand's store address, typed by the team: for brands with no Triple Whale shop to read it from. It gives
@@ -2831,7 +2935,7 @@ export default {
         const from = `${months[0]}-01`;
         const lastDay = `${months[2]}-${String(daysInMonth(months[2])).padStart(2, '0')}`;
         const to = today < lastDay ? addDays(today, -1) : lastDay;
-        const { rows } = from <= to ? await seriesFor(env, acct, from, to) : { rows: [] };
+        const { rows, store } = from <= to ? await seriesFor(env, acct, from, to) : { rows: [], store: null };
         const per = months.map(ym => {
           const mr = rows.filter(r => r.date.startsWith(ym));
           const t = mr.length ? totals(mr) : null;
@@ -2857,6 +2961,7 @@ export default {
           sales: sum(x => x.sales), spend: sum(x => x.spend), cm: sum(x => x.cm),
           days_done: sum(x => x.days),
           days_total: months.reduce((a, m) => a + daysInMonth(m), 0),
+          ...storeTag(store),
         });
       }
 
@@ -3074,12 +3179,19 @@ export default {
       }
       /* Season (2026-10-05): the BFCM plan per brand. Routes live in season.js. */
       if (path.startsWith('/api/season')) {
+        /* Which store source each brand's whole days came from (storesource.js), so the standing answer can say it.
+           season.js is not changed: it reads `rows` from this callback, which are Shopify's when Shopify covers. */
+        const storeSeen = {};
         const sr = await handleSeason({
           path, request, env, accountsFor, email: await sessionEmail(env, request),
           /* Whole days only (2026-11-26): season.js counts "yesterday" on Central time and adds today from `live`, so
              for a brand west of Central, between midnight Central and the brand's own midnight, its "yesterday" is the
              brand's today. Clipped to the brand's own yesterday, a partial today the sync stored never joins the live row. */
-          series: (acct, from, to) => seriesFor(env, acct, from, wholeDaysTo(acct, to)),
+          series: async (acct, from, to) => {
+            const s = await seriesFor(env, acct, from, wholeDaysTo(acct, to));
+            if (s.store && (!storeSeen[acct.act_id] || s.store.source === 'triple_whale')) storeSeen[acct.act_id] = s.store;
+            return s;
+          },
           /* Today's hourly shape from Triple Whale, the same call the Profit Today preset makes. */
           /* The War Room (2026-10-09) also reads orders and Meta / Google spend by the hour, and the day as one row.
              liveDay (2026-11-22) fills spend from Meta when TW has none, and flags a brand with no TW shop. */
@@ -3088,6 +3200,15 @@ export default {
           titles: (acct, ids) => productTitles(env, acct, ids),
           client: clientScope(request),
         });
+        /* The War Room check-in (standing): each brand carries where its store numbers came from. Today so far is
+           always Triple Whale's live read; the whole days before it follow the switch. */
+        if (sr && path === '/api/season/standing' && sr.ok) {
+          const body = await sr.clone().json().catch(() => null);
+          if (body && Array.isArray(body.brands)) {
+            for (const b of body.brands) Object.assign(b, storeTag(storeSeen[b.act_id]));
+            return json(body);
+          }
+        }
         if (sr) return sr;
       }
       return json({ error: 'not found' }, 404);

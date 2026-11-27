@@ -7,6 +7,7 @@ import { mer, pct, safeDiv } from '../numbers/defs.js';
 import { addDays, monthOf } from '../platform/time.js';
 import { totals } from './money.js';
 import { buildSeries, goalsFor, daysInMonth } from './series.js';
+import { storeTag } from './storesource.js';
 
 const dowOf = d => new Date(`${d}T12:00:00Z`).getUTCDay();
 const mean = a => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
@@ -92,7 +93,7 @@ const sumOf = (rows, key) => rows.reduce((a, r) => a + (r[key] ?? 0), 0);
 export function forecastFor(raw, acct, ym, today) {
   const w = forecastWindow(ym, today);
   // The same day model as everywhere else, so revenue means here what it means on every screen.
-  const { rows, piv } = buildSeries(raw, acct, w.tFrom, w.monthEnd);
+  const { rows, piv, store } = buildSeries(raw, acct, w.tFrom, w.monthEnd);
   const trailing = rows.filter(r => r.date >= w.tFrom && r.date <= w.lastActual);
   if (!trailing.length) return null;
   const b = trailingBasis(trailing, piv);
@@ -135,6 +136,7 @@ export function forecastFor(raw, acct, ym, today) {
     spend_ramp: b.spendPerDay > 0 ? safeDiv(plannedPerDay, b.spendPerDay) : null,
     to_hit: toHitOf(goal, mtd.sales, remaining.length, b),
     weeks: weekBuckets(rows, ym, w.dim, goals),
+    ...storeTag(store),
   };
 }
 
@@ -149,8 +151,8 @@ export function historyMonths(upToYm, n) {
 /** The last `n` months of real numbers: the table to look at before agreeing next month's goal. */
 export function monthHistory(raw, acct, upToYm, n, today) {
   const months = historyMonths(upToYm, n);
-  const { rows } = buildSeries(raw, acct, `${months[0]}-01`, `${upToYm}-${pad(daysInMonth(upToYm))}`);
-  return months.map(ym => {
+  const { rows, store } = buildSeries(raw, acct, `${months[0]}-01`, `${upToYm}-${pad(daysInMonth(upToYm))}`);
+  const out = months.map(ym => {
     const mr = rows.filter(r => r.date.startsWith(ym));
     if (!mr.length) return { month: ym, empty: true };
     const t = totals(mr);
@@ -161,6 +163,9 @@ export function monthHistory(raw, acct, upToYm, n, today) {
       cm: t.cm, margin: t.margin, mer: t.mer, amer: t.amer, new_share: t.new_share,
     };
   });
+  // Where the store numbers came from, on the array itself: JSON leaves it out, the plan reads it.
+  out.store = store;
+  return out;
 }
 
 /* The sales goal and the spend it takes, entered from one of three ends. */

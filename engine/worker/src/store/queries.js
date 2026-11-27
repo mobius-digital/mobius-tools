@@ -57,6 +57,12 @@ export const queries = {
     sql: `SELECT d.ad_id, a.adset_id, SUM(d.spend) s30, SUM(CASE WHEN d.date >= :week THEN d.spend ELSE 0 END) s7
           FROM ad_daily d LEFT JOIN ads a ON a.ad_id = d.ad_id
           WHERE d.act_id IN ${META_ACCOUNTS} AND d.date >= :from GROUP BY d.ad_id` },
+  /* The store source switch (profit storesource.js): is there any Shopify store total or setting for these brands? */
+  shopAny: { scope: 'brands',
+    sql: `SELECT act_id FROM p_shop_daily WHERE {{brands:act_id}} AND act_id IN (:acts) LIMIT 1` },
+  storeModeAny: { scope: 'brands',
+    sql: `SELECT b.act_id AS act_id FROM brand_accounts b JOIN settings s ON s.key = 'storeSource:' || b.act_id
+          WHERE {{brands:b.act_id}} AND b.act_id IN (:acts) LIMIT 1` },
   adsetNames: { scope: 'brands',
     sql: `SELECT adset_id, name FROM meta_adsets WHERE act_id IN ${META_ACCOUNTS}` },
 };

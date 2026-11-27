@@ -50,6 +50,13 @@ const many = {
           AND o.date BETWEEN :from AND :to AND o.customer_id IS NOT NULL
           AND NOT EXISTS (SELECT 1 FROM tw_orders p WHERE p.act_id = o.act_id AND p.customer_id = o.customer_id AND p.date < o.date)
           GROUP BY o.act_id, o.source` },
+  /* The store source switch (profit storesource.js): any Shopify store totals or a store source setting for these
+     brands? Then the all channels view goes to the old worker, which holds the switch. */
+  shopAny: { scope: 'brands',
+    sql: `SELECT act_id FROM p_shop_daily WHERE {{brands:act_id}} AND act_id IN (:acts) LIMIT 1` },
+  storeModeAny: { scope: 'brands',
+    sql: `SELECT b.act_id AS act_id FROM brand_accounts b JOIN settings s ON s.key = 'storeSource:' || b.act_id
+          WHERE {{brands:b.act_id}} AND b.act_id IN (:acts) LIMIT 1` },
   goalDocs: { scope: 'brands',
     sql: `SELECT act_id, data_json FROM p_br_doc WHERE {{brands:act_id}} AND act_id IN (:acts) AND line_id = '' AND key = 'rules'` },
 };

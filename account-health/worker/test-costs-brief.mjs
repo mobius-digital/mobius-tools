@@ -164,7 +164,17 @@ await check('with a rule, econDay prices the day exactly like the profit worker\
 
 /* ---------------- brief and report, through the database ---------------- */
 await check('with the new tables missing, brief data, both brief texts, report data and the headline are what the commit before produced', () => {
-  for (const k of KEYS) assert.equal(hash(first[k]), MAIN[k], `${k} changed for a brand with no cost rule and no fixed cost`);
+  /* STORE SOURCE (2026-11-26, profit storesource.js): brief and report data carry store_source + store_label. With no
+     Shopify rows they say Triple Whale, not synced yet; without those two keys the payload is the one MAIN hashed. */
+  const noStore = (k, s) => {
+    if (k !== 'brief' && k !== 'report') return s;
+    const j = JSON.parse(s);
+    assert.equal(j.store_source, 'triple_whale', `${k} names its store source`);
+    assert.equal(j.store_label, 'Store numbers: Triple Whale (Shopify not synced yet)');
+    delete j.store_source; delete j.store_label;
+    return JSON.stringify(j);
+  };
+  for (const k of KEYS) assert.equal(hash(noStore(k, first[k])), MAIN[k], `${k} changed for a brand with no cost rule and no fixed cost`);
   assert.ok(first._brief.mtd.cm != null && first._report.totals.cm != null, 'and the seed does produce a contribution margin');
 });
 await check('the tables existing but empty for this brand changes nothing; neither does a rule or a fixed cost on ANOTHER brand', async () => {

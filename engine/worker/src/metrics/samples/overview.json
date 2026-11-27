@@ -234,7 +234,9 @@
    "brief_channel": "C0NORTH0002",
    "brief_enabled": false,
    "review_first": true,
-   "report_config": {}
+   "report_config": {},
+   "store_source": "triple_whale",
+   "store_label": "Store numbers: Triple Whale (Shopify not synced yet)"
   },
   {
    "act_id": "brand_river_tea",
@@ -468,7 +470,9 @@
    "review_first": true,
    "report_config": {
     "secret": "team only"
-   }
+   },
+   "store_source": "triple_whale",
+   "store_label": "Store numbers: Triple Whale (Shopify not synced yet)"
   }
  ],
  "kind": "admin"
