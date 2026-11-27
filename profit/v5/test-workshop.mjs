@@ -46,13 +46,17 @@ await ok('every LIVE line and tab is a real route', () => {
 });
 
 /* ---------- menus ---------- */
-await ok('team sees only live lines, brand view', () => {
+await ok('team sees every line in place, workshop lines flagged, no Workshop group', () => {
   as('team');
-  assert.deepEqual(lines('brand', 'team'), ['meta', 'production', 'black-friday', 'reports']);
-  assert.equal(groups('brand', 'team').includes(W.WORKSHOP_GROUP), false);
-});
-await ok('team sees only live lines, agency view', () => {
-  assert.deepEqual(lines('agency', 'team'), ['a-meta', 'a-production', 'a-black-friday', 'a-to-send']);
+  for (const view of ['brand', 'agency']) {
+    const g = menu.menuFor(view, 'team');
+    assert.equal(g.some(x => x.group === W.WORKSHOP_GROUP), false, view);
+    for (const l of g.flatMap(x => x.lines)) assert.equal(!!l.workshop, !W.lineLive(l.id), view + ' ' + l.id);
+  }
+  assert.ok(lines('brand', 'team').includes('home'));
+  assert.ok(lines('brand', 'team').includes('meta'));
+  assert.ok(lines('agency', 'team').includes('a-today'));
+  assert.equal(lines('agency', 'team').includes('a-engine'), false);
 });
 await ok('team sees only live tabs on a live line', () => {
   const meta = menu.menuFor('brand', 'team').flatMap(g => g.lines).find(l => l.id === 'meta');
@@ -67,14 +71,11 @@ await ok('a client sees the live lines only, never the team tabs', () => {
   assert.deepEqual(menu.shownTabs(menu.lineOf('meta'), 'client').map(t => t.id), ['changes']);
   assert.equal(groups('brand', 'client').includes(W.WORKSHOP_GROUP), false);
 });
-await ok('owner sees every line, the rest in one Workshop group, tagged', () => {
+await ok('owner sees every line in place, workshop lines flagged', () => {
   for (const view of ['brand', 'agency']) {
     const g = menu.menuFor(view, 'owner');
-    const shop = g.filter(x => x.group === W.WORKSHOP_GROUP);
-    assert.equal(shop.length, 1, view);
-    assert.equal(g[g.length - 1].group, W.WORKSHOP_GROUP, view + ': Workshop is last');
-    for (const l of shop[0].lines) { assert.equal(W.lineLive(l.id), false, l.id); assert.equal(l.note, W.WORKSHOP_NOTE, l.id); }
-    for (const x of g.filter(x => x !== shop[0])) for (const l of x.lines) assert.ok(W.lineLive(l.id), l.id);
+    assert.equal(g.some(x => x.group === W.WORKSHOP_GROUP), false, view);
+    for (const l of g.flatMap(x => x.lines)) assert.equal(!!l.workshop, !W.lineLive(l.id), view + ' ' + l.id);
   }
   assert.ok(lines('brand', 'owner').includes('home'));
   assert.ok(lines('agency', 'owner').includes('a-engine'));
@@ -128,16 +129,25 @@ await ok('a direct link to a workshop page as team: "being built", no data call'
   assert.equal(location.hash, '#/brand/northlake/customers/ltv');
   assert.equal(drawn.line.id, 'customers');
   const box = drawn.el.kids[0];
-  assert.equal(box.className, 'lx-empty');
-  assert.ok(box.kids.some(k => k.textContent === 'This page is being built.'));
+  assert.equal(box.className, 'lx-empty lx-ws');
+  assert.ok(box.kids.some(k => k.textContent === W.WORKSHOP_NOTE));
+  assert.ok(box.kids.some(k => /new vs returning/i.test(JSON.stringify(k.kids || []))), 'explains the data');
   assert.equal(fetched, before);
   /* a blocked page is never kept as the page the app reopens on */
   assert.ok(![...store.values()].some(v => String(v).includes('customers')));
   go('#/agency/all/a-today/index');
   await new Promise(r => setTimeout(r, 0));
   assert.equal(drawn.line.id, 'a-today');
-  assert.ok(drawn.el.kids[0].kids.some(k => k.textContent === 'This page is being built.'));
+  assert.ok(drawn.el.kids[0].kids.some(k => /Every brand this morning/.test(k.textContent)));
   assert.equal(fetched, before);
+});
+await ok('every workshop line the team can see has an explainer', async () => {
+  const P = await import('./workshop-pages.js');
+  for (const view of ['brand', 'agency']) for (const l of menu.menuFor(view, 'team').flatMap(g => g.lines).filter(l => l.workshop)) {
+    const e = P.explainFor(l.id);
+    assert.ok(e && e.what && e.use && e.scale, l.id);
+    assert.equal(/—|–/.test(JSON.stringify(e)), false, l.id + ': no dashes');
+  }
 });
 await ok('canOpen: the owner opens anything, others only live pages', () => {
   assert.equal(W.canOpen('owner', 'customers', 'ltv'), true);

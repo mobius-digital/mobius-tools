@@ -56,7 +56,7 @@ export function normalise(r) {
   /* no line asked for: the owner lands where they always did, anyone else on the first live line (workshop.js).
      A workshop line asked for with no tab is a button of the shell (the brand switcher, the phone tabs), not a typed
      address: it goes to the first live line too, so switching brands never ends on "being built". */
-  if (!line || !(top || menu.some(l => l.id === line.id)) || (!r.tab && !seesWorkshop(role) && !lineLive(line.id))) line = seesWorkshop(role) ? menu[0] : menuFor(view, role, { allFeatures: true }).flatMap(g => g.lines)[0] || menu[0];
+  if (!line || !(top || menu.some(l => l.id === line.id)) || (!r.tab && !seesWorkshop(role) && !lineLive(line.id))) line = seesWorkshop(role) ? menu[0] : menuFor(view, role, { allFeatures: true }).flatMap(g => g.lines).find(l => lineLive(l.id)) || menu[0];
   const tabs = tabsFor(line, role).filter(x => role !== 'client' || !x.team);
   const tab = tabs.find(x => x.id === r.tab) || tabs[0];
   let brand = 'all';
