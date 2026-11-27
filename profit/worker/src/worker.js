@@ -25,7 +25,7 @@ import { handlePublic as studioPublic, handleStaff as studioStaff } from './stud
 
 const DASHBOARD_URL = 'https://locus.go-mobius-digital.com/profit/';
 import { handleSeason, seasonPublic } from './season.js';
-import { handleShopifyApp } from './shopifyapp.js';
+import { handleShopifyApp, REQUIRED_SCOPES } from './shopifyapp.js';
 import { shopToken, exchangeCode, ensureTokenColumns } from './shoptoken.js';
 import { syncShopDaily, noteSyncError, ensureShopDaily } from './shopsync.js';
 import { storeSwitch, markSource, sourceOf, storeTag, storeDaily, storeMode, storeSettingKey, STORE_MODES } from './storesource.js';
@@ -300,7 +300,8 @@ async function sessionEmail(env, request) {
 // write_products and write_discounts are OPTIONAL since 2026-11-24 (requirement 3.2): a store grants them from inside
 // the app (shopifyapp.js OPTIONAL_SCOPES) only if it wants Locus to change products or codes. Do NOT add write_pixels
 // or read_customer_events until the app has a pixel to show for them.
-const SHOPIFY_SCOPES = 'read_orders,read_customers,read_products,read_reports,read_inventory,read_returns';
+// The list itself lives in shopifyapp.js REQUIRED_SCOPES (2026-11-26) so the app page, this and the TOML test share one.
+const SHOPIFY_SCOPES = REQUIRED_SCOPES.join(',');
 /** An install code (p_oauth_state) is good for this long. */
 const OAUTH_STATE_MINUTES = 10;
 const SHOP_RE = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
@@ -2102,7 +2103,7 @@ export default {
        These are called by Shopify and by merchants, never by a signed-in Mobius user,
        so they sit above the dashboard auth gate and authenticate themselves by HMAC. */
     /* The embedded app inside the Shopify admin (2026-10-18, review 131577): its page and its session-token API. */
-    if (path === '/shopify/app' || path === '/shopify/app/api/report') {
+    if (path === '/shopify/app' || path === '/shopify/app/api/report' || path === '/shopify/app/api/scopes') {
       const r = await handleShopifyApp(request, env, url, { saveToken: (shop, t) => saveShopToken(env, shop, t) });
       if (r) return r;
     }
@@ -2777,6 +2778,9 @@ export default {
             uninstalled_at: live ? null : (past?.uninstalled_at ?? null),
             last_sync_at: live?.last_sync_at ?? null,
             // Shopify daily store totals (p_shop_daily): when they last synced, how many days are stored, the last error
+            // required scopes this store has not granted yet (a scope added after it installed): its owner opens
+            // the app in Shopify once and Shopify asks for them
+            missing_scopes: live ? REQUIRED_SCOPES.filter(s => !String(live.scopes || '').split(',').includes(s)) : [],
             orders_sync_at: live?.orders_sync_at ?? null, orders_days: live?.orders_days ?? 0, orders_error: live?.orders_error ?? null,
             cohort_months: co?.n ?? 0, cohort_as_of: co?.as_of ?? null,
             install_url: installUrl(addrBy[a.act_id] || live?.shop || past?.shop || a.tw_shop),

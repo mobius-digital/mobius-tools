@@ -19,6 +19,11 @@
  * sentence about an agency, no button that contacts one. Support contact lives in the App Store listing.
  */
 import { shopToken, exchangeSessionToken } from './shoptoken.js';
+/** The REQUIRED scopes, asked at install. ONE list: worker.js SHOPIFY_SCOPES is this joined, and `scopes` in
+ *  profit/shopify.app.toml must be the same (test-shopifyapp.mjs checks it), or the next `shopify app deploy` undoes
+ *  a scope change made in the Dev Dashboard. A store installed before a change is asked for the new ones by Shopify
+ *  (managed installation) the next time its owner opens the app; the page then reports what it holds (tell()). */
+export const REQUIRED_SCOPES = ['read_orders', 'read_customers', 'read_products', 'read_reports', 'read_inventory', 'read_returns', 'read_analytics', 'read_discounts', 'read_price_rules', 'read_marketing_events', 'read_merchant_managed_fulfillment_orders'];
 /** Asked for inside the app, only by a store that wants them (shopify.app.toml optional_scopes). */
 export const OPTIONAL_SCOPES = ['write_products', 'write_discounts'];
 const API = '2026-07';
@@ -160,7 +165,7 @@ async function opt(){try{const q=await shopify.scopes.query();const has=OPT.ever
 async function tell(){try{const t=await shopify.idToken();await fetch('/shopify/app/api/scopes',{method:'POST',headers:{Authorization:'Bearer '+t}});}catch(e){}}
 $('optAllow').onclick=async()=>{try{await shopify.scopes.request(OPT);}catch(e){}await tell();opt();};
 $('optRemove').onclick=async()=>{try{await shopify.scopes.revoke(OPT);}catch(e){}await tell();opt();};
-load();opt();
+load();opt();tell();
 </script></body></html>`;
 }
 
@@ -214,6 +219,11 @@ export async function handleShopifyApp(request, env, url, { F = fetch, saveToken
         if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
         const d = await gql(F, v.shop, access, `{ currentAppInstallation { accessScopes { handle } } }`);
         const scopes = (d.currentAppInstallation?.accessScopes || []).map(x => x.handle).filter(Boolean);
+        /* The store just accepted a REQUIRED scope it did not hold before (Shopify asked when the app opened after a
+           scope change): buy a fresh token once, so nothing keeps reading with one issued under the old grant. */
+        const was = await env.DB.prepare(`SELECT scopes FROM p_shopify WHERE shop = ?1`).bind(v.shop).first().catch(() => null);
+        const had = new Set(String(was?.scopes || '').split(',').filter(Boolean));
+        if (!fresh && was && REQUIRED_SCOPES.some(s => scopes.includes(s) && !had.has(s))) await connect().catch(() => {});
         if (scopes.length) await env.DB.prepare(`UPDATE p_shopify SET scopes = ?2 WHERE shop = ?1`).bind(v.shop, scopes.join(',')).run().catch(() => {});
         return json({ ok: true, scopes });
       }
