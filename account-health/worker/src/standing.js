@@ -520,25 +520,81 @@ function changeLine(r) {
   if (/resum|turned on|activ/i.test(sum + ' ' + (r.category || ''))) return `Turned on the ${name || ''} ${kind}`.replace(/\s+/g, ' ');
   return firstUp(String(r.client_why || sum).trim().replace(/\.$/, ''));
 }
-/** The changes since the last client update, one per line ({line, why}: why = the client_why when the line is not it). */
-async function didItems(env, deps, act) {
-  const last = await deps.getSetting(env, `wsLastSent:${act}`);
-  const since = last || `${central().date}T06:00:00Z`;   // never sent: since midnight Central
-  const acts = (await metaActs(env, act)).map(m => m.act);
-  if (!acts.length) return [];
-  const rows = ((await env.DB.prepare(`SELECT summary, category, object_type, object_name, client_why, event_time FROM activities WHERE act_id IN (${acts.map((_, i) => `?${i + 2}`).join(', ')})
-    AND client_why IS NOT NULL AND client_why != '' AND event_time >= ?1 ORDER BY event_time`).bind(since, ...acts).all().catch(() => ({ results: [] }))).results) || [];
-  const out = [], seen = new Set();
-  for (const r of rows) {
-    const line = changeLine(r);
-    if (!line || seen.has(line)) continue;
-    seen.add(line);
-    const why = String(r.client_why || '').trim();
-    out.push({ line, why: why && firstUp(why.replace(/\.$/, '')) !== line ? why : '' });
-  }
-  return out.slice(0, 10);
+/* NOT YET SENT, not "since the last send" (2026-11-26 fix: a change made a minute before a send dropped out of every
+   later update). Settings `wsDid:<act>` = {floor, ids: {activity id: event_time}}: the Change Log rows a client update
+   actually listed, marked only once Slack took the post. Every unmarked row of the last 48 hours (never before the
+   floor = where the old "since the last send" rule stood when this began) goes in the next update. */
+const DID_WINDOW = 48 * 3600e3;
+async function didState(env, deps, act) {
+  try { const s = JSON.parse((await deps.getSetting(env, `wsDid:${act}`)) || 'null'); return s && s.ids ? s : null; } catch { return null; }
 }
+/** {items: [{line, why}], ids: the rows behind the items shown, floor, tracked: the brand has a Meta account}. */
+async function didRows(env, deps, act) {
+  const st = await didState(env, deps, act);
+  const floor = (st && st.floor) || (await deps.getSetting(env, `wsLastSent:${act}`)) || `${central().date}T06:00:00Z`;   // never sent: since midnight Central
+  const win = new Date(Date.now() - DID_WINDOW).toISOString(), since = floor > win ? floor : win;
+  const acts = (await metaActs(env, act)).map(m => m.act);
+  if (!acts.length) return { items: [], ids: [], floor, tracked: false };
+  /* Left out, as the Updates card leaves them out: rows Meta did not confirm (confirmed = -1) and Locus writes undone
+     since (p_meta_write.undone, joined by the "Write mw_..." note). They are not marked either. A failed read returns
+     failed: the send keeps the list it had instead of saying "No changes", and markDid only pins the floor (no ids),
+     so the old "since the last send" fallback cannot skip the unmarked rows next time. */
+  let rows;
+  try {
+    rows = ((await env.DB.prepare(`SELECT id, summary, category, object_type, object_name, client_why, event_time, note FROM activities WHERE act_id IN (${acts.map((_, i) => `?${i + 2}`).join(', ')})
+    AND client_why IS NOT NULL AND client_why != '' AND COALESCE(confirmed, 0) <> -1 AND event_time >= ?1 ORDER BY event_time`).bind(since, ...acts).all()).results) || [];
+  } catch { return { items: [], ids: [], floor, tracked: true, failed: true }; }
+  const mwOf = r => (String(r.note || '').match(/\b(mw_[0-9a-f]+)/) || [])[1];
+  const mws = [...new Set(rows.map(mwOf).filter(Boolean))], undone = new Set();
+  try {
+    for (let i = 0; i < mws.length; i += 50) {
+      const ch = mws.slice(i, i + 50);
+      const { results } = await env.DB.prepare(`SELECT id, undone FROM p_meta_write WHERE id IN (${ch.map(() => '?').join(',')})`).bind(...ch).all();
+      for (const w of results || []) if (w.undone) undone.add(w.id);
+    }
+  } catch { return { items: [], ids: [], floor, tracked: true, failed: true }; }
+  const out = [], byLine = new Map();
+  for (const r of rows) {
+    if (st && r.id != null && st.ids[r.id]) continue;   // already in a sent update
+    if (undone.has(mwOf(r))) continue;                   // undone in Locus: it did not happen
+    const line = changeLine(r);
+    if (!line) continue;
+    if (byLine.has(line)) { byLine.get(line).ids.push([r.id, r.event_time]); continue; }
+    const why = String(r.client_why || '').trim(), it = { line, why: why && firstUp(why.replace(/\.$/, '')) !== line ? why : '' };
+    byLine.set(line, { it, ids: [[r.id, r.event_time]] });
+    out.push(it);
+  }
+  const shown = out.slice(0, 10);
+  return { items: shown, ids: shown.flatMap(i => byLine.get(i.line).ids).filter(([id]) => id != null), floor, tracked: true };
+}
+/** The changes not yet in a sent client update, one per line ({line, why}: why = the client_why when the line is not it). */
+async function didItems(env, deps, act) { return (await didRows(env, deps, act)).items; }
 const didSince = async (env, deps, act) => (await didItems(env, deps, act)).map(i => i.line);
+/** Mark the rows an update listed, once Slack took it. Idempotent; entries past the window are dropped. A brand with
+ *  no Meta account has nothing to track and nothing is written. */
+async function markDid(env, deps, act, d) {
+  if (!d || !d.tracked) return;
+  const old = await didState(env, deps, act);
+  if (old && !d.ids.length) return;
+  const st = old || { floor: d.floor, ids: {} }, keep = new Date(Date.now() - DID_WINDOW - 24 * 3600e3).toISOString();
+  for (const [id, t] of d.ids) st.ids[id] = t || new Date().toISOString();
+  for (const [id, t] of Object.entries(st.ids)) if (String(t) < keep) delete st.ids[id];
+  await deps.putSetting(env, `wsDid:${act}`, JSON.stringify(st));
+}
+const UPD_NONE = 'No changes since the last update';
+const updText = lines => (lines.length ? lines : [UPD_NONE]).map(d => `•  ${d}`).join('\n');
+const isUpdTitle = x => !!x && ((x.type === 'header' && x.text && x.text.text === 'Updates') || (x.type === 'markdown' && x.text === '# Updates'));
+/** A saved draft with its "Updates" list rebuilt from the Change Log NOW (the send), the rest as built (the check-in's
+ *  numbers). Returns {dr, did}: did goes to markDid once Slack takes the post. */
+async function freshDraft(env, deps, dr, rec = null) {
+  const did = await didRows(env, deps, dr.act);
+  if (did.failed) return { dr: JSON.parse(JSON.stringify(dr)), did };   // Change Log unreadable: the saved list, nothing marked
+  const out = JSON.parse(JSON.stringify(dr)), text = updText(did.items.map(i => i.line));
+  const fix = bl => { for (let i = 1; i < (bl || []).length; i++) if (isUpdTitle(bl[i - 1]) && bl[i] && bl[i].type === 'section' && bl[i].text) bl[i].text.text = text; };
+  if (out.msg) { fix(out.msg.blocks); for (const a of out.msg.attachments || []) fix(a.blocks); }
+  if (out.card_svg && rec) { try { out.card_svg = clientCardSvg(rec, dr.act, did.items) || out.card_svg; } catch {} }
+  return { dr: out, did };
+}
 /* THE CARD SWITCH: the client picture card stays OFF until it has been tried in a real Slack test channel (Black
    Friday weekend is live). Settings `standingClientCard` = 'on' turns every card path on (the draft, the thread
    preview, the single DM, the client copy at Send and Send all). Off = the text update exactly as before. */
@@ -721,7 +777,7 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
       if (layout === 'clean' || layout === 'spaced') blocks.push({ type: 'divider' }, ...ab); else attachments.push({ color: BLUE, blocks: ab });
     }
   }
-  const upd = [T1('Updates'), md((did.length ? did : ['No changes since the last update']).map(d => `•  ${d}`).join('\n')),
+  const upd = [T1('Updates'), md(updText(did)),
     ctx(next ? `Next update at ${next} CT` : 'Next update tomorrow at 8am CT')];
   /* The client decides (client_approve, Yak): our suggestion with an Approve button the client taps; Locus makes the
      change only on that tap and confirms only once Meta took it (handleClientUpdateButton ws_capprove). */
@@ -934,9 +990,11 @@ async function sendItem(env, deps, rec, it, slot) {
     const last = await deps.getSetting(env, `wsLastSent:${it.act}`);
     if (last && Date.now() - Date.parse(last) < 2 * 3600e3) { it.status = 'sent'; return { name: it.name, skipped: 'sent in the last 2 hours' }; }
     if (!it.id) { const d = await draftFor(env, deps, rec, it.act, slot, { card: 'svg' }); if (!d) return { name: it.name, error: 'no draft' }; it.id = d.id; if (d.forCole) { it.status = 'forme'; return { name: it.name, skipped: 'forme' }; } }
-    const dr = JSON.parse((await deps.getSetting(env, `wsDraft:${it.id}`)) || 'null');
+    /* The time BEFORE the Change Log is read: a change landing during the send is after it, so it waits for the next. */
+    const now = new Date().toISOString(), saved = JSON.parse((await deps.getSetting(env, `wsDraft:${it.id}`)) || 'null');
+    const f = saved ? await freshDraft(env, deps, saved, rec) : null, dr = f && f.dr;
     const res = dr ? await sendDraft(env, deps.xfetch, dr, { wait: slackWait(deps), card: await cardOn(env, deps) }) : { ok: false, error: 'draft gone' };
-    if (res.ok) { const now = new Date().toISOString(); it.status = 'sent'; dr.done = `sent ${now}`; await deps.putSetting(env, `wsDraft:${it.id}`, JSON.stringify(dr)); await deps.putSetting(env, `wsLastSent:${it.act}`, now); return { name: it.name, sent: true }; }
+    if (res.ok) { it.status = 'sent'; dr.done = `sent ${now}`; await deps.putSetting(env, `wsDraft:${it.id}`, JSON.stringify(dr)); await deps.putSetting(env, `wsLastSent:${it.act}`, now); await markDid(env, deps, it.act, f.did); return { name: it.name, sent: true }; }
     return { name: it.name, error: res.error };
   } finally { await releaseSend(env, it.act, claim); }
 }
@@ -992,9 +1050,10 @@ export async function handleClientUpdateButton(env, ctx, payload, deps, { ACK, x
       if (!bt || !rec) return inThread('That batch is gone.');
       const done = [], failed = [], card = await cardOn(env, deps);
       for (const it of bt.items.filter(i => i.status === 'ready')) {
-        const dr = JSON.parse((await deps.getSetting(env, `wsDraft:${it.id}`)) || 'null');
+        const now = new Date().toISOString(), saved = JSON.parse((await deps.getSetting(env, `wsDraft:${it.id}`)) || 'null');
+        const f = saved ? await freshDraft(env, deps, saved, rec) : null, dr = f && f.dr;
         const res = dr ? await sendDraft(env, xfetch, dr, { wait: 0, card }) : { ok: false, error: 'gone' };
-        if (res.ok) { it.status = 'sent'; dr.done = `sent ${new Date().toISOString()}`; await deps.putSetting(env, `wsDraft:${it.id}`, JSON.stringify(dr)); await deps.putSetting(env, `wsLastSent:${it.act}`, new Date().toISOString()); done.push(it.name); }
+        if (res.ok) { it.status = 'sent'; dr.done = `sent ${now}`; await deps.putSetting(env, `wsDraft:${it.id}`, JSON.stringify(dr)); await deps.putSetting(env, `wsLastSent:${it.act}`, now); await markDid(env, deps, it.act, f.did); done.push(it.name); }
         else failed.push(`${it.name} (${res.error})`);
       }
       await saveBatch(env, deps, rec, bt);
@@ -1012,11 +1071,12 @@ export async function handleClientUpdateButton(env, ctx, payload, deps, { ACK, x
       return reply(`Not sent to ${dr.name}.`);
     }
     if (dr.v !== 3 || !dr.msg) return inThread('That is an older draft. Nothing was sent.');
-    const res = await sendDraft(env, xfetch, dr, { card: await cardOn(env, deps) });
+    const now = new Date().toISOString(), f = await freshDraft(env, deps, dr, rec), fr = f.dr;
+    const res = await sendDraft(env, xfetch, fr, { card: await cardOn(env, deps) });
     if (!res.ok) return inThread(`${dr.name}: Slack refused it (${res.error}). Nothing was sent.`);
-    const now = new Date().toISOString();
-    dr.done = `sent ${now}`; await deps.putSetting(env, `wsDraft:${a.value}`, JSON.stringify(dr));
+    fr.done = `sent ${now}`; await deps.putSetting(env, `wsDraft:${a.value}`, JSON.stringify(fr));
     await deps.putSetting(env, `wsLastSent:${dr.act}`, now);
+    await markDid(env, deps, dr.act, f.did);
     if (it && rec) { it.status = 'sent'; await saveBatch(env, deps, rec, bt); return null; }
     return reply(`✓ Sent to ${dr.name}.`);
   })());
