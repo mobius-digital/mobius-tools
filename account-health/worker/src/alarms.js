@@ -362,7 +362,7 @@ export async function alarmsPass(env, d) {
       if (meta && !offFor(b, 'account_blocked')) {
         let acct = null;
         if (canMeta(10) && !(st.acctAt > nowMs - 50 * 60e3)) {
-          acct = await d.meta(env, meta, { fields: 'account_status,disable_reason,spend_cap,amount_spent,adtrust_dsl' }).catch(() => null);
+          acct = await d.meta(env, meta, { fields: 'account_status,disable_reason,spend_cap,amount_spent' }).catch(() => null);
           if (acct) { st.acctAt = nowMs; await saveAccount(env, meta, acct); }
         }
         if (!acct) acct = await storedAccount(env, meta);
