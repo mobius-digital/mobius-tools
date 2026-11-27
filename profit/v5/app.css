@@ -105,6 +105,9 @@ h1,h2,h3,p{margin:0}
 .lx-nav .ws{margin-left:auto;display:inline-flex;color:var(--faint)}
 .lx-nav .ws .lx-ic{width:13px;height:13px;color:var(--faint)}
 .lx-nav .ws+.n{margin-left:6px}
+/* a page still in the workshop reads grayed out; it opens to say what it will be */
+.lx-nav.wsl:not(.on){color:var(--faint)}
+.lx-nav.wsl:not(.on) .lx-ic{opacity:.45}
 .lx-nav.on{background:#fff;color:var(--ink);font-weight:600;box-shadow:var(--sh-1)}
 .lx-nav.on::before{content:"";position:absolute;left:-12px;top:7px;bottom:7px;width:3px;border-radius:0 3px 3px 0;background:linear-gradient(180deg,var(--e1),var(--e3))}
 .lx-nav.on .lx-ic{color:var(--ink)}

@@ -166,7 +166,7 @@ function customDates(anchor) {
 function navLink(route, l) {
   const tab = l.tabs[0].id;
   const n = S.role === 'client' ? 0 : S.counts[l.id];           // the counts are the team's to-do, never the client's
-  return h('a', { class: 'lx-nav' + (l.icon && ['meta', 'google', 'tiktok', 'amazon'].includes(l.icon) ? ' plat' : '') + (l.gap ? ' gap' : '') + (route.line === l.id ? ' on' : ''),
+  return h('a', { class: 'lx-nav' + (l.icon && ['meta', 'google', 'tiktok', 'amazon'].includes(l.icon) ? ' plat' : '') + (l.gap ? ' gap' : '') + (l.workshop ? ' wsl' : '') + (route.line === l.id ? ' on' : ''),
     href: href(normalise({ view: route.view, brand: route.brand, line: l.id, tab })), title: l.label, 'aria-current': route.line === l.id ? 'page' : null, dataset: { line: l.id, tab } },
     svgNode(icon(l.icon)), h('span', { class: 't' }, l.label), l.note && h('span', { class: 'note' }, l.note), l.workshop ? h('span', { class: 'ws', title: 'In the workshop: being built', 'aria-label': 'In the workshop' }, svgNode(icon('wrench'))) : null, n ? h('span', { class: 'n' }, n) : null);
 }
