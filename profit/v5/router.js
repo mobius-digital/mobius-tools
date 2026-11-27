@@ -11,6 +11,7 @@ import { SAMPLE, cached, getSaved, putSaved, pageKey, fixture, api, STALE_MS, se
 import { lineOf, viewOf, menuFor } from './menu.js';
 import { legacyUrl, LS5, APP_NAME } from './config.js';
 import { gateOf, gateRoute, heldBrand } from './gate.js';
+import { seesWorkshop, tabsFor, canOpen, renderBuilding } from './workshop.js';
 
 let host = null;          // { state(), frame(route, line, tab), brandBySlug(slug) } from the shell
 let current = null;       // the route on screen
@@ -50,10 +51,11 @@ export function normalise(r) {
   let view = r.view === 'agency' && role !== 'client' ? 'agency' : 'brand';
   if (line) { const v = viewOf(line.id); if (v && !(v === 'agency' && role === 'client')) view = v; }
   /* every line, even one whose agency feature is off: it leaves the menu, but its page still opens by its address */
-  const menu = menuFor(view, role, { allFeatures: true }).flatMap(g => g.lines);
+  const menu = menuFor(view, role, { allFeatures: true, workshop: true }).flatMap(g => g.lines);
   const top = line && line.top && (line.who === 'all' || role !== 'client');
-  if (!line || !(top || menu.some(l => l.id === line.id))) line = menu[0];
-  const tabs = line.tabs.filter(x => role !== 'client' || !x.team);
+  /* no line asked for: the owner lands where they always did, anyone else on the first live line (workshop.js) */
+  if (!line || !(top || menu.some(l => l.id === line.id))) line = seesWorkshop(role) ? menu[0] : menuFor(view, role, { allFeatures: true }).flatMap(g => g.lines)[0] || menu[0];
+  const tabs = tabsFor(line, role).filter(x => role !== 'client' || !x.team);
   const tab = tabs.find(x => x.id === r.tab) || tabs[0];
   let brand = 'all';
   if (view === 'brand') {
@@ -120,6 +122,8 @@ async function show(route, { soft = false, fresh = false } = {}) {
   currentCtx = ctx;
   document.title = `${ctx.title} · ${APP_NAME}`;
   try { localStorage.setItem(LS5.last, href(route)); } catch {}
+  /* a page in the workshop, for anyone but the owner: "being built", no page code, no data call */
+  if (!canOpen(ctx.role, line.id, tab.id)) { frame.setRanges(false); frame.setAsOf(null); frame.setTitle(null); renderBuilding(frame.el, ctx); if (!soft) scrollTop(); return; }
   const mod = await importPage(line.id, tab.id);
   if (my !== ticket) return;
   const el = frame.el;
