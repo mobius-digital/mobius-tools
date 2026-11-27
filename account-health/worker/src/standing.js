@@ -5,8 +5,8 @@
  *
  * One check-in = per brand (I&G left out: Fela runs it), from the profit worker's GET /api/season/standing (Triple
  * Whale: weekend revenue vs the weekend goal, MER so far and over the last 6 hours vs the KPI, the suggestion), plus
- * Meta read here: the live sale campaign's daily budget, the account's daily spending limit (adtrust_dsl) and the
- * headroom under it. Scale +50% / Hold / Cut 25%. NOTHING is changed by this job. A budget changes only when Cole taps
+ * Meta read here: the live sale campaign's daily budget, the account's daily spending limit (set by hand, see metaLimits
+ * below) and the headroom under it. Scale +50% / Hold / Cut 25%. NOTHING is changed by this job. A budget changes only when Cole taps
  * Approve on the War Room (POST /api/standing/approve), through the same metawrite path as every Locus write (Change
  * Log as the person, Undo for 24 hours), and only if the budget is still what the check-in saw.
  *
@@ -42,6 +42,20 @@ export async function checkinHours(env, deps) {
   return m.size ? m : null;
 }
 const KNOWN_LIMITS = { brand_lucky_golf: 6637, brand_dartee_golf: 13806, brand_bonk_golf: 5000, brand_grunk_dolfer: 2583, brand_yak_sports: 650, brand_vetripaws: 3428 };
+/* META DAILY LIMIT (2026-11-26): Meta's Marketing API (v23.0) no longer has an ad account field for the daily spending
+   limit. adtrust_dsl answers "(#100) Tried accessing nonexisting field (adtrust_dsl)" on every account, and nothing
+   replaced it (spend_cap and amount_spent are lifetime, not daily). So the limit is set by hand: settings `metaLimits`
+   = {brand id: dollars a day}, owner-edited (GET/PUT /api/standing/limits), over KNOWN_LIMITS as the default, so a
+   wrong number is fixed without a deploy. limit_src stays 'known' (the pages label it as not read from Meta). */
+export function limitOf(act, saved) {
+  const v = saved && typeof saved === 'object' && Object.prototype.hasOwnProperty.call(saved, act) ? +saved[act] : null;
+  if (v > 0) return { limit: v, set: 'owner' };
+  return KNOWN_LIMITS[act] ? { limit: KNOWN_LIMITS[act], set: 'default' } : { limit: null, set: null };
+}
+async function savedLimits(env, md) {
+  const raw = md && md.getSetting ? await md.getSetting(env, 'metaLimits').catch(() => null) : null;
+  try { const j = raw ? JSON.parse(raw) : null; return j && typeof j === 'object' && !Array.isArray(j) ? j : {}; } catch { return {}; }
+}
 const SALE_RE =/bfcm|black friday|\bbf\b|cyber|holiday 20\d\d/i;
 
 const central = (d = new Date()) => {
@@ -77,11 +91,17 @@ async function spendToday(env, md, act) {
   }
   return out;
 }
-/** Everything that can spend today: ACTIVE campaigns' daily budgets, plus ACTIVE ad sets' own budgets in ACTIVE campaigns without one. */
-export function budgetsOn(ml) {
-  const C = (ml && ml.campaigns) || {}; let t = 0;
-  for (const c of Object.values(C)) if (c.status === 'ACTIVE' && c.daily) t += c.daily;
-  for (const s of Object.values((ml && ml.adsets) || {})) { const c = C[s.campaign]; if (s.status === 'ACTIVE' && s.daily && c && c.status === 'ACTIVE' && !c.daily) t += s.daily; }
+/** Everything that can spend today: ACTIVE campaigns' daily budgets, plus ACTIVE ad sets' own budgets in ACTIVE campaigns
+ *  without one. Only what can spend NOW counts (2026-11-26: a Holiday campaign whose sets start Dec 1 made the room
+ *  negative and blocked raises): a campaign budget counts when one of its ACTIVE ad sets is running (started, not
+ *  ended); an ad set budget when that set is running. A set with no start time read counts as running. When no ad sets
+ *  were read at all, every ACTIVE campaign budget counts, as before. */
+export const setRunning = (s, now = Date.now()) => s.status === 'ACTIVE' && !(s.start && Date.parse(s.start) > now) && !(s.end && Date.parse(s.end) <= now);
+export function budgetsOn(ml, now = Date.now()) {
+  const C = (ml && ml.campaigns) || {}, S = Object.values((ml && ml.adsets) || {}); let t = 0;
+  const live = new Set(S.filter(s => setRunning(s, now)).map(s => s.campaign));
+  for (const [id, c] of Object.entries(C)) if (c.status === 'ACTIVE' && c.daily && (!S.length || live.has(id))) t += c.daily;
+  for (const s of S) { const c = C[s.campaign]; if (setRunning(s, now) && s.daily && c && c.status === 'ACTIVE' && !c.daily) t += s.daily; }
   return t;
 }
 /** The new budget for a suggestion, kept under the Meta daily limit. Returns {to, note} or {to: null, note}. */
@@ -114,16 +134,11 @@ async function metaSide(env, md, act, today) {
   if (ml.error) return { error: ml.error };
   const spent = await spendToday(env, md, act).catch(() => null);
   const camp = pickSaleCamp(ml, today, spent || {}), on = budgetsOn(ml);
-  let limit = null, limitErr = null, src = 'meta';
-  for (const m of await metaActs(env, act)) {
-    const a = await gget(md, env, m.act, { fields: 'adtrust_dsl' }).catch(e => { limitErr = e.message; return null; });
-    const v = a && +a.adtrust_dsl;
-    if (v > 0) limit = (limit || 0) + v;   // -1 = no limit
-  }
-  /* Meta would not say: the limits Cole listed on 2026-11-22 (raise requests pending), labelled as such. */
-  if (limit == null && KNOWN_LIMITS[act]) { limit = KNOWN_LIMITS[act]; src = 'known'; }
+  /* Meta has no daily limit field any more (see metaLimits): the number set by hand, labelled as such. */
+  const { limit, set } = limitOf(act, await savedLimits(env, md));
   const camps = await campList(env, act, ml, spent || {}, today, md).catch(() => []);
-  return { camps, camp: camp ? { id: camp.id, name: camp.name, daily: camp.daily || null, spent: spent ? (spent[camp.id] || 0) : null } : null, on, limit, limit_src: limit ? src : null, limit_error: limitErr, headroom: limit ? limit - on : null };
+  return { camps, camp: camp ? { id: camp.id, name: camp.name, daily: camp.daily || null, spent: spent ? (spent[camp.id] || 0) : null } : null, on, limit, limit_src: limit ? 'known' : null, limit_error: null,
+    ...(limit ? { limit_label: 'set by hand', limit_set: set } : {}), headroom: limit ? limit - on : null };
 }
 
 /* Every live campaign of a brand (Cole 2026-11-25: "is this the Black Friday campaign? the evergreen? should I be
@@ -1086,8 +1101,9 @@ export async function handleClientUpdateButton(env, ctx, payload, deps, { ACK, x
       if (!todo.length) return privately(!took && bt.items.some(i => i.status === 'ready') ? 'Already sending.' : 'Already sent.');
       const over = Object.fromEntries(todo.map(i => [i.id, { status: 'sending' }]));
       await showBatch(env, deps, rec, cur || bt, over);
-      const done = [], failed = [], card = await cardOn(env, deps);
+      const done = [], failed = [];
       try {
+        const card = await cardOn(env, deps);
         for (const it of todo) {
           try {
             const now = new Date().toISOString(), saved = JSON.parse((await deps.getSetting(env, `wsDraft:${it.id}`)) || 'null');
@@ -1097,6 +1113,13 @@ export async function handleClientUpdateButton(env, ctx, payload, deps, { ACK, x
             else { failed.push(`${it.name} (${res.error})`); over[it.id] = { note: `Not sent (${res.error}). Tap Send to try again.` }; }
           } finally { await release(it); }
         }
+      } catch (e) {
+        /* Something threw after Sending... was drawn: put the stored batch back (no override) so the Send buttons return,
+           with any brand that did go out marked Sent. Then rethrow. */
+        const fin = (await batchOf(a.value).catch(() => null)) || bt;
+        for (const i of fin.items) if (sentAt[i.id]) i.status = 'sent';
+        await (Object.keys(sentAt).length ? saveBatch(env, deps, rec, fin) : showBatch(env, deps, rec, fin)).catch(() => {});
+        throw e;
       } finally { for (const it of todo) await release(it); }
       /* Saved onto the batch as it is now, so a brand another request sent meanwhile keeps its Sent. */
       const fin = (await batchOf(a.value)) || bt;
@@ -1128,17 +1151,33 @@ export async function handleClientUpdateButton(env, ctx, payload, deps, { ACK, x
       if (bt) { bt = (await batchOf(dr.batch)) || bt; it = bt.items.find(i => i.id === a.value); }
       if (it && (it.status === 'sent' || it.status === 'skipped')) return privately(it.status === 'sent' ? `Already sent to ${d2.name}.` : `${d2.name}: already not sent.`);
       if (it && rec) await showBatch(env, deps, rec, bt, { [it.id]: { status: 'sending' } }); else await dmButtons(`Sending to ${d2.name}...`);
-      const now = new Date().toISOString(), f = await freshDraft(env, deps, d2, rec), fr = f.dr;
-      const res = await sendDraft(env, xfetch, fr, { card: await cardOn(env, deps) });
-      if (!res.ok) {
-        if (it && rec) await showBatch(env, deps, rec, bt, { [it.id]: { note: `Not sent (${res.error}). Tap Send to try again.` } }); else await dmButtons(null);
-        return inThread(`${dr.name}: Slack refused it (${res.error}). Nothing was sent.`);
+      /* Sent goes onto the batch as it is now (read again, as ws_sendall does), so another send's Sent mark made meanwhile stays. */
+      const markSent = async () => {
+        const cur = (await batchOf(dr.batch).catch(() => null)) || bt, ci = cur.items.find(i => i.id === it.id);
+        if (ci) ci.status = 'sent'; else cur.items.push({ ...it, status: 'sent' });
+        await saveBatch(env, deps, rec, cur);
+      };
+      let posted = false;
+      try {
+        const now = new Date().toISOString(), f = await freshDraft(env, deps, d2, rec), fr = f.dr;
+        const res = await sendDraft(env, xfetch, fr, { card: await cardOn(env, deps) });
+        if (!res.ok) {
+          if (it && rec) await showBatch(env, deps, rec, bt, { [it.id]: { note: `Not sent (${res.error}). Tap Send to try again.` } }); else await dmButtons(null);
+          return inThread(`${dr.name}: Slack refused it (${res.error}). Nothing was sent.`);
+        }
+        posted = true;
+        fr.done = `sent ${now}`; await deps.putSetting(env, `wsDraft:${a.value}`, JSON.stringify(fr));
+        await deps.putSetting(env, `wsLastSent:${dr.act}`, now);
+        await markDid(env, deps, dr.act, f.did);
+        if (it && rec) { await markSent(); return null; }
+        return reply(`✓ Sent to ${dr.name}.`);
+      } catch (e) {
+        /* Something threw after Sending... was drawn: redraw the stored batch (no override), or the DM's buttons, so
+           Send comes back (a post that already went out is marked Sent instead, as ws_sendall does). Then rethrow. */
+        if (it && rec) await (posted ? markSent() : showBatch(env, deps, rec, (await batchOf(dr.batch).catch(() => null)) || bt)).catch(() => {});
+        else if (!posted) await dmButtons(null); else await reply(`✓ Sent to ${dr.name}.`);
+        throw e;
       }
-      fr.done = `sent ${now}`; await deps.putSetting(env, `wsDraft:${a.value}`, JSON.stringify(fr));
-      await deps.putSetting(env, `wsLastSent:${dr.act}`, now);
-      await markDid(env, deps, dr.act, f.did);
-      if (it && rec) { it.status = 'sent'; await saveBatch(env, deps, rec, bt); return null; }
-      return reply(`✓ Sent to ${dr.name}.`);
     } finally { await releaseSend(env, dr.act, claim); }
   })());
   return ACK();
@@ -1306,6 +1345,21 @@ export async function handleStanding(request, env, url, path, json, deps) {
       const res = await sendItem(env, deps, rec, it, at);
       if (res.skipped !== 'sending') await saveBatch(env, deps, rec, bt);
       return json({ ok: !!res.sent, slot: at, ...res }, res.error ? 502 : 200);
+    }
+    /* The Meta daily limit per brand, set by hand (Meta no longer reports it). Owner only. GET = every brand's number and
+       where it comes from; PUT {act, limit} sets one (limit null or 0 = back to the built-in default). */
+    if (path === '/api/standing/limits') {
+      if (String(email || '').toLowerCase() !== OWNER(env).toLowerCase()) return json({ error: 'Only the owner can change the Meta limits.' }, 403);
+      const saved = await savedLimits(env, deps);
+      if (request.method === 'PUT' || request.method === 'POST') {
+        const act = String(body.act || ''), v = body.limit == null || body.limit === '' ? 0 : +body.limit;
+        if (!/^brand_[a-z0-9_]+$/.test(act)) return json({ error: 'Which brand?' }, 400);
+        if (!Number.isFinite(v) || v < 0 || v > 1e7) return json({ error: 'limit is dollars a day (a positive number), or null for the default.' }, 400);
+        if (v > 0) saved[act] = Math.round(v * 100) / 100; else delete saved[act];
+        await deps.putSetting(env, 'metaLimits', JSON.stringify(saved));
+      }
+      const acts = [...new Set([...Object.keys(KNOWN_LIMITS), ...Object.keys(saved)])];
+      return json({ ok: true, source: 'set by hand', limits: Object.fromEntries(acts.map(a => [a, limitOf(a, saved)])), defaults: { ...KNOWN_LIMITS } });
     }
     /* The per-brand cadence switch (War Room 2.9 W1): off (the default) = every brand on 8am, 2pm, 8pm whatever the
        season answers say; on = each brand's checkin_hours answer counts. Owner only. GET shows the switch and the
