@@ -10,8 +10,10 @@
  * the pivot is left exactly as it was: today's numbers, byte for byte, plus a source label.
  *
  *   covered = every day from `from` to the earlier of `to` and yesterday (the brand's own time zone) has a Shopify row
- *             with money, paid orders read order by order (orders_source 'orders'), and a sync stamped after that day
- *             ended (so a day synced at 10pm is not taken as the whole day). Today's row is used when there is one.
+ *             with money, paid orders read order by order (orders_source 'orders'), the money stamped (synced_at) AND
+ *             the orders stamped (orders_at) after that day ended (so a day synced at 10pm is not taken as the whole
+ *             day, and a later run that rewrote the money but whose orders pass failed does not pass a mid-day count).
+ *             Today's row is used when there is one.
  *   Any gap: the whole window stays Triple Whale. Never a window half from one source and half from the other.
  *
  * Per-brand setting `storeSource:<brand>` in `settings`: 'auto' (default) | 'tw' (always Triple Whale) |
@@ -30,7 +32,7 @@ export const storeMode = v => (STORE_MODES.includes(v) ? v : 'auto');
 export const SHOP_METRICS = ['netSales', 'totalSales', 'totalNetTaxes', 'totalTaxes', 'totalShippingPrice',
   'totalNewGrossSales', 'totalRefunds', 'totalOrders', 'newCustomersOrders'];
 
-export const SHOP_COLS = 'act_id, day, sales, total_sales, taxes, shipping, gross_sales, refunds, orders, new_orders, returning_orders, zero_orders, orders_source, synced_at';
+export const SHOP_COLS = 'act_id, day, sales, total_sales, taxes, shipping, gross_sales, refunds, orders, new_orders, returning_orders, zero_orders, orders_source, synced_at, orders_at';
 
 const pad = n => String(n).padStart(2, '0');
 export function addDay(d, n) { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); }
@@ -64,10 +66,13 @@ export function dayEndStamp(day, tz) {
 /* A row has the day's money: ShopifyQL gave it, or the orders list read the day and found no order (ShopifyQL can
    leave a day with no sales out of its answer). */
 const hasMoney = r => !!r && (r.sales != null || (r.orders_source === 'orders' && !(+r.orders > 0)));
-/* A whole day of store numbers: money, paid orders counted order by order, synced after the day ended. */
+/* A whole day of store numbers: money, paid orders counted order by order, both stamped after the day ended. The
+   orders have their own stamp (orders_at): synced_at moves on every money write, even when the orders pass failed. */
+const stampOf = v => String(v || '').replace('T', ' ');
 export function dayComplete(r, day, tz) {
-  return hasMoney(r) && r.orders_source === 'orders' && r.orders != null
-    && String(r.synced_at || '').replace('T', ' ') >= dayEndStamp(day, tz);
+  if (!hasMoney(r) || r.orders_source !== 'orders' || r.orders == null) return false;
+  const end = dayEndStamp(day, tz);
+  return stampOf(r.synced_at) >= end && stampOf(r.orders_at) >= end;
 }
 
 /** Does Shopify cover [from, to] for one brand? rows = that brand's p_shop_daily rows. */

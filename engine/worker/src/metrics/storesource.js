@@ -5,7 +5,8 @@
    window, its store metrics are replaced by Shopify's, so the day model keeps its one formula. When they
    do not cover it, the rows are left exactly as they were, plus a source label.
    Covered: every day from `from` to the earlier of `to` and yesterday (the brand's time zone) has a
-   Shopify row with money, paid orders read order by order, and a sync stamped after that day ended.
+   Shopify row with money, paid orders read order by order, and both the money (synced_at) and the orders
+   (orders_at) stamped after that day ended.
    Setting `storeSource:<brand>`: auto (default), tw (always the tracker), shopify (always Shopify).
    Nothing here reads the database. */
 // from profit/worker/src/storesource.js (decideStore, overlayShopify, storeLabel, storeTag, shopCoverage)
@@ -41,8 +42,9 @@ export function dayEndStamp(day, tz) {
 }
 
 const hasMoney = r => !!r && (r.sales != null || (r.orders_source === 'orders' && !(+r.orders > 0)));
+const stampOf = v => String(v || '').replace('T', ' ');
 const dayComplete = (r, day, tz) => hasMoney(r) && r.orders_source === 'orders' && r.orders != null
-  && String(r.synced_at || '').replace('T', ' ') >= dayEndStamp(day, tz);
+  && stampOf(r.synced_at) >= dayEndStamp(day, tz) && stampOf(r.orders_at) >= dayEndStamp(day, tz);
 
 function localToday(tz, now) {
   try { return dayIn(tz || 'UTC', new Date(now)); } catch { return new Date(now).toISOString().slice(0, 10); }

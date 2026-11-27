@@ -2861,7 +2861,8 @@ export default {
           return json({ act, from, to, modes: STORE_MODES, ...(await storeDaily(env, acct, from, to)) });
         }
         if (request.method === 'PUT') {
-          if (clientScope(request)) return json({ error: 'Team only.' }, 403);
+          /* Owner only: 'shopify' blanks out the days Shopify lacks on every surface, client dailies included. */
+          if (!(await isOwner(request, env))) return json({ error: 'owner only' }, 403);
           const b = await request.json().catch(() => ({}));
           const acct = (await accountsFor(false)).find(a => a.act_id === b.act);
           if (!acct) return json({ error: 'unknown account' }, 404);

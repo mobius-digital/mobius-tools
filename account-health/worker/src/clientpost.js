@@ -216,7 +216,7 @@ export function cardText(m) {
 
 /** An edited daily is the same as a built one when only the context line (its time) differs. */
 export const sameDaily = (a, b) => {
-  const norm = s => String(s ?? '').replace(/\r/g, '').split('\n').filter(l => !/^_(Triple Whale\b|Store numbers:)/.test(l.trim())).map(l => l.trim()).join('\n').trim();
+  const norm = s => String(s ?? '').replace(/\r/g, '').split('\n').filter(l => !/^_(Triple Whale|Shopify)\b/.test(l.trim())).map(l => l.trim()).join('\n').trim();
   return a != null && b != null && norm(a) === norm(b);
 };
 
@@ -248,9 +248,8 @@ export function dailyCard({ brand, date, currency = 'USD', day = {}, month = {},
     summary: nextFits ? withNext : verdict,
     numbers: cols ? [{ label: dayName, value: cols[0] }, { label: `${monthName(ym)} so far`, value: cols[1] }] : [],
     lines: n && !nextFits ? [`Next: ${n}`] : [],
-    /* The store source (storesource.js): "Store numbers: Shopify" or "Store numbers: Triple Whale (...)" when the
-       daily knows it; plain "Triple Whale" when it was built without one, as before. */
-    source: store && store_label ? store_label : 'Triple Whale', at: when || now || new Date(), now: now || undefined,
+    /* The store source (storesource.js), named and nothing more: a client never reads our sync status. */
+    source: store === 'shopify' ? 'Shopify' : 'Triple Whale', at: when || now || new Date(), now: now || undefined,
     context: [showsAmer ? 'aMER = new customer MER' : '', thread ? 'ad spend by channel in the thread' : ''].filter(Boolean).join(' · '),
   });
   return { ...msg, plain: cardText(msg) };

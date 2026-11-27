@@ -18,7 +18,7 @@ let n = 0; const ok = async (name, fn) => { await fn(); n++; console.log('PASS '
 /* One Shopify day `i` days before Nov 20: paid orders 10, one $0 sample order, sales = total sales minus tax. */
 const shop = (i, o = {}) => ({ act_id: ACT, day: day(i), shop: 'test-store.myshopify.com', gross_sales: 1200, discounts: -150, returns: -50,
   net_sales: 1000, shipping: 80, taxes: 60, total_sales: 1140, sales: 1080, refunds: 50, orders_all: 11, orders: 10, zero_orders: 1,
-  new_orders: 4, returning_orders: 6, paid_sales: 1140, orders_source: 'orders', currency: 'USD', synced_at: SYNCED, ...o });
+  new_orders: 4, returning_orders: 6, paid_sales: 1140, orders_source: 'orders', currency: 'USD', synced_at: SYNCED, orders_at: SYNCED, ...o });
 const range = (a, b, skip = []) => { const out = []; for (let i = a; i <= b; i++) if (!skip.includes(i)) out.push(shop(i)); return out; };
 /* A Triple Whale pivot with different numbers, so the source is visible. */
 const twPiv = (from, to) => {
@@ -35,9 +35,13 @@ await ok('a day is whole only when it synced after it ended (the store\'s midnig
   assert.equal(dayEndStamp('2026-11-19', TZ), '2026-11-20 06:00:00');
   assert.equal(dayEndStamp('2026-07-04', TZ), '2026-07-05 05:00:00');
   assert.equal(dayEndStamp('2026-11-19', 'UTC'), '2026-11-20 00:00:00');
-  const early = [shop(1, { synced_at: '2026-11-20 03:00:00' })];   // 9pm Nov 19 in Chicago
+  const early = [shop(1, { synced_at: '2026-11-20 03:00:00', orders_at: '2026-11-20 03:00:00' })];   // 9pm Nov 19 in Chicago
   assert.equal(shopCoverage(early, day(1), day(1), opts).ok, false);
   assert.equal(shopCoverage([shop(1)], day(1), day(1), opts).ok, true);
+  /* The money was re-read after the day ended but the orders pass failed: the counts are still the 9pm ones. */
+  const halfOrders = [shop(1, { orders_at: '2026-11-20 03:00:00' })];
+  assert.equal(shopCoverage(halfOrders, day(1), day(1), opts).ok, false);
+  assert.equal(shopCoverage([shop(1, { orders_at: null })], day(1), day(1), opts).ok, false);
 });
 
 await ok('covered: Shopify; a gap: Triple Whale for the whole window; nothing: not synced yet', () => {
@@ -138,15 +142,16 @@ await ok('storeDaily: daily totals from the source it picks, with the label', as
   assert.deepEqual(b.days[0], { date: day(3), sales: 1080, total_sales: 1140, tax: 60, shipping: 80, refunds: 50, orders: 10, new_orders: 4 });
 });
 
-await ok('client daily: the gray line names the store source; an edit check ignores that line', () => {
+await ok('client daily: the gray line names only the store source, never our sync status; an edit check ignores that line', () => {
   const base = { brand: 'Test Brand', date: '2026-11-19', today: '2026-11-20', day: { sales: 1000, spend: 400, mer: 2.5 },
     month: { ym: '2026-11', sales: 19000, spend: 7000 }, at: new Date('2026-11-20T14:00:00Z'), now: new Date('2026-11-20T14:00:00Z') };
   const plain = dailyCard(base).plain;
   assert.match(plain, /_Triple Whale/, 'built without a source: as before');
   const sh = dailyCard({ ...base, store: 'shopify', store_label: 'Store numbers: Shopify' }).plain;
-  assert.match(sh, /_Store numbers: Shopify/);
+  assert.match(sh, /_Shopify/); assert.doesNotMatch(sh, /Store numbers/);
   const tw = dailyCard({ ...base, store: 'triple_whale', store_label: 'Store numbers: Triple Whale (Shopify not synced yet)' }).plain;
-  assert.match(tw, /_Store numbers: Triple Whale \(Shopify not synced yet\)/);
+  assert.match(tw, /_Triple Whale/); assert.doesNotMatch(tw, /synced|Store numbers/);
+  assert.equal(tw, plain, 'a brand still on Triple Whale reads exactly as before');
   assert.ok(sameDaily(plain, sh) && sameDaily(sh, tw), 'only the context line differs');
   assert.ok(!sameDaily(sh, sh.replace('$1,000', '$1,100')));
 });

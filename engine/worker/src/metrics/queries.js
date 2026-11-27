@@ -36,7 +36,7 @@ export const queries = {
      Read on their own, softly: the table only exists once the first store has synced. */
   shopDays: { scope: 'brands',
     sql: `SELECT act_id, day, sales, total_sales, taxes, shipping, gross_sales, refunds, orders, new_orders,
-                 returning_orders, zero_orders, orders_source, synced_at FROM p_shop_daily
+                 returning_orders, zero_orders, orders_source, synced_at, orders_at FROM p_shop_daily
           WHERE {{brands:act_id}} AND act_id IN (:acts) AND day BETWEEN :from AND :to` },
   storeModes: { scope: 'brands',
     sql: `SELECT b.act_id AS act_id, s.value AS value FROM brand_accounts b

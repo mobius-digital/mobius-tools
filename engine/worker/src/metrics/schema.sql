@@ -65,6 +65,6 @@ CREATE TABLE IF NOT EXISTS p_shop_daily (
   gross_sales REAL, discounts REAL, returns REAL, net_sales REAL, shipping REAL, taxes REAL, total_sales REAL,
   sales REAL, refunds REAL, orders_all INTEGER,
   orders INTEGER, zero_orders INTEGER, new_orders INTEGER, returning_orders INTEGER, paid_sales REAL,
-  orders_source TEXT, currency TEXT, synced_at TEXT NOT NULL DEFAULT (datetime('now')),
+  orders_source TEXT, currency TEXT, synced_at TEXT NOT NULL DEFAULT (datetime('now')), orders_at TEXT,
   PRIMARY KEY (act_id, day)
 );

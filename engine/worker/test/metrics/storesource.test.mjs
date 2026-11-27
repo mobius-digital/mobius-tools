@@ -22,7 +22,7 @@ function shopDay(act, i, over = {}) {
   return { act_id: act, day: addDays(t, -i), shop: 'north-kites.example', gross_sales: sales + 150, discounts: -100, returns: -20,
     net_sales: sales - 60, shipping: 60, taxes: 40, total_sales: sales + 40, sales, refunds: 20, orders_all: orders + 1,
     orders, zero_orders: 1, new_orders: 4, returning_orders: orders - 4, paid_sales: sales + 40, orders_source: 'orders',
-    currency: 'USD', synced_at: stampNow(), ...over };
+    currency: 'USD', synced_at: stampNow(), orders_at: stampNow(), ...over };
 }
 const shopRows = (act, days, skip = new Set()) => Array.from({ length: days }, (_, k) => k + 1).filter(i => !skip.has(i)).map(i => shopDay(act, i));
 
@@ -98,6 +98,13 @@ test('a day synced before it ended is not a whole day: Triple Whale', async () =
   assert.equal(c.store_source, 'triple_whale');
 });
 
+test('money re-read after the day ended but orders read mid-day: not a whole day, Triple Whale', async () => {
+  const shop = shopRows(NORTH, 40);
+  shop[0].orders_at = `${addDays(t, -1)} 12:00:00`;
+  const c = dataOf(await same(envWith({ shop }), `/api/client?act=${NORTH}&days=7`));
+  assert.equal(c.store_source, 'triple_whale');
+});
+
 test('forced settings: tw keeps the tracker, shopify reads Shopify even with a gap; old and new agree', async () => {
   const shop = shopRows(NORTH, 120, new Set([9]));
   const tw = envWith({ shop: shopRows(NORTH, 120), settings: [{ key: `storeSource:${NORTH}`, value: 'tw' }] });
@@ -121,6 +128,19 @@ test('the hub store read is sent to the old worker once a brand has Shopify rows
   const c = await call(env, 'GET', `/pw/api/hub/store?act=${RIVER}&days=5`, { token: asCaller('owner') });
   assert.equal(c.engine, 'new', 'a brand with no Shopify rows is still answered here');
   assert.equal(c.json.brands[0].store_source, 'triple_whale');
+});
+
+test('paid all channels reads store sales: sent to the old worker once a brand has Shopify rows or a setting', async () => {
+  const env = makeEnv({ groups: ['metrics', 'store', 'ads'], rows: { ...storeData(), p_shop_daily: shopRows(NORTH, 10) } });
+  const r = await call(env, 'GET', `/pw/api/hub/paid?act=${NORTH}&platform=all&days=5`, { token: asCaller('owner') });
+  assert.equal(r.engine, 'forward');
+  const m = await call(env, 'GET', `/pw/api/hub/paid?act=${NORTH}&platform=meta&days=5`, { token: asCaller('owner') });
+  assert.notEqual(m.engine, 'forward', 'Meta alone reads no store numbers');
+  const c = await call(env, 'GET', `/pw/api/hub/paid?act=${RIVER}&platform=all&days=5`, { token: asCaller('owner') });
+  assert.notEqual(c.engine, 'forward', 'a brand with no Shopify rows is still answered here');
+  const set = makeEnv({ groups: ['metrics', 'store', 'ads'], rows: { ...storeData(), settings: [{ key: `storeSource:${RIVER}`, value: 'tw' }] } });
+  const s2 = await call(set, 'GET', `/pw/api/hub/paid?act=${RIVER}&platform=all&days=5`, { token: asCaller('owner') });
+  assert.equal(s2.engine, 'forward');
 });
 
 test('the switch rules are the same words and the same decisions in both copies', () => {
