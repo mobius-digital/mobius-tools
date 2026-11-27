@@ -25,7 +25,7 @@ import { handlePublic as studioPublic, handleStaff as studioStaff } from './stud
 
 const DASHBOARD_URL = 'https://locus.go-mobius-digital.com/profit/';
 import { handleSeason, seasonPublic } from './season.js';
-import { handleShopifyApp, REQUIRED_SCOPES } from './shopifyapp.js';
+import { handleShopifyApp, REQUIRED_SCOPES, missingScopes } from './shopifyapp.js';
 import { shopToken, exchangeCode, ensureTokenColumns } from './shoptoken.js';
 import { syncShopDaily, noteSyncError, ensureShopDaily } from './shopsync.js';
 import { storeSwitch, markSource, sourceOf, storeTag, storeDaily, storeMode, storeSettingKey, STORE_MODES } from './storesource.js';
@@ -318,9 +318,11 @@ async function saveShopToken(env, shop, t) {
     `INSERT INTO p_shopify (shop, act_id, access_token, scopes, installed_at, uninstalled_at, refresh_token, expires_at, refresh_expires_at)
      VALUES (?1,?2,?3,?4,datetime('now'),NULL,?5,?6,?7)
      ON CONFLICT(shop) DO UPDATE SET act_id = COALESCE(excluded.act_id, p_shopify.act_id), access_token = excluded.access_token,
-       scopes = excluded.scopes, installed_at = excluded.installed_at, uninstalled_at = NULL,
+       scopes = COALESCE(excluded.scopes, p_shopify.scopes),
+       installed_at = CASE WHEN p_shopify.uninstalled_at IS NULL THEN p_shopify.installed_at ELSE excluded.installed_at END,
+       uninstalled_at = NULL,
        refresh_token = excluded.refresh_token, expires_at = excluded.expires_at, refresh_expires_at = excluded.refresh_expires_at`,
-  ).bind(shop, actId, t.token, t.scope ?? SHOPIFY_SCOPES, t.refresh_token ?? null, t.expires_at ?? null, t.refresh_expires_at ?? null).run();
+  ).bind(shop, actId, t.token, t.scope ?? null, t.refresh_token ?? null, t.expires_at ?? null, t.refresh_expires_at ?? null).run();
   if (actId) await profitShareToken(env, actId).catch(() => {});
 }
 
@@ -2777,10 +2779,10 @@ export default {
             installed_at: live?.installed_at ?? null,
             uninstalled_at: live ? null : (past?.uninstalled_at ?? null),
             last_sync_at: live?.last_sync_at ?? null,
-            // Shopify daily store totals (p_shop_daily): when they last synced, how many days are stored, the last error
             // required scopes this store has not granted yet (a scope added after it installed): its owner opens
             // the app in Shopify once and Shopify asks for them
-            missing_scopes: live ? REQUIRED_SCOPES.filter(s => !String(live.scopes || '').split(',').includes(s)) : [],
+            missing_scopes: live ? missingScopes(live.scopes) : [],
+            // Shopify daily store totals (p_shop_daily): when they last synced, how many days are stored, the last error
             orders_sync_at: live?.orders_sync_at ?? null, orders_days: live?.orders_days ?? 0, orders_error: live?.orders_error ?? null,
             cohort_months: co?.n ?? 0, cohort_as_of: co?.as_of ?? null,
             install_url: installUrl(addrBy[a.act_id] || live?.shop || past?.shop || a.tw_shop),
