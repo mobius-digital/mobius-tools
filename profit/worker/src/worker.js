@@ -27,7 +27,7 @@ const DASHBOARD_URL = 'https://locus.go-mobius-digital.com/profit/';
 import { handleSeason, seasonPublic } from './season.js';
 import { handleShopifyApp } from './shopifyapp.js';
 import { shopToken, exchangeCode, ensureTokenColumns } from './shoptoken.js';
-import { syncShopDaily, noteSyncError, ensureShopDaily } from './shopsync.js';
+import { syncShopDaily, noteSyncError } from './shopsync.js';
 import { storeSwitch, markSource, sourceOf, storeTag, storeDaily, storeMode, storeSettingKey, STORE_MODES } from './storesource.js';
 import { handleScenario } from './scenario.js';
 import { handleDashboard } from './dashboard.js';
@@ -228,6 +228,20 @@ async function authKind(request, env) {
 }
 
 const isAdmin = async (request, env) => (await authKind(request, env)) === 'admin';
+
+/** The owner only: the machine token, the owner's own email, or a session the auth worker marks as the owner.
+ *  For routes that write store data every surface reads (the Shopify daily sync). */
+async function isOwner(request, env) {
+  const auth = request.headers.get('Authorization') || '';
+  if (env.ADMIN_TOKEN && auth === `Bearer ${env.ADMIN_TOKEN}`) return true;
+  if ((await authKind(request, env)) !== 'admin') return false;
+  const owner = String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
+  const email = await sessionEmail(env, request);
+  if (email && email.toLowerCase() === owner) return true;
+  const tok = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  const who = /^mds\./.test(tok) ? await delegateWho(env, tok) : null;
+  return !!who && (who.master || who.role === 'owner');
+}
 
 /* ---- Roles ----
    TWO roles and no more: admin, and viewer. `settings.userRoles` maps an email
@@ -2803,6 +2817,7 @@ export default {
        * One store per call (Shopify rate limits, the subrequest cap); a busy store answers resume_from: call again
        * with &from=<that day>. The hourly account-health tick keeps the last 3 days fresh after this. */
       if (path === '/api/shopify/orders-sync' && request.method === 'POST') {
+        if (!(await isOwner(request, env))) return json({ error: 'owner only' }, 403);
         const act = url.searchParams.get('act');
         if (!act || act === 'all') return json({ error: 'one brand at a time: ?act=<brand id>' }, 400);
         const row = await env.DB.prepare(
@@ -2825,7 +2840,7 @@ export default {
         const act = url.searchParams.get('act');
         if (!act) return json({ error: 'act required' }, 400);
         const days = Math.min(400, Math.max(1, Number(url.searchParams.get('days')) || 30));
-        await ensureShopDaily(env);
+        /* A read only: no CREATE or ALTER here. Before the first sync the table is missing, which reads as no rows. */
         const { results } = await env.DB.prepare(
           `SELECT * FROM p_shop_daily WHERE act_id = ?1 ORDER BY day DESC LIMIT ?2`,
         ).bind(act, days).all().catch(() => ({ results: [] }));
