@@ -156,7 +156,7 @@ export function readFacts(data) {
   };
 }
 
-const RULES_NUMBERS = `MER is the whole store: all store sales over all ad spend on every platform. Never compare MER with a platform ROAS or a platform ROAS goal; MER is always higher because it counts every channel. Platform sales and ROAS are Triple Whale attributed (last platform click) and overlap across platforms. Use ONLY the numbers given; never invent or extrapolate one. A platform marked too_few_orders has no readable ROAS: say its orders have not landed, do not quote the ratio. A month listed in no_goal_set has no goal: never mention a goal, plan, target or being ahead or behind for it.`;
+const RULES_NUMBERS = `MER is the whole store: the store sales from the channels the brand counts toward MER (Amazon, Whatnot and wholesale are left out by default) over all ad spend on every platform. Never compare MER with a platform ROAS or a platform ROAS goal; MER is always higher because it counts every channel. Platform sales and ROAS are Triple Whale attributed (last platform click) and overlap across platforms. Use ONLY the numbers given; never invent or extrapolate one. A platform marked too_few_orders has no readable ROAS: say its orders have not landed, do not quote the ratio. A month listed in no_goal_set has no goal: never mention a goal, plan, target or being ahead or behind for it.`;
 
 const POINTS_SYSTEM = `You prepare the Mobius Digital team (an ads agency) for its weekly call about one client brand. You get the period's frozen numbers as JSON. Write TALKING POINTS for the team. These are team-only: the client never sees them.
 Return ONLY a JSON object, no prose around it:

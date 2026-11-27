@@ -16,7 +16,7 @@ const xx = v => ok(v) ? v.toFixed(2) + 'x' : 'n/a';
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /* The card is a picture the client cannot hover, so its one line keeps a short source note (the page itself has no footers). */
-export const FOOT = d => `Next update around ${d.next || 'the next check-in'} · Sales from Triple Whale · Store MER = all store sales / all ad spend`;
+export const FOOT = d => `Next update around ${d.next || 'the next check-in'} · Sales from Triple Whale · Store MER = sales that count / all ad spend`;
 /** The one sentence for "nothing changed", on the card and in the text that goes with it. */
 export const NONE = 'No budget changes since the last update.';
 

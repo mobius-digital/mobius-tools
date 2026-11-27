@@ -31,7 +31,7 @@
    Sample mode simulates every write and says so. */
 
 import { APP_NAME } from '../../config.js';
-import { put, h, addStyles, kpi, statusDot, pill, sheet, em, empty, money, x, num, pct, delta, lineChart, legend, card, button, toast, noDash, platformChip, segmented, staleStamp, sourceLine as srcLine } from '../../kit.js';
+import { put, h, addStyles, kpi, statusDot, pill, sheet, em, empty, money, x, num, pct, delta, lineChart, legend, card, button, toast, noDash, platformChip, segmented, staleStamp, sourceLine as srcLine, merOf } from '../../kit.js';
 import { css, span, short, dayOf, wday, heading, row, list, dateOf, todayYmd, addDays, helpBar } from '../calendar/_cr.js';
 import { defLabel } from '../../defs.js';
 import { refresh as reloadPage } from '../../router.js';
@@ -204,7 +204,7 @@ function plansOf(rep, ctx) {
 }
 
 /* Platform and ad numbers: what each column counts (the overlap note lives here, not in a footer). */
-const AMER_DEF = { name: 'New customer MER', definition: 'Sales from first time buyers divided by all ad spend in the period.', formula: 'New customer sales / Ad spend', source: 'Triple Whale' };
+const AMER_DEF = { name: 'New customer MER', definition: 'Sales from first time buyers, from the channels that count toward MER, divided by all ad spend in the period.', formula: 'New customer sales / Ad spend', source: 'Triple Whale' };
 const PLAT_ROAS_DEF = { name: 'ROAS', definition: 'One platform or one ad: the sales Triple Whale credits to it (last platform click) divided by what it spent. Store-wide efficiency is Store MER, not ROAS. Platform sales overlap, so they add up to more than the store\'s sales.', formula: 'Attributed sales / Spend', source: 'Triple Whale, last platform click' };
 
 /** The period before a report: the week before, or the month before. */
@@ -548,7 +548,7 @@ function dailyNodes(rep, day, ctx) {
   if (!r) return [empty({ title: 'No day picked', text: 'Pick a day above.' })];
   const W = short(r.date), hasSales = r.sales > 0;
   const vs = prev ? ' vs ' + wday(prev.date) + ' ' + short(prev.date) : null;
-  const mer = r.spend > 0 && hasSales ? r.sales / r.spend : null, pmer = prev && prev.spend > 0 && prev.sales > 0 ? prev.sales / prev.spend : null;
+  const mer = hasSales ? merOf(r) : null, pmer = prev && prev.sales > 0 ? merOf(prev) : null;
   const tiles = [
     kpi({ label: 'Sales', value: hasSales ? r.sales : 'no data', unit: 'money', cur, window: W, source: TW, size: 'lg', sub: hasSales && prev ? [(c => delta(c, { bad: c < 0 }))(change(r.sales, prev.sales)), vs] : null }),
     kpi({ label: 'Ad spend', value: r.spend, unit: 'money', cur, window: W, source: PLATFORMS, sub: prev ? [delta(change(r.spend, prev.spend), { plain: true }), vs] : null }),
@@ -670,12 +670,12 @@ function draw(el, d, ctx) {
   });
   put(el, h('div', { class: 'rp-top' }, helpBar(ctx.isClient ? [
       { title: 'What it is for', text: 'Every weekly and monthly report we sent you. Pick Weekly or Monthly and the period at the top; the newest is shown first.' },
-      { title: 'The numbers', text: 'Sales are every store order in the period. Store MER is all sales divided by all ad spend. ROAS is one platform or one ad. Hover or tap any dotted label for its meaning.' },
+      { title: 'The numbers', text: 'Sales are every store order in the period. Store MER is sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them) divided by all ad spend. ROAS is one platform or one ad. Hover or tap any dotted label for its meaning.' },
     ] : [
       { title: 'What it is for', text: 'The weekly and monthly reports for this brand. The newest draft is on top with How we read it: talking points before the Monday call, then the read the team writes and approves, then Send.' },
       { title: 'Which report', text: 'The box at the top says which report is on screen. Pick Daily, Weekly or Monthly and the period with the arrows or the list. Daily shows one day from a weekly or monthly report; nothing is sent per day.' },
       { title: 'What the client gets', text: 'The approved read first, word for word, then the numbers, the platforms, the day by day chart and the best ads, exactly as drawn here. Team only parts (talking points, the notes box) never reach the client.' },
-      { title: 'The numbers', text: 'Sales are every store order in the period, from Triple Whale. Store MER is all sales divided by all ad spend. Platform and ad ROAS are Triple Whale last platform click, and platform sales overlap. Hover or tap any dotted label for its meaning.' },
+      { title: 'The numbers', text: 'Sales are every store order in the period, from Triple Whale. Store MER is sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them) divided by all ad spend. Platform and ad ROAS are Triple Whale last platform click, and platform sales overlap. Hover or tap any dotted label for its meaning.' },
     ]), head, ...main,
     h('section', { class: 'cr-sect rp-every' }, heading('Every report', rows.length, 'pick one to show it above'), list(lines, null, { head: [{ label: 'Status', w: 210 }], first: 'Report' }))));
 }

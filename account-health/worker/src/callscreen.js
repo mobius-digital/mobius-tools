@@ -119,7 +119,9 @@ async function saveState(env, id, state, who) {
 }
 
 /* ---------- the read, from a frozen report ---------- */
-const NUM_KEYS = ['sales', 'spend', 'mer', 'orders', 'new_orders', 'ncpa', 'aov', 'amer'];
+/* mer_sales (2026-11-27): the sales MER divides (the brand's MER channels), so a screen that works MER out again
+   (with and without the lead ads) divides the same sales. Absent on reports frozen before it. */
+const NUM_KEYS = ['sales', 'mer_sales', 'spend', 'mer', 'orders', 'new_orders', 'ncpa', 'aov', 'amer'];
 function pickTotals(t) { const o = {}; for (const k of NUM_KEYS) o[k] = t?.[k] ?? null; return o; }
 /** Top 3 and bottom 3 ads by Triple Whale ROAS, from the report's own top ads (already behind its spend floor).
  *  An ad with no Triple Whale row reads 0 (a real zero under that model); a report with no attribution has no ROAS

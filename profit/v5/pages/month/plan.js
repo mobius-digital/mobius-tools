@@ -11,7 +11,7 @@
 
 import { helpBar, dl } from '../home/_biz.js';
 import { put } from '../../kit.js';
-import { h, money, pct, x, card, em, button, statusDot, pill, gauge, legend, lineChart, table, segmented, empty, sourceLine } from '../../kit.js';
+import { h, money, pct, x, card, em, button, statusDot, pill, gauge, legend, lineChart, table, segmented, empty, sourceLine, merOf } from '../../kit.js';
 import { ok, iso, dayLabel, monthName, monthShort, nextMonth, b, soft, pickBrand, styles, tileRow, tipRows, pageStamp, TW } from './_m.js';
 
 /* ---------- live data ---------- */
@@ -30,7 +30,7 @@ function shapeMonth(p, costsBroken) {
     basis: basis ? { month: basis.month || null, sales: basisSales, run_rate: /run-rate/.test(basis.label || '') } : null,
     growth: ok(sales) && basisSales > 0 ? sales / basisSales - 1 : null,
     expected_profit: costsBroken ? null : saved && ok(saved.expected_cm) ? saved.expected_cm : cmOf(sales, spend),
-    actual: a ? { sales: a.sales ?? null, spend: a.spend ?? null, mer: a.mer ?? null, days: a.days ?? null } : null,
+    actual: a ? { sales: a.sales ?? null, spend: a.spend ?? null, mer: a.mer ?? merOf(a), days: a.days ?? null } : null,
     yard: ok(ret) && ok(c.amer) && ok(sales) && spend > 0 ? {
       returning: ret, new_needed: Math.max(0, sales - ret), needs: Math.max(0, sales - ret) / spend, recent: c.amer,
       from: src.trailing_from || null, to: src.trailing_to || null,
@@ -50,7 +50,7 @@ async function load(ctx) {
   ]);
   const acct = ((ov && (ov.accounts || ov.brands)) || []).find(r => r.act_id === (cur.account && cur.account.act_id)) || {};
   const broken = !!(acct.cost_health && acct.cost_health.verdict === 'broken');
-  const history = (cur.history || []).filter(m => !m.empty).map(m => ({ month: m.month, sales: m.sales ?? null, spend: m.spend ?? null, mer: m.mer ?? null, profit: broken ? null : m.cm ?? null, partial: !!m.partial, days: m.days ?? null }));
+  const history = (cur.history || []).filter(m => !m.empty).map(m => ({ month: m.month, sales: m.sales ?? null, spend: m.spend ?? null, mer: m.mer ?? merOf(m), profit: broken ? null : m.cm ?? null, partial: !!m.partial, days: m.days ?? null }));
   return {
     current: ym, source: !!(cur.account && cur.account.tw_shop) || history.length > 0,
     months: [shapeMonth(cur, broken), nxt ? shapeMonth(nxt, broken) : null].filter(Boolean),
@@ -94,8 +94,8 @@ function chartCard(m, data) {
     h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, g ? `How does ${monthName(m.month)} compare with past months?` : 'What have past months done?')), h('p', null, 'Sales and ad spend by month, whole store · ' + TW)),
     legend([{ name: 'Sales', square: true, color: 'var(--slate)' }, g && { name: 'The plan', lead: true, square: true, color: 'var(--e2)' }, { name: 'Ad spend' }]));
   if (hist.length + (g ? 1 : 0) < 2) return card({ class: 'mo-chart' }, head, empty({ title: 'Not enough months yet', text: 'The chart draws once there is a finished month to compare with.' }));
-  const cols = hist.map(r => ({ label: monthShort(r.month) + (r.partial ? ' so far' : ''), sales: r.sales, spend: r.spend, partial: r.partial }));
-  if (g) cols.push({ label: monthShort(m.month) + ' plan', sales: g.sales, spend: g.spend, plan: true });
+  const cols = hist.map(r => ({ label: monthShort(r.month) + (r.partial ? ' so far' : ''), sales: r.sales, spend: r.spend, mer: r.mer, partial: r.partial }));
+  if (g) cols.push({ label: monthShort(m.month) + ' plan', sales: g.sales, spend: g.spend, mer: g.mer, plan: true });
   const short = v => money(v, { compact: true });
   return card({ class: 'mo-chart' }, head, lineChart({
     series: [
@@ -106,7 +106,7 @@ function chartCard(m, data) {
     windowLabel: 'Monthly, ' + cols[0].label + ' to ' + cols[cols.length - 1].label,
     label: 'Sales and ad spend by month, with the plan as the last column',
     hover: i => { const c = cols[i]; return tipRows(c.label, [[c.plan ? 'Sales goal' : 'Sales', whole(c.sales), 'ink'], [c.plan ? 'Ad budget' : 'Ad spend', whole(c.spend), 'slate'],
-      ok(c.sales) && c.spend > 0 ? ['MER', x(c.sales / c.spend)] : null]); },
+      ok(c.mer) ? ['MER', x(c.mer)] : null]); },
   }));
 }
 
@@ -168,7 +168,7 @@ function basedOn(m, ctx) {
   const parts = [];
   if (m.basis && m.basis.month && ok(m.basis.sales)) parts.push(`Growth is measured on ${monthName(m.basis.month)}${m.basis.run_rate ? ' at its current pace' : ''}, ${whole(m.basis.sales)} in sales.`);
   if (m.yard && m.yard.from && m.yard.to) parts.push(`Returning customers and the return on ads come from ${dayLabel(m.yard.from)} to ${dayLabel(m.yard.to)}.`);
-  parts.push('The plan splits evenly across the days of the month. MER is whole store sales over all ad spend.');
+  parts.push('The plan splits evenly across the days of the month. MER is sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them) over all ad spend.');
   return helpBar([
     { title: 'What it is for', text: 'The plan agreed for the month: the sales goal, the ad budget, the MER that takes, and whether it can be reached.' },
     { title: 'What it rests on', text: parts.join(' ') },

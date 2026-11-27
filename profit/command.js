@@ -120,7 +120,8 @@ function reasonsFor(a, c, w) {
 function pills(a, c) {
   const u = U(), w = a.window || {}, p = a.prev || {};
   const cur = a.currency;
-  const merNow = w.spend ? w.sales / w.spend : null, merPrev = p.spend ? p.sales / p.spend : null;
+  /* MER counts only the sales channels the brand counts (mer_sales), sales from a server before it */
+  const merNow = w.spend ? (w.mer_sales ?? w.sales) / w.spend : null, merPrev = p.spend ? (p.mer_sales ?? p.sales) / p.spend : null;
   const cpaNow = w.orders ? w.spend / w.orders : null, cpaPrev = p.orders ? p.spend / p.orders : null;
   const g = c && c.goal;
   const pill = (label, value, extra = '', tone = '', g2 = '') => `<span class="cmd-pill${tone ? ' ' + tone : ''}"><span class="l">${label}</span><span class="v">${value}${extra}</span>${g2 ? `<span class="g">${g2}</span>` : ''}</span>`;
@@ -213,7 +214,7 @@ async function readAll(rows, pending, agencyAlerts) {
     brands: rows.map(({ a, c, rs }) => {
       const w = a.window || {}, p = a.prev || {};
       return { name: a.name, currency: a.currency, revenue: Math.round(w.sales || 0), revenue_before: p.sales != null ? Math.round(p.sales) : null, ad_spend: Math.round(w.spend || 0),
-        mer: r2(w.spend ? w.sales / w.spend : null), cpa: r2(w.orders ? w.spend / w.orders : null),
+        mer: r2(w.spend ? (w.mer_sales ?? w.sales) / w.spend : null), cpa: r2(w.orders ? w.spend / w.orders : null),
         goal: c && c.goal ? { kind: c.goal.kind, target: r2(c.goal.target), last_7_days: r2(c.goal.value7), days_off_goal: c.goal.off_days } : null,
         days_since_new_ad: c && c.cadence ? c.cadence.days_since : null,
         meta_ctr_change: c && c.fatigue && c.fatigue.ctr_change != null ? Math.round(c.fatigue.ctr_change * 100) + '%' : null,

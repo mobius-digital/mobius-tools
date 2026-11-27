@@ -99,6 +99,12 @@ export function pct(n, { digits = 0, signed = false } = {}) {
   const v = +(n * 100).toFixed(digits);
   return (signed && v > 0 ? '+' : '') + (v === 0 ? '0' : v.toFixed(digits)) + '%';
 }
+/** MER from a day row or total: counted sales (mer_sales, the channels a brand counts) over all ad spend; falls back to
+    sales for payloads from before mer_sales. merOf({ sales: 900, mer_sales: 600, spend: 200 }) 3 */
+export const merSales = o => (o ? (o.mer_sales ?? o.sales) : null);
+export const merOf = o => (o && o.spend > 0 && ok(merSales(o)) ? merSales(o) / o.spend : null);
+/** aMER: counted new-customer sales over all ad spend, falling back to new_rev. */
+export const amerOf = o => { const v = o ? (o.mer_new_rev ?? o.new_rev) : null; return o && o.spend > 0 && ok(v) ? v / o.spend : null; };
 /** x(1.754) "1.75x". ROAS for one platform, campaign or ad; MER for the whole store. */
 export function x(n, digits = 2) { return ok(n) ? n.toFixed(digits) + 'x' : NONE; }
 /** relativeTime(Date.now() - 240000) "4 min ago" */

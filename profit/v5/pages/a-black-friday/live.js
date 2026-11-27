@@ -366,19 +366,20 @@ export async function readStanding(ctx) {
 }
 
 /* ---------- small shared drawing parts ---------- */
-/** The hours of one war read: [{ hour, sales, spend }] for 0..23. */
+/** The hours of one war read: [{ hour, sales, spend, mer_sales? }] for 0..23. */
 const hoursOf = w => ((w && w.live && Array.isArray(w.live.hours)) ? w.live.hours : []);
-/** Sum the hours of several reads, cut at the last hour with sales or spend. null when there is nothing. */
+/** Sum the hours of several reads, cut at the last hour with sales or spend. null when there is nothing.
+    mer: the sales that count toward MER (mer_sales, else sales), so an hour's MER leaves out Amazon, Whatnot, wholesale. */
 function hourSeries(list) {
-  const sales = Array(24).fill(0), spend = Array(24).fill(0);
+  const sales = Array(24).fill(0), spend = Array(24).fill(0), mer = Array(24).fill(0);
   let last = -1;
   for (const w of list) for (const r of hoursOf(w)) {
     const k = +r.hour; if (!(k >= 0 && k < 24)) continue;
-    sales[k] += +r.sales || 0; spend[k] += +r.spend || 0;
+    sales[k] += +r.sales || 0; spend[k] += +r.spend || 0; mer[k] += +(r.mer_sales ?? r.sales) || 0;
     if ((+r.sales || 0) > 0 || (+r.spend || 0) > 0) last = Math.max(last, k);
   }
   if (last < 0) return null;
-  return { sales: sales.slice(0, last + 1), spend: spend.slice(0, last + 1) };
+  return { sales: sales.slice(0, last + 1), spend: spend.slice(0, last + 1), mer: mer.slice(0, last + 1) };
 }
 /** Today by the hour: sales as columns, ad spend as a line, a bubble per hour with both and the hour's MER. */
 function hourChart(hs, { height = 240, phoneHeight = 200, axis = true, label = 'Sales and ad spend by the hour today, Central time', ticks, windowLabel } = {}) {
@@ -386,7 +387,7 @@ function hourChart(hs, { height = 240, phoneHeight = 200, axis = true, label = '
   const labels = Array.from({ length: n }, (_, i) => hourWord(i));
   const tip = i => [h('div', { class: 'lx-tip-h' }, `${hourWord(i)} to ${hourWord(i + 1)} CT`),
     tipRow('lead', 'Sales', money(hs.sales[i] || 0)), tipRow('slate', 'Ad spend', money(hs.spend[i] || 0)),
-    tipRow(null, 'Store MER this hour', hs.spend[i] > 0 ? fx(hs.sales[i] / hs.spend[i]) : 'n/a')];
+    tipRow(null, 'Store MER this hour', hs.spend[i] > 0 ? fx((hs.mer ? hs.mer[i] : hs.sales[i]) / hs.spend[i]) : 'n/a')];
   return lineChart({
     series: [{ name: 'Sales', type: 'bar', tone: 'brand', values: hs.sales }, { name: 'Ad spend', values: hs.spend, end: false }],
     labels, ticks, slots: true, height, phoneHeight, axis, barWidth: axis ? 22 : 10, yTicks: axis ? undefined : 2, topLabel: !axis, endLabels: false, fill: false, label, windowLabel,
@@ -503,11 +504,12 @@ function warModel(w, at, { team = false } = {}) {
   const goal = (goals.find(g => g.metric === 'revenue') || {}).target || null;
   const target = (w && w.ladder && w.ladder.target) || (goals.find(g => g.metric === 'mer') || {}).target || null;
   const sales = ok(+so.sales) && so.sales != null ? +so.sales : null, spend = ok(+so.spend) && so.spend != null ? +so.spend : null;
+  const merSales = so.mer_sales != null && ok(+so.mer_sales) ? +so.mer_sales : sales;
   const start = so.from || (w && w.sale && w.sale.start) || today;
   const readAt = Date.parse(L.at || L.as_of || (w && (w.at || w.as_of)) || '') || at || null;
   return {
     period: `${dayLabel(start)} 12am CT to ${readAt ? clockCT(readAt) + ' CT (last read)' : 'the last read'}`, sales, goal, spend,
-    mer: sales != null && spend > 0 ? sales / spend : null, target, be: team && w && w.ladder && ok(w.ladder.be) ? w.ladder.be : null,
+    mer: merSales != null && spend > 0 ? merSales / spend : null, target, be: team && w && w.ladder && ok(w.ladder.be) ? w.ladder.be : null,
     none: w && w.sale && today < w.sale.start ? `The sale starts ${dayLabel(w.sale.start)}` : 'No sales read yet',
     phases: phasesOfWar(w) || SEASON, today, hours: hourSeries([w]), hourScope: 'whole store, Central time', hourNote: '',
   };
@@ -953,6 +955,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     const R = rec(), recDate = R.today || slotDate(R.slot);
     const okb = list.filter(c => !c.b.no_sales && c.b.so_far && ok(c.b.so_far.sales));
     const sales = okb.reduce((t, c) => t + c.b.so_far.sales, 0), spend = okb.reduce((t, c) => t + (c.b.so_far.spend || 0), 0);
+    const merSales = okb.reduce((t, c) => t + (ok(c.b.so_far.mer_sales) ? c.b.so_far.mer_sales : c.b.so_far.sales), 0);
     const withGoal = okb.filter(c => c.b.goal > 0);
     const goal = withGoal.reduce((t, c) => t + c.b.goal, 0);
     /* the percent of the goal counts only the brands that have one, so a brand with no goal never inflates it */
@@ -983,7 +986,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     const ph = one ? phasesOfWar(S.hourCache[one]) || SEASON : SEASON;
     return {
       period, scopeChip, scopeWhy, lean: !!one,
-      sales: okb.length ? sales : null, goal: goal || null, goalSales: withGoal.length ? goalSales : null, spend: okb.length ? spend : null, mer: spend > 0 ? sales / spend : null,
+      sales: okb.length ? sales : null, goal: goal || null, goalSales: withGoal.length ? goalSales : null, spend: okb.length ? spend : null, mer: spend > 0 ? merSales / spend : null,
       target: ok(target) ? Math.round(target * 100) / 100 : null, be, none: 'No sales source connected',
       phases: ph, today: recDate, hours: hs, hourNote, hourScope: one ? 'whole store, Central time' : `${got.length === acts.length ? 'all brands' : got.length + ' of ' + acts.length + ' brands'}, Central time`,
     };
@@ -1369,13 +1372,13 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     }
     const hs = hourSeries([D]);
     if (!hs) return put(body, h('p', { class: 'dim' }, 'No sales or spend yet today.'));
-    const sales = hs.sales.reduce((t, v) => t + v, 0), spend = hs.spend.reduce((t, v) => t + v, 0);
+    const sales = hs.sales.reduce((t, v) => t + v, 0), spend = hs.spend.reduce((t, v) => t + v, 0), merSales = hs.mer.reduce((t, v) => t + v, 0);
     const best = hs.sales.indexOf(Math.max(...hs.sales));
     put(body,
       h('div', { class: 'wr3-tiles' },
         h('div', { class: 'wr3-tile' }, h('span', { class: 'hd' }, defLabel('Sales', 'sales')), h('span', { class: 'mer' }, money(sales))),
         h('div', { class: 'wr3-tile' }, h('span', { class: 'hd' }, defLabel('Ad spend', 'ad_spend')), h('span', { class: 'mer' }, money(spend))),
-        h('div', { class: 'wr3-tile' }, h('span', { class: 'hd' }, defLabel('Store MER', 'mer')), h('span', { class: 'mer ' + (merTone(spend > 0 ? sales / spend : null, c) ? merTone(spend > 0 ? sales / spend : null, c) + '-t' : '') }, fx(spend > 0 ? sales / spend : null)))),
+        h('div', { class: 'wr3-tile' }, h('span', { class: 'hd' }, defLabel('Store MER', 'mer')), h('span', { class: 'mer ' + (merTone(spend > 0 ? merSales / spend : null, c) ? merTone(spend > 0 ? merSales / spend : null, c) + '-t' : '') }, fx(spend > 0 ? merSales / spend : null)))),
       h('div', { class: 'wr3-ch' }, h('div', { class: 'lx-chart-h' }, h('span', { class: 'wr3-lab' }, '12am Central to now, whole store'), hourLegend(hs)),
         hourChart(hs, { height: 260, phoneHeight: 220 })),
       h('p', { class: 'dim' }, `Best hour for sales so far: ${hourWord(best)} to ${hourWord(best + 1)}.`));
@@ -1673,7 +1676,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     return pageHelp({ body: [
       { title: 'What it is for', text: `One page for the Black Friday weekend: how the sale is pacing against its goal, which campaign budgets ${APP_NAME} suggests moving, and the plan that was agreed. ${one ? 'This is one brand.' : 'Every brand is here; open a brand for its own page.'}` },
       { title: 'How the calls are made', text: `At every check-in each live campaign is read on its own ROAS (Triple Whale, last click) since the last check-in and today, against the brand's goal ROAS. This week only breaks a tie. The store MER is the gate: while it is over target nothing is cut, and while it is not clear nothing is raised. Nothing changes without a tap, and every change can be undone. A change less than ${READ_HOURS} hours old is marked as not read yet.` },
-      { title: 'Store MER and ROAS', text: 'Store MER is the whole store: all sales divided by all ad spend. ROAS is one platform or one campaign: the sales Triple Whale credits to it, divided by its own spend. Hover or tap any dotted label for its meaning.' },
+      { title: 'Store MER and ROAS', text: 'Store MER is sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them) divided by all ad spend. ROAS is one platform or one campaign: the sales Triple Whale credits to it, divided by its own spend. Hover or tap any dotted label for its meaning.' },
       { title: 'Who sees it', text: 'The team sees everything here. A client sees only the pace and the plan for their own brand, never the calls or the break-even lines. The client update card is what goes to the client.' },
     ] });
   }
@@ -1760,7 +1763,7 @@ function renderClient(el, data, ctx) {
   put(el, h('div', { class: 'wr3' },
     h('div', { class: 'wr3-bar' }, pageHelp({ body: [
       { title: 'What it is for', text: 'How your Black Friday sale is pacing against the goal we agreed, today by the hour, and the plan for the sale.' },
-      { title: 'Store MER', text: 'The whole store: all sales divided by all ad spend. Hover or tap any dotted label for its meaning.' },
+      { title: 'Store MER', text: 'Sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them) divided by all ad spend. Hover or tap any dotted label for its meaning.' },
     ] })),
     paceHero(m),
     card({ title: 'The plan', note: 'what was agreed for the sale', flush: true }, planTable([row], { team: false, waiting: false, planHref: planHrefOf(ctx) }))));

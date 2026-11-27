@@ -99,9 +99,11 @@
     if (t !== H.RUN()) return;
     const w = a.window || {}, p = a.prev && H.S.cmp !== 'none' ? a.prev : {};
     const c = { sales: w.sales, spend: w.spend, orders: w.orders, newRev: w.new_rev, newOrd: w.new_orders, cm: a.cost_health?.verdict === 'broken' ? null : w.cm };
-    c.mer = c.spend ? c.sales / c.spend : null; c.amer = c.spend && c.newRev != null ? c.newRev / c.spend : null; c.aov = c.orders ? c.sales / c.orders : null; c.cac = c.newOrd ? c.spend / c.newOrd : null;
-    const pp = { sales: p.sales, spend: p.spend, orders: p.orders, mer: p.spend ? p.sales / p.spend : null, aov: p.orders ? p.sales / p.orders : null };
-    const rows = (a.series || []).map(r => ({ ...r, mer: r.spend ? r.sales / r.spend : null })), prev = H.S.cmp !== 'none' ? (a.prev_series || []).map(r => ({ ...r, mer: r.spend ? r.sales / r.spend : null })) : [];
+    /* MER and aMER on the sales that count (mer_sales / mer_new_rev); sales and new_rev from an older server */
+    const ms = o => o.mer_sales ?? o.sales;
+    c.mer = c.spend ? ms(w) / c.spend : null; c.amer = c.spend && (w.mer_new_rev ?? c.newRev) != null ? (w.mer_new_rev ?? c.newRev) / c.spend : null; c.aov = c.orders ? c.sales / c.orders : null; c.cac = c.newOrd ? c.spend / c.newOrd : null;
+    const pp = { sales: p.sales, spend: p.spend, orders: p.orders, mer: p.spend ? ms(p) / p.spend : null, aov: p.orders ? p.sales / p.orders : null };
+    const rows = (a.series || []).map(r => ({ ...r, mer: r.spend ? ms(r) / r.spend : null })), prev = H.S.cmp !== 'none' ? (a.prev_series || []).map(r => ({ ...r, mer: r.spend ? ms(r) / r.spend : null })) : [];
     const goalMer = a.goals?.sales && a.goals?.spend ? a.goals.sales / a.goals.spend : a.target_roas || null;
     const km = v => K.kmoney(v, cur);
     const b = kept && (kept.brands || []).find(x => x.act_id === H.S.act);
@@ -351,7 +353,7 @@
       const why = real.length ? `<span class="v4-chip ${r.sev === 'bad' ? 'cut' : 'refresh'}">${r.sev === 'bad' ? 'act now' : 'look'}</span><span class="v4-whyt">${real.slice(0, 2).map(x => `<button type="button" class="v2link q" data-go="act:${K.esc(a.act_id)}:${K.esc(x.go || 'morning')}">${K.esc(x.text)}</button>`).join('')}${real.length > 2 ? `<small>${real.length - 2} more</small>` : ''}</span>` : `<span class="v4-ok">Nothing needs you here.</span>`;
       /* the chip is the count and the kind, never the task names: "4 Asana tasks overdue", "2 tasks stuck 10+ days" */
       const chips = gaps.length ? gaps.map(g => `<span class="v4-gap-c">${K.esc(String(g.text).split(':')[0].replace(' in the same stage', '').replace(/\.$/, '').trim())}</span>`).join('') : '';
-      return `<div class="v4-brow">${brandCell(a, r.sev, chips)}<div>${keptCell}</div><div>${pct != null ? ring(pct, `${Math.round(pct * 100)}%`, '', null, 56) : `<button type="button" class="v2link q" data-go="act:${K.esc(a.act_id)}:plan">no plan</button>`}</div><div class="v4-why">${why}</div><div class="v4-wk"><b>${K.kmoney(w.sales, cur)}</b>${p.sales ? K.delta(w.sales, p.sales) : ''}<span class="v4-quiet">MER ${K.x2(w.spend ? w.sales / w.spend : null)}</span></div></div>`;
+      return `<div class="v4-brow">${brandCell(a, r.sev, chips)}<div>${keptCell}</div><div>${pct != null ? ring(pct, `${Math.round(pct * 100)}%`, '', null, 56) : `<button type="button" class="v2link q" data-go="act:${K.esc(a.act_id)}:plan">no plan</button>`}</div><div class="v4-why">${why}</div><div class="v4-wk"><b>${K.kmoney(w.sales, cur)}</b>${p.sales ? K.delta(w.sales, p.sales) : ''}<span class="v4-quiet">MER ${K.x2(w.spend ? (w.mer_sales ?? w.sales) / w.spend : null)}</span></div></div>`;
     };
     $('#main').innerHTML = shell(`${book}<div id="v4todo"></div><section class="v2card v4-boardc"><div class="v4-bhead"><span>Brand</span><span>Kept yesterday · vs normal</span><span>Month</span><span>Why it needs you</span><span>${K.esc(H.rangeLabel())}</span></div>${rows.map(rowHtml).join('')}
       ${noDataLine(empty)}${paused.length ? `<p class="v4-paused">Paused, not flagged: ${paused.map(a => `<button type="button" class="v2link q" data-go="act:${K.esc(a.act_id)}:morning">${K.esc(a.name)}</button>`).join(', ')}.</p>` : ''}</section>
@@ -375,7 +377,7 @@
     const planned = rows.filter(r => r.pct != null);
     const tot = one && planned.length ? planned.reduce((s, r) => { s.mtd += r.mtd; s.plan += r.planNow; s.goal += r.goal || 0; s.land += r.land; return s; }, { mtd: 0, plan: 0, goal: 0, land: 0 }) : null;
     const sevOf = r => r.pct == null ? 'info' : r.pct >= 0.98 ? 'good' : r.pct >= 0.85 ? 'warn' : 'bad';
-    const rowHtml = r => { const { a } = r, cur = a.currency, mer = r.spend ? r.mtd / r.spend : null, goalMer = a.goals?.sales && a.goals?.spend ? a.goals.sales / a.goals.spend : a.target_roas || null;
+    const rowHtml = r => { const { a } = r, cur = a.currency, mer = r.spend ? (a.mtd?.mer_sales ?? r.mtd) / r.spend : null, goalMer = a.goals?.sales && a.goals?.spend ? a.goals.sales / a.goals.spend : a.target_roas || null;
       return `<div class="v4-brow v4-mrow">${brandCell(a, sevOf(r), 'month')}<div>${r.pct != null ? ring(r.pct, `${Math.round(r.pct * 100)}%`, '', null, 56) : `<button type="button" class="v2link q" data-go="act:${K.esc(a.act_id)}:plan">no plan</button>`}</div>
         <div><b>${K.kmoney(r.mtd, cur)}</b><small>${r.planNow ? `of ${K.kmoney(r.planNow, cur)} planned by now` : 'banked so far'}</small></div>
         <div>${r.goal && r.land != null ? `<b class="${r.land >= r.goal ? 'good' : r.land >= r.goal * 0.9 ? 'warn' : 'bad'}">${K.kmoney(r.land, cur)}</b><small>lands, of ${K.kmoney(r.goal, cur)} goal</small>` : r.land != null ? `<b>${K.kmoney(r.land, cur)}</b><small>at this pace</small>` : ''}</div>

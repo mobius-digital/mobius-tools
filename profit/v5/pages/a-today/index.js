@@ -67,12 +67,12 @@ function render(el, d, ctx) {
   /* the agency's numbers this month, the same tile look as the brand Home: label, value with unit, change against the
      same days before, window and source, an orange sparkline with its scale */
   const stores = withStore, dsum = (f) => stores.reduce((t, b) => t + (ok(f(b)) ? f(b) : 0), 0);
-  const sales = stores.length ? dsum(b => b.sales) : null, sSpend = dsum(b => b.spend), spendAll = sumOf(d.brands, b => b.spend);
+  const sales = stores.length ? dsum(b => b.sales) : null, merSales = stores.length ? dsum(b => b.mer_sales ?? b.sales) : null, sSpend = dsum(b => b.spend), spendAll = sumOf(d.brands, b => b.spend);
   const prevOf = f => { const v = stores.filter(b => b.prev).map(b => f(b.prev)); return v.length && v.length === stores.length ? v.reduce((t, n) => t + (+n || 0), 0) : null; };
-  const pSales = prevOf(p => p.sales), pSpend = prevOf(p => p.spend), pAll = d.brands.every(b => b.prev) ? sumOf(d.brands, b => b.prev.spend) : null;
+  const pSales = prevOf(p => p.sales), pMerSales = prevOf(p => p.mer_sales ?? p.sales), pSpend = prevOf(p => p.spend), pAll = d.brands.every(b => b.prev) ? sumOf(d.brands, b => b.prev.spend) : null;
   const dates = [...new Set(d.brands.flatMap(b => (b.days || []).map(r => r.date)))].sort();
   const per = (list, k) => dates.map(dt => { let t = null; for (const b of list) { const r = (b.days || []).find(x => x.date === dt); if (r && ok(r[k])) t = (t || 0) + r[k]; } return t; });
-  const dSales = per(stores, 'sales'), dSpendS = per(stores, 'spend'), dSpend = per(d.brands, 'spend');
+  const dSales = per(stores, 'sales'), dMer = per(stores, 'mer_sales'), dSpendS = per(stores, 'spend'), dSpend = per(d.brands, 'spend');
   /* the compare window: the same number of days just before (readBrands cmp=prev), printed like Home: "vs Oct 7 to 31" */
   const prevWin = (() => {
     const w = d.window; if (!w || !w.from || !w.to) return null;
@@ -82,12 +82,12 @@ function render(el, d, ctx) {
   })();
   const lab = dates.map(shortDay), win = rangeWords(ctx, d.window), cmpWin = prevWin ? 'vs ' + rangeWords(ctx, prevWin) : '';
   const chg = (v, p, o = {}) => ok(v) && p > 0 ? [delta(v / p - 1, o.plain ? o : v < p ? { bad: true } : {}), h('span', { class: 'hm-vs' }, ' ' + cmpWin)] : null;
-  const mer = sSpend > 0 && ok(sales) ? sales / sSpend : null, pMer = pSpend > 0 && ok(pSales) ? pSales / pSpend : null;
+  const mer = sSpend > 0 && ok(merSales) ? merSales / sSpend : null, pMer = pSpend > 0 && ok(pMerSales) ? pMerSales / pSpend : null;
   const usd = v => money(v), xx = v => x(v);
   const hero = tiles([
     kpi({ label: 'Sales, all brands', value: ok(sales) ? usd(sales) : 'not tracked yet', delta: chg(sales, pSales), window: win, source: 'Triple Whale', spark: dSales, sparkLabels: lab, sparkFormat: usd, href: ctx.href('a-month', 'pace') }),
     kpi({ label: 'Ad spend, all brands', value: usd(spendAll), delta: chg(spendAll, pAll, { plain: true }), window: win, source: 'All ad platforms', spark: dSpend, sparkLabels: lab, sparkFormat: usd, href: ctx.href('a-platforms', 'side-by-side') }),
-    kpi({ label: h('span', null, dl('MER', 'mer'), ', all brands'), value: mer != null ? xx(mer) : 'not tracked yet', delta: chg(mer, pMer), window: win, source: 'Triple Whale', spark: dSales.map((v, i) => ok(v) && dSpendS[i] > 0 ? v / dSpendS[i] : null), sparkLabels: lab, sparkFormat: xx, href: ctx.href('a-month', 'pace') }),
+    kpi({ label: h('span', null, dl('MER', 'mer'), ', all brands'), value: mer != null ? xx(mer) : 'not tracked yet', delta: chg(mer, pMer), window: win, source: 'Triple Whale', spark: dSales.map((v, i) => { const m = ok(dMer[i]) ? dMer[i] : v; return ok(m) && dSpendS[i] > 0 ? m / dSpendS[i] : null; }), sparkLabels: lab, sparkFormat: xx, href: ctx.href('a-month', 'pace') }),
     /* the brands behind, by name, each a link to its Home (the tile itself is not a link, so the names can be) */
     kpi({ label: 'Brands behind plan', value: String(behind.length), sub: `of ${withStore.length} with a store connected`, window: win, source: 'Month plans' })], { cols: 4 });
   const behindTile = hero.lastElementChild;
@@ -110,7 +110,7 @@ function render(el, d, ctx) {
         h('div', { class: 'ag-bc-g' }, b.store && ok(b.plan_sales) ? gauge({ value: b.sales, goal: b.plan_sales, max: b.plan_sales * 1.4, tone: tone === 'off' ? '' : tone }) : null)),
       figs([
         /* one pattern for all three: short label, the value on one line, a small line under it (goal, or window); the windows are in the section note and the label titles */
-        ['Store MER', b.store ? x(b.mer) : quiet('no data'), b.store && ok(b.goal_mer) ? 'goal ' + x(b.goal_mer) : b.store ? 'this month' : null, 'Whole store sales over all ad spend this month, Triple Whale'],
+        ['Store MER', b.store ? x(b.mer) : quiet('no data'), b.store && ok(b.goal_mer) ? 'goal ' + x(b.goal_mer) : b.store ? 'this month' : null, 'Sales that count over all ad spend this month, Triple Whale'],
         ['Meta ROAS', meta && ok(meta.roas) ? x(meta.roas) : quiet(meta && meta.spend > 0 ? 'no sales source' : 'ads off'), meta && ok(meta.roas) ? 'last 7 days' : null, 'Sales Triple Whale credits to Meta, last click, over Meta spend, last 7 days'],
         ['Ad spend', money(b.spend), 'this month', 'Every ad platform, this month'],
       ]),

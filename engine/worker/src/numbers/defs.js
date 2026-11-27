@@ -13,7 +13,8 @@ export function safeDiv(a, b) {
 /** Revenue credited to ads on one platform, divided by that platform's spend. */
 export const roas = (revenue, spend) => safeDiv(revenue, spend);
 
-/** Revenue divided by ad spend on every platform plus extra ad costs. */
+/** Revenue divided by ad spend on every platform plus extra ad costs. The revenue passed in is the brand's
+ *  counted sales (mer_sales: its MER channels only, metrics/merchannels.js, 2026-11-27), not whole-store sales. */
 export const mer = (revenue, spend_all) => safeDiv(revenue, spend_all);
 
 /** Spend divided by orders (or by new customers, for the cost of a new customer). */

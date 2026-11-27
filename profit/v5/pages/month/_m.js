@@ -1,5 +1,5 @@
 /* Business > This month: what the four tabs share (dates, the store read, plain states, layout rules).
-   Not a page. Every number here is whole store: sales are store sales less tax, MER is sales over all ad spend.
+   Not a page. Every number here is whole store: sales are store sales less tax, MER is the sales that count (mer_sales) over all ad spend.
 
    Read only routes these tabs use (profit worker unless said):
      /api/client?act&from&to                the store by day, totals, the month's goals, the plan so far, fixed costs

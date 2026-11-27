@@ -6,7 +6,7 @@
 
 import { put } from '../../kit.js';
 import { def, defOn, headRow } from './_ads.js';
-import { h, em, svgNode, money, pct, x, button, platformChip, statusDot, delta, takeaway, card, legend, lineChart, gauge, table, empty, addStyles, handEm, kpi, tiles } from '../../kit.js';
+import { h, em, svgNode, money, pct, x, button, platformChip, statusDot, delta, takeaway, card, legend, lineChart, gauge, table, empty, addStyles, handEm, kpi, tiles, merOf, merSales } from '../../kit.js';
 import { icon, PLATFORM_NAME } from '../../icons.js';
 import { askWhy } from '../home/_biz.js';
 
@@ -62,7 +62,7 @@ async function load(ctx) {
     spend: tot.spend ?? null,
     plan_spend: planDay != null ? planDay * rows.length : null,
     sales: hasSales ? tot.sales : null,
-    mer: hasSales ? tot.mer : null,
+    mer: hasSales ? (tot.mer_sales != null ? merOf(tot) : tot.mer) : null,
     goal_mer: goals.sales != null && goals.spend ? goals.sales / goals.spend : null,
     goal_roas: acct && +acct.target_roas > 0 ? +acct.target_roas : null,
     store_cost: hasSales && tot.orders > 0 && tot.spend != null ? tot.spend / tot.orders : null,
@@ -74,6 +74,7 @@ async function load(ctx) {
       dates: rows.map(r => r.date),
       total: rows.map(r => r.spend ?? null),
       sales: hasSales ? rows.map(r => r.sales ?? null) : null,
+      mer_sales: hasSales ? rows.map(r => merSales(r) ?? null) : null,
       meta: rows.some(r => r.meta_spend > 0) ? rows.map(r => r.meta_spend ?? null) : null,
       plan_day: planDay, note: null,
     },
@@ -166,7 +167,7 @@ function render(el, data, ctx) {
   const dl = d.daily || {}, nd = dl.dates ? dl.dates.length : 0, labels = nd > 1 ? dl.dates.map(shortDay) : null;
   const ser = labels ? {
     spend: dl.total && dl.total.length === nd ? dl.total : null,
-    mer: hasSales && dl.sales && dl.sales.length === nd ? dl.sales.map((v, i) => (v != null && dl.total[i] > 0 ? v / dl.total[i] : null)) : null,
+    mer: hasSales && dl.sales && dl.sales.length === nd ? dl.sales.map((v, i) => { const m = dl.mer_sales ? dl.mer_sales[i] ?? v : v; return m != null && dl.total[i] > 0 ? m / dl.total[i] : null; }) : null,
     share: top && top.id === 'meta' && dl.meta && dl.meta.length === nd ? dl.meta.map((v, i) => (v != null && dl.total[i] > 0 ? v / dl.total[i] : null)) : null,
   } : {};
   const all = !!(ser.spend && (ser.mer || !hasSales) && (ser.share || !top));

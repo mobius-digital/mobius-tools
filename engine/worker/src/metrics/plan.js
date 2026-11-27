@@ -77,7 +77,8 @@ function actualOf(history, ym, status) {
   if (status === 'future') return null;
   const h = history.find(x => x.month === ym && !x.empty);
   if (!h) return null;
-  return { sales: h.sales, spend: h.spend, cm: h.cm, mer: h.mer, amer: h.amer, days: h.days, days_in_month: h.days_in_month,
+  /* mer_sales: counted sales for MER (merchannels.js, 2026-11-27), as the old plan sends it */
+  return { sales: h.sales, mer_sales: h.mer_sales, spend: h.spend, cm: h.cm, mer: h.mer, amer: h.amer, days: h.days, days_in_month: h.days_in_month,
     partial: !!h.partial };
 }
 

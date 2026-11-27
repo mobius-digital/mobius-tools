@@ -30,6 +30,7 @@ import { marketLine, metaDay, chatterFor } from './market.js';
 import { liveOn } from './calendar.js';
 import { fyi } from './lane.js';
 import { jobOn } from './jobflags.js';
+import { merExcludedMany } from './merday.js';
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 export const MOVED_HOUR = 8;
 const MOVED_LAST_HOUR = 13;
@@ -42,7 +43,8 @@ const IDS = ['totalSales', 'totalNetTaxes', 'blendedAds', 'totalOrders', 'newCus
 export function movesFor(a, P, d, addDays) {
   const pctTxt = v => `${Math.abs(Math.round(v * 100))}% ${v >= 0 ? 'up' : 'down'}`;
   const day = dt => { const g = k => num(P[k] && P[k][dt]); const rev = g('totalSales') - g('totalNetTaxes'), sp = g('blendedAds'), o = g('totalOrders'), n = g('newCustomersOrders');
-    return { has: !!(P.totalSales && P.totalSales[dt] != null), rev, sp, o, mer: sp ? rev / sp : null, aov: o ? rev / o : null, cac: n ? sp / n : null }; };
+    /* MER on the brand's MER channels (P.merExcluded, 2026-11-27); revenue, AOV and the rest stay whole-store. */
+    return { has: !!(P.totalSales && P.totalSales[dt] != null), rev, sp, o, mer: sp ? Math.max(0, rev - num(P.merExcluded && P.merExcluded[dt])) / sp : null, aov: o ? rev / o : null, cac: n ? sp / n : null }; };
   const x = day(d); if (!x.has) return { flags: [], weeks: 0, nodata: true };
   /* Normal = the brand's own last 28 days (2026-10-09, tested: beats the same weekday over 8 weeks; keep hub.js yesterdayMany in step). */
   const base = Array.from({ length: 28 }, (_, i) => day(addDays(d, -1 - i))).filter(r => r.has);
@@ -93,6 +95,9 @@ export async function movedAll(env, d) {
     .bind(from, to, ...ids, ...IDS).all();
   const piv = Object.fromEntries(ids.map(a => [a, {}]));
   for (const r of results || []) ((piv[r.act_id] ??= {})[r.metric] ??= {})[r.date] = r.value;
+  /* Sales left out of MER per day (merday.js, 2026-11-27), as `merExcluded` the way storeSwitch puts it in a pivot. */
+  const ex = await merExcludedMany(env, ids, from, to);
+  for (const a of ids) if (Object.keys(ex[a] || {}).length) (piv[a] ??= {}).merExcluded = ex[a];
   /* Fresh = yesterday's totalSales row was written after the brand's own midnight. */
   const { results: syn } = await env.DB.prepare(`SELECT act_id, date, synced_at FROM tw_daily WHERE act_id IN (${inl(ids.length, 3)}) AND date BETWEEN ?1 AND ?2 AND metric = 'totalSales'`)
     .bind(days[0], to, ...ids).all();

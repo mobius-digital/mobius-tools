@@ -1,4 +1,5 @@
 import { tiktokReport } from './tiktok.js';
+import { merExcluded } from './merday.js';
 import { readCfg as readCreatorCfg } from './creatorengine.js';
 import { leaksFor, lessonFromLeak } from './leaks.js';
 import { addLesson } from './leakctx.js';
@@ -184,7 +185,12 @@ const RULES = `
   less the totalNetTaxes metric (the store view's revenue already is; in SQL
   subtract totalNetTaxes; in store_sql order_revenue - taxes). Never quote
   netSales or totalSales as sales.
-- MER = sales / blendedAds. AMER = new-customer sales / blendedAds.
+- MER = the sales that count toward MER / blendedAds. AMER = the same cut
+  of new-customer sales / blendedAds. Only the brand's MER channels count
+  (Brand settings > Goals > Sales that count toward MER); Amazon, Whatnot,
+  wholesale and in-person sales are left out by default. The store view
+  gives it as mer with mer_revenue; in SQL take p_sales_channel's left-out
+  channels off store sales first. Store sales, orders and AOV stay whole.
   CPA = spend / purchases. ROAS is attributed revenue / spend, and for a
   channel it is only ever Triple Whale attributed.
 - COMPUTED IN CODE, NEVER IN YOUR HEAD: cost per sale, CPA, ROAS, MER, CAC,
@@ -199,8 +205,8 @@ const RULES = `
   profit, or the store view's gross_margin_pct (also takes out shipping,
   handling and payment fees), only when asked, and named as that. Never your
   own formula.
-- AMAZON: every whole-store number (sales, orders, AOV, MER) says whether
-  Amazon is in or out ("Amazon included", "website only"). Triple Whale's
+- AMAZON: every whole-store number (sales, orders, AOV) says whether
+  Amazon is in or out (MER leaves it out by default, see MER above) ("Amazon included", "website only"). Triple Whale's
   Amazon metric alone never settles it (a brand that syncs Amazon orders into
   Shopify shows it empty while they are in the numbers): check source_name in
   store_sql for the same range first, as the store view's amazon field says.
@@ -620,8 +626,13 @@ function buildViews(d) {
       const byDay = {};
       for (const r of meta || []) byDay[r.date] = { date: r.date, meta_spend: r.spend, impressions: r.impressions, link_clicks: r.link_clicks };
       /* Sales net of tax, as every Locus screen reads them (AI eval N01, W03: tax left in ran 1 to 2% high). */
-      for (const r of tw || []) Object.assign(byDay[r.date] ||= { date: r.date }, { sales: r.netSales != null ? Math.round((r.netSales - (r.tax || 0)) * 100) / 100 : null, blendedAds: r.blendedAds, newCustomerSales: r.newCustomerSales });
-      return { brand: acct.name, currency: acct.currency, from, to, days: Object.values(byDay).sort((x, y) => x.date < y.date ? -1 : 1), how_to_read: 'meta_spend is Meta-reported; sales (Triple Whale net sales less tax) and blendedAds are Triple Whale (store-level). MER for a day = sales / blendedAds (use calc). "Normal" for a day = the average of the last 28 days, not last week.' };
+      /* mer_sales = the sales that count toward MER (merday.js, 2026-11-27); only on days where some were left out. */
+      const ex = await merExcluded(env, acct.act_id, from, to);
+      for (const r of tw || []) {
+        const sales = r.netSales != null ? Math.round((r.netSales - (r.tax || 0)) * 100) / 100 : null;
+        Object.assign(byDay[r.date] ||= { date: r.date }, { sales, ...(sales != null && ex[r.date] ? { mer_sales: Math.round(Math.max(0, sales - ex[r.date]) * 100) / 100 } : {}), blendedAds: r.blendedAds, newCustomerSales: r.newCustomerSales });
+      }
+      return { brand: acct.name, currency: acct.currency, from, to, days: Object.values(byDay).sort((x, y) => x.date < y.date ? -1 : 1), how_to_read: 'meta_spend is Meta-reported; sales (Triple Whale net sales less tax) and blendedAds are Triple Whale (store-level). MER for a day = (mer_sales when the day has it, else sales) / blendedAds (use calc with mer_sales): mer_sales leaves out the channels the brand does not count toward MER (Amazon, Whatnot, wholesale by default). "Normal" for a day = the average of the last 28 days, not last week.' };
     },
     changes: async (env, a) => {
       const acct = await need(env, a);
@@ -962,7 +973,9 @@ async function runChecks(env, h, d) {
     if (a.target_roas) {
       const rows = await all(`SELECT date, SUM(CASE WHEN metric = 'netSales' THEN value END) AS sales, SUM(CASE WHEN metric = 'blendedAds' THEN value END) AS ads
         FROM tw_daily WHERE act_id = ?1 AND date >= ?2 AND date < ?3 GROUP BY date ORDER BY date DESC LIMIT 4`, a.act_id, d.addDays(today, -5), today);
-      const all4 = rows.filter(r => r.ads > 50).map(r => r.sales / r.ads);
+      /* Sales that count toward MER (merday.js, 2026-11-27): the brand's left-out channels come off each day first. */
+      const ex = await merExcluded(env, a.act_id, d.addDays(today, -5), today);
+      const all4 = rows.filter(r => r.ads > 50).map(r => Math.max(0, r.sales - (ex[r.date] || 0)) / r.ads);
       const mers = all4.slice(0, 3);
       /* 2026-11-20 (Cole: "so much noise"): two brands got this every night for a week, the same news each time.
          It now fires once, on the night a streak starts (the day before the three was at or over the line). */
@@ -970,7 +983,7 @@ async function runChecks(env, h, d) {
       if (mers.length === 3 && mers.every(m => m < a.target_roas) && streakStarts)
         out.push({ key: `roas:${a.act_id}:${rows[0].date}`, kind: 'roas', severity: 'high', amount: null, month: ym,
           title: `${a.name}: blended ROAS under ${a.target_roas}x three days running (${mers.map(m => m.toFixed(2)).join(', ')})`,
-          detail: 'Triple Whale store-level MER, netSales over all ad spend. Look at what changed on the account this week and at the creatives.', evidence: { days: rows.slice(0, 3).map(r => r.date) } });
+          detail: 'Triple Whale store-level MER, netSales from the channels that count toward MER over all ad spend. Look at what changed on the account this week and at the creatives.', evidence: { days: rows.slice(0, 3).map(r => r.date) } });
     }
 
     /* 5. A creative tiring: link CTR over the last 3 days well under its prior 14. */

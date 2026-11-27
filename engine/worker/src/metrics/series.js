@@ -8,6 +8,7 @@ import { dayEconomics } from './money.js';
 import { shippingRuled } from './costs.js';
 import { spread, applyAdSpend } from './expenses.js';
 import { switchStore } from './storesource.js';
+import { applyMerChannels } from './merchannels.js';
 
 export const daysInMonth = ym => new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate();
 
@@ -99,6 +100,10 @@ export function buildSeries(raw, acct, from, to) {
   const id = acct.act_id;
   const piv = within(raw.piv[id], from, to);
   const store = switchStore(piv, raw.shop, acct, from, to, raw.shop ? raw.shop.now : Date.now());
+  /* Sales that count toward MER (merchannels.js, 2026-11-27): the left-out channels' sales per day ride in the pivot
+     as `merExcluded`, whichever source the store numbers came from (both hold the same Shopify orders). */
+  const merRows = raw.shop?.mer?.rows?.[id];
+  if (merRows?.length) applyMerChannels(piv, merRows, raw.shop.mer.cfg?.[id], from, to);
   const meta = raw.meta[id] || {};
   const marginPct = marginOverride(acct, monthOf(to));
   let ship = shippingMode(piv);

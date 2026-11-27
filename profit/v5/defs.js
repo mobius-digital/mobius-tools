@@ -37,7 +37,7 @@ export const GLOSSARY = {
   sales: { name: 'Sales', definition: 'Every store order in the period, all channels, at the order value before refunds. Not only orders from ads.', source: TW },
   net_sales: { name: 'Net sales', definition: 'Sales after discounts and refunds are taken off.', source: TW },
   ad_spend: { name: 'Ad spend', definition: 'What every connected ad platform spent in the period (Meta, Google, TikTok and the rest), added together.', source: 'Each ad platform' },
-  mer: { name: 'Store MER', definition: 'The whole store: all sales divided by all ad spend. It does not care which ad gets the credit, so it is the truest read of whether ads pay.', formula: 'Sales / Ad spend', source: TW },
+  mer: { name: 'Store MER', definition: 'Sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them, set in Brand settings > Goals) divided by all ad spend. It does not care which ad gets the credit.', formula: 'Sales that count / Ad spend', source: TW },
   roas: { name: 'ROAS', definition: 'One platform or one campaign: the sales Triple Whale credits to it (last click) divided by what it spent. Store-wide efficiency is MER, not ROAS.', formula: 'Attributed sales / Spend', source: TW + ', last platform click' },
   new_customer_cost: { name: 'New customer cost', definition: 'What it cost in ads to win one new customer in the period.', formula: 'Ad spend / New customers', source: TW },
   target_mer: { name: 'Target MER', definition: 'The store MER the plan asks for. At or above it the sale is on plan; well above it, Locus suggests a raise.' },

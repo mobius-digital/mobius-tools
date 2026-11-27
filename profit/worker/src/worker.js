@@ -29,6 +29,7 @@ import { handleShopifyApp, REQUIRED_SCOPES, missingScopes } from './shopifyapp.j
 import { shopToken, exchangeCode, ensureTokenColumns } from './shoptoken.js';
 import { syncShopDaily, noteSyncError, ensureShopDaily } from './shopsync.js';
 import { storeSwitch, markSource, sourceOf, storeTag, storeDaily, storeMode, storeSettingKey, STORE_MODES } from './storesource.js';
+import { merSalesFor, merLive, readMer, merConfig, merSettingKey, channelSummary, KINDS as MER_KINDS } from './merchannels.js';
 import { handleScenario } from './scenario.js';
 import { handleDashboard } from './dashboard.js';
 import { handleInspo } from './inspo.js';
@@ -611,6 +612,8 @@ function dayEconomics(piv, meta, date, marginPct, rules) {
   const grossProfit = marginPct != null ? sales * marginPct
     : variableCosts != null ? sales - variableCosts : null;
   const newOrders = piv.newCustomersOrders?.[date] ?? null;
+  const merSales = merSalesFor(sales, piv.merExcluded?.[date]);
+  const merNewRev = newRev == null ? null : sales > 0 ? newRev * (merSales / sales) : newRev;
   const row = {
     date, sales, total_sales: totalSales, tax, net_sales: netSales, ship_rev: shipRev, spend,
     orders, new_orders: newOrders, email_rev: piv.klaviyoPlacedOrderSales?.[date] ?? null,
@@ -619,10 +622,13 @@ function dayEconomics(piv, meta, date, marginPct, rules) {
     new_share: newShare,
     cogs, ship_cost: shipCost, handling, fees, gross_profit: grossProfit,
     meta_spend: mrow?.spend ?? null, google_spend: gSpend,
-    mer: spend ? sales / spend : null,
-    amer: newRev != null && spend ? newRev / spend : null,
+    /* MER and aMER on sales that count (merchannels.js): whole-store sales minus the channels the brand leaves out
+       (Amazon, Whatnot, wholesale by default); aMER takes the same cut of new-customer sales. */
+    mer: spend ? merSales / spend : null,
+    amer: merNewRev != null && spend ? merNewRev / spend : null,
     cm: grossProfit != null && spend != null ? grossProfit - spend : null,
     margin: sales > 0 && grossProfit != null ? grossProfit / sales : null,
+    mer_sales: merSales, mer_new_rev: merNewRev,
   };
   if (ov) row.cost_src = ov.src;
   return row;
@@ -735,6 +741,8 @@ async function liveDay(env, request, acct) {
   /* The brand's own cost rules price today's row too, the way seriesFor prices every stored day. None: unchanged. */
   const rules = (await loadCostRules(env, [acct.act_id]).catch(() => ({})))[acct.act_id] || [];
   const row = liveRow(acct, day, rules);
+  /* Counted sales (merchannels.js): today's left-out channels as far as the last channel sync read them. */
+  await merLive(env, acct.act_id, row, date);
   const twSpend = +(day.map && day.map.blendedAds) || 0;
   if (twSpend > 0) return { date, hours: hrs, as_of: day.as_of, row };
   const m = await metaHours().catch(() => null);
@@ -744,7 +752,9 @@ async function liveDay(env, request, acct) {
   while (hrs.length < last + 1) hrs.push({ hour: hrs.length, sales: 0, spend: 0, orders: 0, meta: 0, google: 0 });
   hrs.forEach((x, i) => { x.meta = m[i] || 0; x.spend = (x.google || 0) + x.meta; });
   const spend = hrs.reduce((t, x) => t + x.spend, 0);
-  const out = row ? { ...row, spend, meta_spend: spend - (row.google_spend || 0), mer: spend > 0 && row.sales != null ? row.sales / spend : null } : row;
+  const ms = row ? row.mer_sales ?? row.sales : null, mn = row ? row.mer_new_rev ?? row.new_rev : null;
+  const out = row ? { ...row, spend, meta_spend: spend - (row.google_spend || 0), mer: spend > 0 && ms != null ? ms / spend : null,
+    amer: spend > 0 && mn != null ? mn / spend : null } : row;
   return { date, hours: hrs, as_of: day.as_of, row: out, spend_src: 'meta' };
 }
 /** Today so far as ONE synthetic row, through the same dayEconomics as every
@@ -878,6 +888,8 @@ const sum = (rows, get) => {
 function totals(rows) {
   const sales = sum(rows, r => r.sales), spend = sum(rows, r => r.spend);
   const newRev = sum(rows, r => r.new_rev), gp = sum(rows, r => r.gross_profit);
+  /* MER and aMER on counted sales (merchannels.js); a row without mer_sales counts whole. */
+  const merSales = sum(rows, r => r.mer_sales ?? r.sales), merNewRev = sum(rows, r => r.mer_new_rev ?? r.new_rev);
   const orders = sum(rows, r => r.orders), newOrders = sum(rows, r => r.new_orders), emailRev = sum(rows, r => r.email_rev);
   return {
     days: rows.length, sales, spend, new_rev: newRev, ret_rev: sum(rows, r => r.ret_rev),
@@ -894,11 +906,12 @@ function totals(rows) {
     ad_expense: sum(rows, r => r.ad_expense), base_spend: sum(rows, r => r.base_spend ?? r.spend),
     handling: sum(rows, r => r.handling), fees: sum(rows, r => r.fees), gross_profit: gp,
     meta_spend: sum(rows, r => r.meta_spend), google_spend: sum(rows, r => r.google_spend),
-    mer: spend ? sales / spend : null,
-    amer: newRev != null && spend ? newRev / spend : null,
+    mer: spend ? merSales / spend : null,
+    amer: merNewRev != null && spend ? merNewRev / spend : null,
     cm: gp != null && spend != null ? gp - spend : null,
     margin: sales > 0 && gp != null ? gp / sales : null,
     new_share: sales > 0 && newRev != null ? newRev / sales : null,
+    mer_sales: merSales, mer_new_rev: merNewRev,
   };
 }
 
@@ -959,7 +972,7 @@ async function monthHistory(env, acct, upToYm, n = 6) {
     return {
       month: ym, days: mr.length, days_in_month: daysInMonth(ym),
       partial: ym === monthOf(today),
-      sales: t.sales, spend: t.spend, new_rev: t.new_rev, returning: t.ret_rev,
+      sales: t.sales, mer_sales: t.mer_sales, spend: t.spend, new_rev: t.new_rev, returning: t.ret_rev,
       cm: t.cm, margin: t.margin, mer: t.mer, amer: t.amer, new_share: t.new_share,
     };
   });
@@ -1411,7 +1424,7 @@ async function customerEconomics(env, acct, months = 6, days = 30, range = null)
     spend: wsum(r => r.spend), newOrders: wNewOrders,
     retOrders: Math.max(0, wTotalOrders - wNewOrders), totalOrders: wTotalOrders,
     newRev: wsum(r => r.new_rev), retRev: wsum(r => r.ret_rev),
-    sales: wsum(r => r.sales), gp: wsum(r => r.gross_profit),
+    sales: wsum(r => r.sales), gp: wsum(r => r.gross_profit), merSales: wsum(r => r.mer_sales ?? r.sales),
   };
 
   const margin = agg.sales > 0 ? agg.gp / agg.sales : null;
@@ -1438,7 +1451,8 @@ async function customerEconomics(env, acct, months = 6, days = 30, range = null)
       spend: agg.spend, sales: agg.sales, orders: agg.totalOrders,
       aov: agg.totalOrders > 0 ? agg.sales / agg.totalOrders : null,
       cpa: agg.totalOrders > 0 && agg.spend > 0 ? agg.spend / agg.totalOrders : null,
-      mer: agg.spend > 0 ? agg.sales / agg.spend : null,
+      mer_sales: agg.merSales,
+      mer: agg.spend > 0 ? agg.merSales / agg.spend : null,
       // Fewer than ~50 new customers makes CAC and payback too noisy to act on.
       thin: agg.newOrders < 50,
     },
@@ -1638,20 +1652,22 @@ async function weekdayRhythm(env, acct, months = 3) {
   // month, relative to that month's own MER.
   const perMonthMer = used.map(ym => {
     const list = byMonth[ym];
-    const tS = list.reduce((a, r) => a + r.sales, 0);
+    const ms = r => r.mer_sales ?? r.sales;   // MER on counted sales (merchannels.js)
+    const tS = list.reduce((a, r) => a + ms(r), 0);
     const tSp = list.reduce((a, r) => a + (r.spend ?? 0), 0);
     const monthMer = tSp > 0 ? tS / tSp : null;
     const s2 = Array(7).fill(0), sp2 = Array(7).fill(0);
-    for (const r of list) { const d = dowOf(r.date); s2[d] += r.sales; sp2[d] += r.spend ?? 0; }
+    for (const r of list) { const d = dowOf(r.date); s2[d] += ms(r); sp2[d] += r.spend ?? 0; }
     return s2.map((v, i) => (sp2[i] > 0 && monthMer ? (v / sp2[i]) / monthMer : null));
   });
 
   // share of the week, and efficiency, pooled across the whole window
   const sales = Array(7).fill(0), spend = Array(7).fill(0), newRev = Array(7).fill(0), days = Array(7).fill(0);
+  const merS = Array(7).fill(0);   // counted sales, for MER (merchannels.js)
   const cm = Array(7).fill(0), cmDays = Array(7).fill(0);
   for (const ym of used) for (const r of byMonth[ym]) {
     const d = dowOf(r.date);
-    sales[d] += r.sales; spend[d] += r.spend ?? 0; newRev[d] += r.new_rev ?? 0; days[d]++;
+    sales[d] += r.sales; merS[d] += r.mer_sales ?? r.sales; spend[d] += r.spend ?? 0; newRev[d] += r.mer_new_rev ?? r.new_rev ?? 0; days[d]++;
     if (r.cm != null) { cm[d] += r.cm; cmDays[d]++; }
   }
   const totalSales = sales.reduce((a, b) => a + b, 0);
@@ -1672,7 +1688,7 @@ async function weekdayRhythm(env, acct, months = 3) {
       share: totalSales > 0 ? sales[d] / totalSales : null,
       index: avg, index_lo: lo, index_hi: hi, verdict,
       sales: sales[d], spend: spend[d], days: days[d],
-      mer: spend[d] > 0 ? sales[d] / spend[d] : null,
+      mer: spend[d] > 0 ? merS[d] / spend[d] : null,
       mer_verdict: merVerdict, mer_lo: mLo, mer_hi: mHi,
       // The money, not the ratio. A day can be less efficient and still be worth more.
       cm_per_day: cmDays[d] > 0 ? cm[d] / cmDays[d] : null,
@@ -2017,7 +2033,7 @@ export default {
           ...(!fixed && !planned ? { no_goal: true } : {}),
           range: { from, to, fixed },
           mtd: {
-            sales: t.sales, spend: t.spend, mer: t.mer, amer: t.amer,
+            sales: t.sales, mer_sales: t.mer_sales, spend: t.spend, mer: t.mer, amer: t.amer,
             new_share: t.new_share, new_rev: t.new_rev, ret_rev: t.ret_rev,
             cm: cmOk ? t.cm : null, margin: cmOk ? t.margin : null,
           },
@@ -2030,7 +2046,7 @@ export default {
           } : null,
           ...(nf ? { fixed: { total: nf.fixed }, net: nf.net } : {}),
           // Daily shape, for the chart. Money only - no cost diagnostics per day.
-          rows: rows.map(r => ({ date: r.date, sales: r.sales, spend: r.spend })),
+          rows: rows.map(r => ({ date: r.date, sales: r.sales, mer_sales: r.mer_sales, spend: r.spend })),
           rhythm: rhythm && rhythm.enough ? rhythm : null,
           cm_ok: cmOk,
           /* Pro-rated to the days elapsed, exactly as the internal pages do it.
@@ -2389,7 +2405,7 @@ export default {
           let live = null;
           if (to === today) {
             const day = await twDay(env, request, a, today).catch(() => null);
-            if (day) { const row = liveRow(a, day, rules); if (row) { applyAdSpend([row], spread(exp, today, today, [row]).adByDate); liveReplaces(rows, row); liveReplaces(mtdRows, row); } live = { as_of: day.as_of }; }
+            if (day) { const row = await merLive(env, a.act_id, liveRow(a, day, rules), today); if (row) { applyAdSpend([row], spread(exp, today, today, [row]).adByDate); liveReplaces(rows, row); liveReplaces(mtdRows, row); } live = { as_of: day.as_of }; }
           }
           return {
             ...pubAccount(a),
@@ -2407,8 +2423,8 @@ export default {
             prev: prevRows.length ? totals(prevRows) : null,
             prev_window: pFrom ? { from: pFrom, to: pTo, kind: cmp } : null,
             /* new_orders / new_rev / cm ride along (2026-10-09) so every Home tile carries its own day-by-day line. */
-            series: wantSeries ? rows.slice(-100).map(r => ({ date: r.date, sales: r.sales ?? null, spend: r.spend ?? null, orders: r.orders ?? null, new_orders: r.new_orders ?? null, new_rev: r.new_rev ?? null, cm: r.cm ?? null })) : undefined,
-            prev_series: wantSeries && prevRows.length ? prevRows.slice(-100).map(r => ({ date: r.date, sales: r.sales ?? null, spend: r.spend ?? null, orders: r.orders ?? null, new_orders: r.new_orders ?? null, new_rev: r.new_rev ?? null, cm: r.cm ?? null })) : undefined,
+            series: wantSeries ? rows.slice(-100).map(r => ({ date: r.date, sales: r.sales ?? null, mer_sales: r.mer_sales ?? null, mer_new_rev: r.mer_new_rev ?? null, spend: r.spend ?? null, orders: r.orders ?? null, new_orders: r.new_orders ?? null, new_rev: r.new_rev ?? null, cm: r.cm ?? null })) : undefined,
+            prev_series: wantSeries && prevRows.length ? prevRows.slice(-100).map(r => ({ date: r.date, sales: r.sales ?? null, mer_sales: r.mer_sales ?? null, mer_new_rev: r.mer_new_rev ?? null, spend: r.spend ?? null, orders: r.orders ?? null, new_orders: r.new_orders ?? null, new_rev: r.new_rev ?? null, cm: r.cm ?? null })) : undefined,
             channels: channels || undefined,
             goals: g.sales != null || g.spend != null ? g : null,
             plan, live_as_of: live ? live.as_of : null,
@@ -2458,7 +2474,7 @@ export default {
           const day = await twDay(env, request, acct, to).catch(() => null);
           if (day) {
             if (from === to) hours = hoursOf(day);
-            if (to === today) { const row = liveRow(acct, day, rules); if (row) { applyAdSpend([row], spread(exp, today, today, [row]).adByDate); liveReplaces(rows, row); liveReplaces(mtdRows, row); } liveAsOf = day.as_of; }
+            if (to === today) { const row = await merLive(env, acct.act_id, liveRow(acct, day, rules), today); if (row) { applyAdSpend([row], spread(exp, today, today, [row]).adByDate); liveReplaces(rows, row); liveReplaces(mtdRows, row); } liveAsOf = day.as_of; }
           }
         }
         /* Custom expenses over the window (expenses.js, 2026-10-10). `total`/`items` = the ones under contribution margin
@@ -2565,7 +2581,7 @@ export default {
         let actual = null;
         if (status !== 'future') {
           const h = history.find(x => x.month === ym && !x.empty);
-          if (h) actual = { sales: h.sales, spend: h.spend, cm: h.cm, mer: h.mer, amer: h.amer,
+          if (h) actual = { sales: h.sales, mer_sales: h.mer_sales, spend: h.spend, cm: h.cm, mer: h.mer, amer: h.amer,
             days: h.days, days_in_month: h.days_in_month, partial: !!h.partial };
         }
         const saved = savedPlan;
@@ -2884,6 +2900,52 @@ export default {
           await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
             .bind(storeSettingKey(acct.act_id), storeMode(b.mode)).run();
           return json({ ok: true, act: acct.act_id, mode: storeMode(b.mode) });
+        }
+        return json({ error: 'GET or PUT' }, 405);
+      }
+
+      /* Sales that count toward MER (merchannels.js, 2026-11-27). Brand settings > Goals.
+         GET ?act=<brand>&days=30: every order channel in the window with its sales and orders, whether it counts (and
+         whether that is the default rule or the brand's own tick), the left-out tags, and MER before and after.
+         PUT { act, counts: { <channel>: true|false|null }, tags: [..] }: null puts a channel back on the default rule.
+         A tag change re-reads 90 days from Triple Whale (account-health /api/sales-channels/sync), since tags shape the rows. */
+      if (path === '/api/mer-channels') {
+        if (request.method === 'GET') {
+          const act = url.searchParams.get('act');
+          const acct = (await accountsFor(false)).find(a => a.act_id === act);
+          if (!acct) return json({ error: 'unknown account' }, 404);
+          const d = Math.min(120, Math.max(7, Number(url.searchParams.get('days')) || 30));
+          const to = addDays(localDate(acct.tz), -1), from = addDays(to, -(d - 1));
+          const mer = await readMer(env, [act], from, to);
+          const cfg = mer.cfg[act], rows = mer.rows[act] || [];
+          const raw = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(merSettingKey(act)).first().catch(() => null);
+          const t = totals((await seriesFor(env, acct, from, to)).rows);
+          const synced = await env.DB.prepare(`SELECT MAX(synced_at) AS at, MIN(day) AS first FROM p_sales_channel WHERE act_id = ?1`).bind(act).first().catch(() => null);
+          return json({ act, from, to, days: d, kinds: MER_KINDS, tags: cfg.tags, set: !!raw?.value,
+            channels: channelSummary(rows, cfg).map(c => ({ ...c, own: typeof cfg.counts[c.key] === 'boolean' })),
+            sales: t.sales, mer_sales: t.mer_sales, spend: t.spend,
+            mer_all: t.spend ? t.sales / t.spend : null, mer: t.mer, synced_at: synced?.at || null, first_day: synced?.first || null });
+        }
+        if (request.method === 'PUT') {
+          const b = await request.json().catch(() => ({}));
+          const acct = (await accountsFor(false)).find(a => a.act_id === b.act);
+          if (!acct) return json({ error: 'unknown account' }, 404);
+          const key = merSettingKey(acct.act_id);
+          const prev = merConfig((await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(key).first().catch(() => null))?.value);
+          const next = { counts: { ...prev.counts }, tags: prev.tags };
+          for (const [k, v] of Object.entries(b.counts || {})) {
+            if (v === null) delete next.counts[k]; else if (typeof v === 'boolean') next.counts[String(k).slice(0, 80)] = v;
+          }
+          if (Array.isArray(b.tags)) next.tags = merConfig({ tags: b.tags }).tags;
+          await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+            .bind(key, JSON.stringify(next)).run();
+          let resync = null;
+          if (next.tags.join('|') !== prev.tags.join('|') && env.AUTH) {
+            const r = await env.AUTH.fetch(new Request(`https://ah/api/sales-channels/sync?act=${encodeURIComponent(acct.act_id)}&days=90`,
+              { method: 'POST', headers: { Authorization: request.headers.get('Authorization') || '' } })).catch(e => ({ ok: false, statusText: e.message }));
+            resync = r.ok ? await r.json().catch(() => ({ ok: true })) : { error: r.statusText || 'sync failed' };
+          }
+          return json({ ok: true, act: acct.act_id, ...next, resync });
         }
         return json({ error: 'GET or PUT' }, 405);
       }

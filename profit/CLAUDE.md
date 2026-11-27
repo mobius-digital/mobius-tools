@@ -4974,3 +4974,26 @@ team presses Reopen.
   styles it `display:flex`; it broke the table's group header row, hence `.ag-grp`).
 - Checked on a scratch page loading index.html's styles + v2.js + agency.js with the test's JSON stubbed in (deleted):
   1440 and 375, no sideways scroll, the sheet, a rating saved (the POST body). Not checked signed in on the live site.
+
+## 2026-11-27: Sales that count toward MER (merchannels.js)
+
+- **Why.** Brands' 3PLs ship only from Shopify, so Amazon, Whatnot and wholesale orders sit in Shopify at real prices.
+  Ads do not drive them; counting them flattered MER (Bonk ~37% of 30-day sales were Amazon orders synced in).
+  Cole 2026-11-27: MER = (website + social shops) / all ad spend; marketplaces and live selling never in MER;
+  per-platform ROAS unchanged. Locus is sold to agencies, so it is a default rule plus a per-brand setting.
+- **Rule (code, `worker/src/merchannels.js`):** storefront, Shop app, Facebook and Instagram shop, TikTok Shop,
+  subscription renewals and staff draft orders count; Amazon, eBay, Walmart, Etsy, Whatnot, Faire, Shopify Collective,
+  wholesale, POS and orders tagged `wholesale` do not. An unknown app id counts until someone unticks it.
+- **Setting:** `settings.merChannels:<brand>` = { counts: { channel: bool }, tags: [...] }. Brand settings > Goals >
+  "Sales that count toward MER" (v5 goals.js) shows every channel's last-30-day sales with a tick, MER both ways, and
+  saves through the confirm sheet. Route: profit `GET/PUT /api/mer-channels`.
+- **Data:** `p_sales_channel` (act_id, day, channel, sales, orders), Shopify orders only (platform 'shopify'; an Amazon
+  or TikTok store Triple Whale reads directly was never in store sales), synced by account-health salesChannelTick
+  from Triple Whale orders_table; `POST /api/sales-channels/sync?act=&days=` on account-health backfills.
+- **Only MER and aMER change.** Store sales, orders, AOV, P&L and CM stay whole-store. storeSwitchMany puts the
+  left-out sales per day in the pivot as `merExcluded`; dayEconomics adds `mer_sales` / `mer_new_rev` (new-customer
+  sales scaled by the same cut) and `mer`/`amer` divide those; totals() sums them. Any screen computing MER divides
+  `mer_sales ?? sales`, never `sales`. Live hourly numbers (War Room ladder) have no channel split: they use the
+  brand's counted share of the last 7 days (season.js shareOf). Plan / goal MER (goal sales / goal spend) is the
+  plan's own arithmetic and is untouched.
+- Tests: `node test-merchannels.mjs`; test-costs strips mer_sales after asserting it equals sales with no channel rows.

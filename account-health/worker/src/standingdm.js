@@ -35,18 +35,20 @@ const brandSource = b => (onShopify(b) ? 'Shopify for whole days, Triple Whale t
 function totals(rec) {
   const ok = rec.brands.filter(b => !b.no_sales && b.so_far && b.so_far.sales != null), live = ok.filter(b => counted(rec, b));
   const s = live.reduce((t, b) => t + b.so_far.sales, 0), p = live.reduce((t, b) => t + b.so_far.spend, 0), g = ok.reduce((t, b) => t + (b.goal || 0), 0);
-  return { s, p, g, mer: p ? s / p : null };
+  /* MER on the sales each brand counts toward MER (mer_sales from the standing, 2026-11-27); sales stay whole. */
+  const ms = live.reduce((t, b) => t + (b.so_far.mer_sales ?? b.so_far.sales), 0);
+  return { s, p, g, ms, mer: p ? ms / p : null };
 }
 /** What moved since the previous check-in of the same run (live or dry). */
 function since(rec, prev) {
   if (!prev || !prev.brands || prev.slot >= rec.slot || !!prev.dry !== !!rec.dry) return null;
-  const a = totals(rec), b = totals(prev), ds = a.s - b.s, dp = a.p - b.p;
+  const a = totals(rec), b = totals(prev), ds = a.s - b.s, dp = a.p - b.p, dm = a.ms - b.ms;
   const per = {};
   for (const r of rec.brands) {
     const o = prev.brands.find(z => z.act_id === r.act_id); if (!o || !o.so_far || !r.so_far) continue;
     per[r.act_id] = { sales: (r.so_far.sales || 0) - (o.so_far.sales || 0), spend: (r.so_far.spend || 0) - (o.so_far.spend || 0) };
   }
-  return { label: hourOf(prev.slot), sales: ds, spend: dp, mer: dp > 0 ? ds / dp : null, per };
+  return { label: hourOf(prev.slot), sales: ds, spend: dp, mer: dp > 0 ? dm / dp : null, per };
 }
 const sorted = rec => [...rec.brands].sort((a, b) => (ORDER[(a.suggest || {}).call] ?? 2) - (ORDER[(b.suggest || {}).call] ?? 2));
 const needs = rec => sorted(rec).filter(b => (b.suggest || {}).to && !(rec.approved || {})[b.act_id]);

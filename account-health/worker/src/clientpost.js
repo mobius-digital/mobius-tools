@@ -105,7 +105,7 @@ export function dailyPost({ brand, date, currency = 'USD', day = {}, month = {},
     L.push('', `*${mName} so far* (${dom}${month.days_in_month ? ` of ${month.days_in_month}` : ''} days)`,
       `• Sales: *${shortMoney(month.sales, currency)}*${month.plan > 0 ? ` of ${shortMoney(month.plan, currency)} goal` : ''}`);
     if (month.spend != null) L.push(`• Ad spend: *${shortMoney(month.spend, currency)}*`);
-    if (month.spend > 0) L.push(`• MER: *${x(month.sales / month.spend)}*`);
+    if (month.spend > 0) L.push(`• MER: *${x((month.mer_sales ?? month.sales) / month.spend)}*`);   // counted sales (merchannels.js)
     if (amazon?.month?.orders > 0) L.push(`• Amazon: *${shortMoney(amazon.month.sales, currency)}* (${amazon.month.orders} orders)`);
   }
   if (goal_set === false) L.push(`• ${noGoalLine(month.ym || date.slice(0, 7))}`);
@@ -226,8 +226,11 @@ export const sameDaily = (a, b) => {
 export function dailyCard({ brand, date, currency = 'USD', day = {}, month = {}, others = [], next = null, amazon = null, goal_set = true, today = null, thread = true, at: when = null, now = null, store = null, store_label = null }) {
   const ym = month.ym || date.slice(0, 7);
   const goalOn = goal_set !== false && (day.plan > 0 || month.plan > 0);
-  const mer = month.spend > 0 && has(month.sales) ? month.sales / month.spend : null;
-  const amer = month.spend > 0 && has(month.new_rev) ? month.new_rev / month.spend : null;
+  /* MER and aMER on the sales the brand counts toward MER (2026-11-27, profit merchannels.js): Amazon, Whatnot and
+     wholesale are left out by default, so an Amazon brand's MER sits under sales / spend. Sales stay whole. */
+  const merSales = month.mer_sales ?? month.sales, merNew = month.mer_new_rev ?? month.new_rev;
+  const mer = month.spend > 0 && has(merSales) ? merSales / month.spend : null;
+  const amer = month.spend > 0 && has(merNew) ? merNew / month.spend : null;
   const rows = [
     ['Sales', has(day.sales) ? money(day.sales, currency) : null, has(month.sales) ? shortMoney(month.sales, currency) : null],
     ...(goalOn ? [['Goal', day.plan > 0 ? money(day.plan, currency) : null, month.plan > 0 ? shortMoney(month.plan, currency) : null]] : []),

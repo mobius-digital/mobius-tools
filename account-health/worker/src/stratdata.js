@@ -43,7 +43,7 @@ orders_table (one row per order): event_date, order_id, order_name, customer_id,
 Line items: ARRAY JOIN products_info AS p, then p.product_name, p.product_type, p.product_name_quantity_sold, p.product_name_price, p.single_product_cost.
 AOV = sum(order_revenue - shipping_price - taxes) / uniq(order_id). Exclude $0 orders (order_revenue > 0) unless asked.
 SALES are always net of tax, the way every Locus screen shows them: sum(order_revenue - taxes) (shipping stays in). Never quote order_revenue as sales.
-AMAZON: orders with source_name = 'amazon' are inside every whole-store total unless you filter them out; every store number you quote says which ("Amazon included" or "website only").
+AMAZON: orders with source_name = 'amazon' are inside every whole-store total unless you filter them out; every store number you quote says which ("Amazon included" or "website only"). MER counts only the brand's MER channels (Brand settings > Goals > Sales that count toward MER): Amazon, Whatnot (source_name 'whatnot' or its app ids), eBay, Faire, wholesale and point of sale are left out by default, so a MER worked out here takes those orders off sales first and says so.
 OFFERS: for any question about an offer, a giveaway or a sale, also read discount_code use for its window: name every code that came with it (a free gift code, a bundle code), not only the headline one.
 Examples:
  units per order: SELECT avg(product_quantity_sold_in_order) AS units, uniq(order_id) AS orders FROM orders_table WHERE event_date BETWEEN @startDate AND @endDate AND order_revenue > 0

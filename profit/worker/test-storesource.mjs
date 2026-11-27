@@ -139,7 +139,7 @@ await ok('storeDaily: daily totals from the source it picks, with the label', as
   for (const r of range(1, 3)) ins.run(...cols.map(c => r[c]));
   const b = await storeDaily({ DB }, { act_id: ACT, tz: TZ }, day(3), day(1), { now: NOW });
   assert.equal(b.store_source, 'shopify'); assert.equal(b.store_label, 'Store numbers: Shopify');
-  assert.deepEqual(b.days[0], { date: day(3), sales: 1080, total_sales: 1140, tax: 60, shipping: 80, refunds: 50, orders: 10, new_orders: 4 });
+  assert.deepEqual(b.days[0], { date: day(3), sales: 1080, mer_sales: 1080, total_sales: 1140, tax: 60, shipping: 80, refunds: 50, orders: 10, new_orders: 4 });
 });
 
 await ok('client daily: the gray line names only the store source, never our sync status; an edit check ignores that line', () => {

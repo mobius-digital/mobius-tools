@@ -49,7 +49,9 @@ function sums(rec) {
   const ok = rec.brands.filter(b => !b.no_sales && b.so_far && b.so_far.sales != null);
   const live = ok.filter(b => counted(rec, b));
   const s = live.reduce((t, b) => t + b.so_far.sales, 0), p = live.reduce((t, b) => t + b.so_far.spend, 0), g = ok.reduce((t, b) => t + (b.goal || 0), 0);
-  return { s, p, g, mer: p ? s / p : null };
+  /* MER on the sales each brand counts toward MER (mer_sales from the standing, 2026-11-27); sales stay whole. */
+  const ms = live.reduce((t, b) => t + (b.so_far.mer_sales ?? b.so_far.sales), 0);
+  return { s, p, g, mer: p ? ms / p : null };
 }
 
 /** Every brand: totals on top, then one row per brand (sales vs goal bar, MER so far, last 6h, budget, the call). */
@@ -271,7 +273,9 @@ export function sinceWin(rec, b) {
   if (!p || !p.today || !t || String(p.slot || '').split('T')[0] !== String(rec.slot || '').split('T')[0]) return null;
   const d = k => t[k] == null || p.today[k] == null ? null : Math.max(0, t[k] - p.today[k]);
   const sales = d('sales'), spend = d('spend');
-  return { label: `Since ${hourOf(p.slot)}`, p: { sales, spend, mer: sales != null && spend > 0 ? sales / spend : null } };
+  /* MER on counted sales (mer_sales, 2026-11-27) when both check-ins carry them, else whole-store as before. */
+  const ms = t.mer_sales != null && p.today.mer_sales != null ? Math.max(0, t.mer_sales - p.today.mer_sales) : sales;
+  return { label: `Since ${hourOf(p.slot)}`, p: { sales, spend, mer: ms != null && spend > 0 ? ms / spend : null } };
 }
 /* Client card colors (War Room 2.7): the Slack update's TIER green, gray and yellow, three words, no break-even. */
 const CT = { up: ['#2EB67D', '#1E8A5C', 'Above goal'], near: ['#A3ADBF', C.dim, 'Around goal'], down: ['#ECB22E', C.yellow, 'Under goal'] };

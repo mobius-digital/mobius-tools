@@ -16,6 +16,7 @@
 export const SEASON = '2026';
 export const BF = '2026-11-27';
 
+import { merShare } from './merchannels.js';
 const addDays = (iso, n) => { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const safeJson = (s, fb) => { try { return s ? JSON.parse(s) : fb; } catch { return fb; } };
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), {
@@ -190,7 +191,8 @@ export async function seasonData(env, accounts, { series } = {}) {
           const { rows } = await series(a, p.start, to);
           const sum = k => rows.reduce((s, r) => s + (+r[k] || 0), 0);
           const sales = sum('sales'), spend = sum('spend'), orders = sum('orders');
-          p.results = { from: p.start, to, days: rows.length, sales, spend, orders, mer: spend > 0 ? sales / spend : null, goal: p.goal_key ? goals[p.goal_key] : null };
+          const merSales = rows.reduce((t, r) => t + (+(r.mer_sales ?? r.sales) || 0), 0);   // counted sales (merchannels.js)
+          p.results = { from: p.start, to, days: rows.length, sales, mer_sales: merSales, spend, orders, mer: spend > 0 ? merSales / spend : null, goal: p.goal_key ? goals[p.goal_key] : null };
         } catch { p.results = null; }
       }
     }
@@ -204,15 +206,24 @@ export async function seasonData(env, accounts, { series } = {}) {
 /* ---------- live numbers for the desk ---------- */
 /** From one day's hourly shape (blended revenue and spend by hour), today so far and the
  *  trailing three hours with data. That is what the ladder grades, the way the 2025 sheet did. */
-export function liveFrom(hours, asOf) {
+export function liveFrom(hours, asOf, share = 1) {
   const h = (hours || []).map(x => ({ sales: +x.sales || 0, spend: +x.spend || 0 }));
   const sum = arr => arr.reduce((o, x) => ({ sales: o.sales + x.sales, spend: o.spend + x.spend }), { sales: 0, spend: 0 });
   let last = -1;
   for (let i = h.length - 1; i >= 0; i--) if (h[i].sales > 0 || h[i].spend > 0) { last = i; break; }
   const day = sum(h);
   const l3 = last >= 0 ? sum(h.slice(Math.max(0, last - 2), last + 1)) : { sales: 0, spend: 0 };
-  const mer = x => x.spend > 0 ? x.sales / x.spend : null;
+  /* MER on counted sales (merchannels.js): hourly sales have no channel split, so `share` (the brand's counted share
+     of sales over the last 7 days, 1 when nothing is left out) stands in. Sales shown stay whole-store. */
+  const k = share > 0 && share <= 1 ? share : 1;
+  const mer = x => x.spend > 0 ? x.sales * k / x.spend : null;
   return { today: { ...day, mer: mer(day) }, last3: { ...l3, mer: mer(l3), from: Math.max(0, last - 2), to: last }, as_of: asOf || null, hours_with_data: last + 1 };
+}
+
+/** The brand's counted share of sales over the 7 days before `today` (merchannels.js countedShare): live hourly sales
+ *  carry no channel split, so the ladder's MER takes the recent mix. 1 when no channel is left out or nothing synced. */
+async function shareOf(env, act, today) {
+  return merShare(env, act, addDays(today, -7), addDays(today, -1)).catch(() => 1);
 }
 
 /* ---------- THE WAR ROOM (2026-10-09, Triple Whale's BFCM Command Center done in Locus) ----------
@@ -323,11 +334,12 @@ async function warBaseline(env, a, win, { series, channels, titles }) {
   if (!series) return out;
   let s; try { s = await series(a, win.from, win.to); } catch (e) { out.error = e.message; return out; }
   const rows = s.rows || [];
-  out.days = rows.map(r => ({ date: r.date, sales: r.sales, orders: r.orders, aov: r.orders > 0 && r.sales != null ? r.sales / r.orders : null, spend: r.spend,
+  out.days = rows.map(r => ({ date: r.date, sales: r.sales, mer_sales: r.mer_sales ?? null, orders: r.orders, aov: r.orders > 0 && r.sales != null ? r.sales / r.orders : null, spend: r.spend,
     mer: r.mer, meta_spend: r.meta_spend, google_spend: r.google_spend, email_rev: r.email_rev, new_orders: r.new_orders }));
   const sum = k => rows.reduce((t, r) => t + (+r[k] || 0), 0);
   const sales = sum('sales'), orders = sum('orders'), spend = sum('spend');
-  out.totals = rows.length ? { sales, orders, aov: orders > 0 ? sales / orders : null, spend, mer: spend > 0 ? sales / spend : null, new_orders: sum('new_orders'), days: rows.length } : null;
+  const merSales = rows.reduce((t, r) => t + (+(r.mer_sales ?? r.sales) || 0), 0);   // counted sales (merchannels.js)
+  out.totals = rows.length ? { sales, mer_sales: merSales, orders, aov: orders > 0 ? sales / orders : null, spend, mer: spend > 0 ? merSales / spend : null, new_orders: sum('new_orders'), days: rows.length } : null;
   if (channels && rows.length) out.channels = await channels(a, rows, s.piv || {}, win.from, win.to).catch(() => []);
   /* Top products: orders that carried each product (Triple Whale orders), revenue split evenly across an order's products. */
   const { results } = await env.DB.prepare(`SELECT products_json, total FROM tw_orders WHERE act_id = ?1 AND date >= ?2 AND date <= ?3`).bind(a.act_id, win.from, win.to).all().catch(() => ({ results: [] }));
@@ -369,7 +381,8 @@ async function warLive(env, a, { live, series }, plan, today, sale, bud) {
   const out = {};
   let d; try { d = await live(a); } catch (e) { return { error: e.message || 'Triple Whale did not answer' }; }
   const hours = d.hours || [];
-  const lf = liveFrom(hours, d.as_of);
+  const share = await shareOf(env, a.act_id, today);   // counted share of sales (merchannels.js), for MER only
+  const lf = liveFrom(hours, d.as_of, share);
   const row = d.row || {};
   const sales = lf.today.sales, spend = lf.today.spend, orders = row.orders ?? hours.reduce((t, h) => t + (+h.orders || 0), 0);
   const inSale = today >= sale.start && today <= sale.end;
@@ -385,7 +398,7 @@ async function warLive(env, a, { live, series }, plan, today, sale, bud) {
   const cumAt = h => curve.cum ? curve.cum[Math.min(23, h)] : (h + 1) / 24;
   let cS = 0, cP = 0, cO = 0;
   out.hours = hours.map((h, i) => { cS += h.sales || 0; cP += h.spend || 0; cO += +h.orders || 0;
-    return { hour: i, sales: h.sales || 0, spend: h.spend || 0, orders: +h.orders || 0, cum_sales: cS, cum_spend: cP, cum_orders: cO, plan_cum: dayGoal ? dayGoal * cumAt(i) : null }; });
+    return { hour: i, sales: h.sales || 0, mer_sales: (h.sales || 0) * share, spend: h.spend || 0, orders: +h.orders || 0, cum_sales: cS, cum_spend: cP, cum_orders: cO, plan_cum: dayGoal ? dayGoal * cumAt(i) : null }; });
   out.plan_curve = dayGoal ? Array.from({ length: 24 }, (_, i) => dayGoal * cumAt(i)) : null;
   const last = lf.hours_with_data - 1;
   const planNow = dayGoal && last >= 0 ? dayGoal * cumAt(last) : null;
@@ -455,7 +468,7 @@ async function warAll(env, accounts, today, deps) {
     if (deps.live) {
       try {
         const d = await deps.live({ ...acct, ...a });
-        const lf = liveFrom(d.hours, d.as_of), row = d.row || {};
+        const lf = liveFrom(d.hours, d.as_of, await shareOf(env, a.act_id, today)), row = d.row || {};
         const orders = row.orders ?? (d.hours || []).reduce((t, h) => t + (+h.orders || 0), 0);
         const today = d.no_sales
           /* No TW shop: spend from Meta, sales unknown (null, never 0). */
@@ -546,22 +559,24 @@ async function standingAll(env, accounts, today, deps) {
     try { lv = await deps.live({ ...acct, ...a }); } catch (e) { r.error = e.message || 'Triple Whale did not answer'; }
     const noSales = !!(lv && lv.no_sales);
     const hours = ((lv && lv.hours) || []).map(h => ({ sales: +h.sales || 0, spend: +h.spend || 0 }));
-    const lf = liveFrom(hours, lv && lv.as_of), last = lf.hours_with_data - 1;
+    const share = await shareOf(env, a.act_id, today);   // counted share of sales (merchannels.js), for MER only
+    const lf = liveFrom(hours, lv && lv.as_of, share), last = lf.hours_with_data - 1;
     const six = last >= 0 ? hours.slice(Math.max(0, last - 5), last + 1) : [];
     const sum = (arr, k) => arr.reduce((t, h) => t + (+h[k] || 0), 0);
     r.today = { sales: noSales ? null : lf.today.sales, spend: lf.today.spend, mer: noSales ? null : lf.today.mer };
     r.last6 = { hours: six.length, sales: noSales ? null : sum(six, 'sales'), spend: sum(six, 'spend') };
-    r.last6.mer = !noSales && r.last6.spend > 0 ? r.last6.sales / r.last6.spend : null;
+    r.last6.mer = !noSales && r.last6.spend > 0 ? r.last6.sales * share / r.last6.spend : null;
     /* The sale so far: finished sale days from the P&L line (Triple Whale), plus today live while the sale runs. */
-    let prev = { sales: 0, spend: 0, days: 0, new_rev: 0, new_orders: 0, new_ok: true };
+    let prev = { sales: 0, mer_sales: 0, spend: 0, days: 0, new_rev: 0, new_orders: 0, new_ok: true };
     const to = mode === 'after' ? sale.end : addDays(today, -1);
     if (mode !== 'plan' && to >= sale.start && deps.series) {
       try { const s = await deps.series({ ...acct, ...a }, sale.start, to); const rr = s.rows || [];
-        prev = { sales: rr.reduce((t, x) => t + (+x.sales || 0), 0), spend: rr.reduce((t, x) => t + (+x.spend || 0), 0), days: rr.length,
+        prev = { sales: rr.reduce((t, x) => t + (+x.sales || 0), 0), mer_sales: rr.reduce((t, x) => t + (+(x.mer_sales ?? x.sales) || 0), 0), spend: rr.reduce((t, x) => t + (+x.spend || 0), 0), days: rr.length,
           new_rev: rr.reduce((t, x) => t + (+x.new_rev || 0), 0), new_orders: rr.reduce((t, x) => t + (+x.new_orders || 0), 0), new_ok: rr.every(x => x.new_rev != null) }; } catch (e) { r.series_error = e.message; }
     }
     const withToday = mode !== 'after', tS = withToday ? (r.today.sales || 0) : 0, tP = withToday ? (r.today.spend || 0) : 0;
     const sales = noSales ? null : prev.sales + tS, spend = prev.spend + tP;
+    const merSales = noSales ? null : prev.mer_sales + tS * share;
     /* New customers: Triple Whale's new-customer revenue (paid orders), less the share whose first order came from email
        or SMS (finished sale days, else the last 14 days, from tw_orders). */
     const lr = withToday ? (lv && lv.row) || {} : { new_rev: 0, new_orders: 0 };
@@ -573,15 +588,15 @@ async function standingAll(env, accounts, today, deps) {
       try { es = await emailShareNew(env, a.act_id, started ? sale.start : addDays(today, -14), started ? to : addDays(today, -1)); } catch (e) { r.email_error = e.message; }
     }
     const adj = newRev != null ? newRev * (1 - (es ? es.share : 0)) : null;
-    r.so_far = { from: mode === 'plan' ? today : sale.start, days: prev.days + (withToday ? 1 : 0), sales, spend, mer: sales != null && spend > 0 ? sales / spend : null, pct_goal: sales != null && cfg.goal ? sales / cfg.goal : null,
+    r.so_far = { from: mode === 'plan' ? today : sale.start, days: prev.days + (withToday ? 1 : 0), sales, mer_sales: merSales, spend, mer: merSales != null && spend > 0 ? merSales / spend : null, pct_goal: sales != null && cfg.goal ? sales / cfg.goal : null,
       new_rev_all: newRev, new_rev: adj, new_orders: newOrders, email_share_new: es ? es.share : null, new_mer: adj != null && spend > 0 ? adj / spend : null };
     /* Week so far (Monday to now) for the client update (Cole 2026-11-24: "week so far, day so far, last 6 hours"). */
     if (!noSales && deps.series) {
       const dow = new Date(today + 'T12:00:00Z').getUTCDay(), mon = addDays(today, -((dow + 6) % 7));
-      let ws = 0, wp = 0;
-      if (mon < today) { try { const s = await deps.series({ ...acct, ...a }, mon, addDays(today, -1)); for (const x of s.rows || []) { ws += +x.sales || 0; wp += +x.spend || 0; } } catch (e) { r.week_error = e.message; } }
-      ws += r.today.sales || 0; wp += r.today.spend || 0;
-      r.week = { from: mon, sales: ws, spend: wp, mer: wp > 0 ? ws / wp : null };
+      let ws = 0, wp = 0, wm = 0;
+      if (mon < today) { try { const s = await deps.series({ ...acct, ...a }, mon, addDays(today, -1)); for (const x of s.rows || []) { ws += +x.sales || 0; wm += +(x.mer_sales ?? x.sales) || 0; wp += +x.spend || 0; } } catch (e) { r.week_error = e.message; } }
+      ws += r.today.sales || 0; wm += (r.today.sales || 0) * share; wp += r.today.spend || 0;
+      r.week = { from: mon, sales: ws, mer_sales: wm, spend: wp, mer: wp > 0 ? wm / wp : null };
     }
     r.be_new = cfg.be_new || null;
     r.no_sales = noSales ? 1 : 0; r.as_of = (lv && lv.as_of) || null;
@@ -625,7 +640,7 @@ export async function handleSeason({ path, request, env, accountsFor, email, ser
     if (!live) return json({ error: 'live numbers are not wired' }, 500);
     try {
       const d = await live(acct);
-      const lf = liveFrom(d.hours, d.as_of);
+      const lf = liveFrom(d.hours, d.as_of, await shareOf(env, acct.act_id, todayCentral()));
       /* No TW shop: sales unknown, so no MER (a $0 sales day must never grade as a cut). */
       if (d.no_sales) { lf.today = { ...lf.today, sales: null, mer: null }; lf.last3 = { ...lf.last3, sales: null, mer: null }; lf.no_sales = 1; }
       return json({ ok: true, act: acct.act_id, date: d.date, spend_src: d.spend_src || null, ...lf });

@@ -6,12 +6,16 @@
    on the team (brandguard clientAudit).
    WRITES SWITCHED ON (each behind the confirm sheet in _set.js, with its own error state):
      the goal ROAS and the goal cost the person types   account-health PUT /api/accounts/<brand id> { target_roas } / { target_cpa }
-     the test and call rules for this brand             profit PUT /api/brand/rules?act=<brand id> { rules: { <name>: <number> } } */
+     the test and call rules for this brand             profit PUT /api/brand/rules?act=<brand id> { rules: { <name>: <number> } }
+     which sales count toward MER (2026-11-27)          profit PUT /api/mer-channels { act, counts: { <channel>: bool | null } } / { act, tags }
+   SALES THAT COUNT TOWARD MER (profit worker src/merchannels.js): every Shopify order source of the last 30 days with
+   its sales, ticked when it counts. The agency rule ticks the website and social shops and leaves Amazon, Whatnot,
+   wholesale and in-person sales out; a tick that matches the rule is saved as "follow the rule" (null). */
 
 import { put } from '../../kit.js';
-import { h, hero, card, gauge, takeaway, kpis, kpi, statusDot, money, x, pct, em, empty, platformChip, addStyles } from '../../kit.js';
+import { h, hero, card, gauge, takeaway, kpis, kpi, statusDot, money, x, pct, em, empty, platformChip, addStyles, toggle } from '../../kit.js';
 import { AI_NAME, APP_NAME } from '../../config.js';
-import { css, stage, saveBar, numBox, seg, exampleChip, fold, say, setHelp } from './_set.js';
+import { css, stage, saveBar, numBox, textBox, seg, exampleChip, fold, say, setHelp } from './_set.js';
 import { defLabel } from '../../defs.js';
 
 /* hover definitions this page needs that the shared glossary does not have. Only the terms that are not obvious
@@ -61,6 +65,21 @@ function draw(el, data, ctx) {
     if (R) liveNow[rk(n)] = R[n] ?? null;
     if (R && !ctx.sample && ctx.brand) savers[rk(n)] = v => ctx.api('/api/brand/rules?act=' + encodeURIComponent(ctx.brand.id), { method: 'PUT', body: { rules: { [n]: v == null || !isFinite(v) || v < 0 ? 0 : +v } } });
   }
+  /* Sales that count toward MER: one staged key per channel (true / false) and one for the left-out tags. */
+  const MC = data.merch && !data.merch.error && Array.isArray(data.merch.channels) ? data.merch : null;
+  const mk = ch => 'brand:' + id + '.merch.' + ch, tagKey = 'brand:' + id + '.mer_tags';
+  const canSave = !ctx.sample && !!ctx.brand;
+  const merPut = body => ctx.api('/api/mer-channels', { method: 'PUT', body: { act: ctx.brand.id, ...body } });
+  if (MC) {
+    for (const c of MC.channels) {
+      liveNow[mk(c.key)] = !!c.counts;
+      names[mk(c.key)] = 'Count ' + c.label + ' toward MER';
+      if (canSave) savers[mk(c.key)] = v => merPut({ counts: { [c.key]: !!v === !!c.default ? null : !!v } });
+    }
+    liveNow[tagKey] = (MC.tags || []).join(', ');
+    names[tagKey] = 'Order tags left out of MER';
+    if (canSave) savers[tagKey] = v => merPut({ tags: String(v || '').split(',').map(t => t.trim()).filter(Boolean) });
+  }
   const S = stage(ctx, { live: liveNow, savers, names });
   const mine = n => S.has(key(n));                   // a fact the person has not typed (and the server did not give) is still the example
   const read =() => ({ keep: S.get(key('keep'), inp.keep_pct), fixed: S.get(key('fixed'), inp.fixed_costs), goal: S.get(key('sales'), inp.sales_goal),
@@ -68,7 +87,9 @@ function draw(el, data, ctx) {
 
   /* the hero: MER now, on a track from break-even to goal */
   const top = h('div'), outs = h('div', { class: 'lx-st-rows' }), steps = h('div', { class: 'lx-gl-in' });
-  const mer = data.mtd && ok(data.mtd.spend) && data.mtd.sales != null ? data.mtd.sales / data.mtd.spend : null;
+  /* MER on the sales that count (merchannels.js): mer_sales, whole-store sales only when the server sent none */
+  const merSales = data.mtd ? data.mtd.mer_sales ?? data.mtd.sales : null;
+  const mer = data.mtd && ok(data.mtd.spend) && merSales != null ? merSales / data.mtd.spend : null;
 
   const paintTop = () => {
     const v = read(), w = workOut(v);
@@ -83,7 +104,7 @@ function draw(el, data, ctx) {
     put(top, hero({ line: true },
       h('div', { class: 'lx-gl-top' },
         h('span', { class: 'lx-hero-num' }, x(mer)), h('span', { class: 'lab' }, defLabel('Store MER', 'mer'), ', ' + (data.mtd.dates || monthDates())), statusDot(tone, word),
-        h('span', { class: 'lx-sp' }), h('span', { class: 'src' }, 'store sales ' + money(data.mtd.sales) + ' / all ad spend ' + money(data.mtd.spend) + ' · Triple Whale')),
+        h('span', { class: 'lx-sp' }), h('span', { class: 'src' }, 'sales that count ' + money(merSales) + ' / all ad spend ' + money(data.mtd.spend) + ' · Triple Whale')),
       gauge({ value: mer, max, goal: goalNow || undefined, tone, ticks: [
         w.be && { at: w.be, text: 'Break-even ' + x(w.be) }, far(mer, [w.be, goalNow], max) && { at: mer, text: 'Now ' + x(mer), on: true }, goalNow && { at: goalNow, text: 'Goal ' + x(goalNow) }].filter(Boolean) }),
       /* the gauge already shows now, break-even and goal: a line only when it adds something the gauge does not */
@@ -160,12 +181,43 @@ function draw(el, data, ctx) {
   /* after a save the goal cells read "in use today" again */
   S.onChange(k2 => { if (k2 === null) { roasCell.bits(); cpaCell.bits(); } });
 
+  /* the channels card: tick what counts, and see MER both ways for the last 30 days, live as you tick */
+  const merSum = h('div', { class: 'lx-mc-sum' });
+  const paintMer = () => {
+    if (!MC) return;
+    const out = MC.channels.filter(c => !S.get(mk(c.key), c.counts)).reduce((t, c) => t + (+c.sales || 0), 0);
+    const all = MC.channels.reduce((t, c) => t + (+c.sales || 0), 0);
+    const whole = ok(MC.spend) && MC.sales != null ? MC.sales / MC.spend : null;
+    /* store sales minus what is ticked out: the same arithmetic the server does day by day */
+    const counted = ok(MC.spend) && MC.sales != null ? Math.max(0, MC.sales - out) / MC.spend : null;
+    put(merSum,
+      h('div', null, h('span', { class: 'lab' }, 'MER, last ' + MC.days + ' days'), h('b', null, x(counted)), h('small', null, 'counting the ticked channels')),
+      h('div', null, h('span', { class: 'lab' }, 'If every sale counted'), h('b', { class: 'dim' }, x(whole)), h('small', null, 'all Shopify sales')),
+      h('div', null, h('span', { class: 'lab' }, 'Left out'), h('b', { class: 'dim' }, money(Math.round(out))), h('small', null, all > 0 ? pct(out / all) + ' of sales in the window' : 'nothing yet')));
+  };
+  const KIND = MC ? MC.kinds || {} : {};
+  const merCard = !MC ? null : card({ title: 'Sales that count toward MER', note: MC.set ? 'Set for this brand' : 'Agency rule' },
+    h('p', { class: 'lx-st-say' }, "MER is the sales ads drive divided by all ad spend. Your website and social shops count. Amazon, Whatnot, wholesale and in-person sales sit in Shopify too, but ads do not drive them, so they are left out unless you tick them. Store sales, orders and profit still count every sale, and each platform's ROAS is unchanged."),
+    MC.channels.length ? h('div', { class: 'lx-mc' },
+      h('div', { class: 'lx-mc-row head' }, h('div', null, 'Counts'), h('div', null, 'Channel'), h('div', { class: 'n' }, 'Sales, ' + MC.days + ' days'), h('div', { class: 'n' }, 'Orders')),
+      ...MC.channels.map(c => h('div', { class: 'lx-mc-row' + (c.unnamed ? ' unnamed' : '') },
+        h('div', { 'data-key': mk(c.key) }, toggle({ checked: S.get(mk(c.key), c.counts), ariaLabel: 'Count ' + c.label + ' toward MER', disabled: !canSave,
+          onchange: v => { S.set(mk(c.key), v); paintMer(); } })),
+        h('div', null, h('b', null, c.label), h('small', null, (KIND[c.kind] ? KIND[c.kind].label : 'Other') + (c.own ? ', set for this brand' : ', agency rule') + (c.unnamed ? '. Locus does not know this app: untick it if ads do not drive it.' : ''))),
+        h('div', { class: 'n' }, money(Math.round(c.sales))), h('div', { class: 'n' }, String(c.orders)))))
+      : empty({ title: 'No order channels read yet', text: "Locus reads each order's channel from Triple Whale once an hour. Until it has, MER counts every sale." }),
+    h('div', { class: 'lx-mc-tags' }, h('span', null, 'Also leave out orders tagged'), textBox(S, tagKey, liveNow[tagKey], { placeholder: 'wholesale', width: 220, label: 'Order tags left out of MER' }),
+      h('small', null, 'Comma separated, as tagged in Shopify. A change re-reads the last 90 days.')),
+    merSum);
+  S.onChange(k2 => { if (k2 === null || (k2 && k2.startsWith('brand:' + id + '.merch.'))) paintMer(); });
+  paintMer();
+
   paintTop(); paintOut();
   put(el, h('div', { class: 'lx-st' },
     saveBar(S, ctx, { label: 'Save goals', note: data.saved ? 'Saved ' + data.saved.at + ' by ' + data.saved.by + '.' : undefined, help: setHelp({
       about: 'You give ' + APP_NAME + ' four facts about the brand and it works out break-even and the goals from them, live as you type. Save shows every change first, then writes the goal ROAS, the goal cost and the rules for everyone.' + (ctx.isClient ? ' Changes you make are logged and your team is told.' : ' A change a client makes is logged and the team gets a bell note.'),
       sections: [
-        { title: 'Store MER and ROAS', text: 'Store MER is the whole store: all sales divided by all ad spend. ROAS is one platform or campaign: the sales Triple Whale credits to it, divided by its own spend. Hover or tap any dotted label for its meaning.' },
+        { title: 'Store MER and ROAS', text: 'Store MER is the sales that count (your website and social shops; Amazon, Whatnot and wholesale left out unless ticked) divided by all ad spend. ROAS is one platform or campaign: the sales Triple Whale credits to it, divided by its own spend. Hover or tap any dotted label for its meaning.' },
         { title: 'The four facts', text: 'What an order keeps is the share of each sales dollar left after product cost, postage and payment fees, before any ad spend (the margin). Left after ads is the cents of each sales dollar you want to keep once ads are paid: more cents left means a higher goal MER and less spend on new customers.' },
         { title: 'What ' + APP_NAME + ' reads itself', text: 'Order size is store sales divided by orders, paying orders only ($0 and creator sample orders left out). First order size is the same for a new customer\'s first order. Order again is the share of new customers who order a second time within 90 days. Returning sales is the share of store sales from customers who had ordered before.' },
       ],
@@ -177,6 +229,7 @@ function draw(el, data, ctx) {
         ['Months', 'Calendar months', 'Goals, pace and plans are all kept by calendar month.'],
       ] }) }),
     top,
+    merCard,
     card({ title: 'What you tell ' + APP_NAME, note: ex.has('inputs') ? exampleChip() : '4 facts' }, steps),
     card({ title: 'What ' + APP_NAME + ' works out', note: 'Each number shows its working. A number set by hand never wins silently.', flush: true, class: 'lx-st-card' }, outs),
     factList.length ? card({ title: APP_NAME + ' reads these itself', note: ex.has('facts') ? exampleChip() : 'Facts from the store and Triple Whale, not settings.' }, h('div', { class: 'lx-gl-facts' }, kpis(factList.map(kpi), { cols: factList.length }))) : null,
@@ -219,6 +272,20 @@ addStyles('lx-goals-css', `
 .lx-gl-out .u .lx-st-box{height:34px}
 .lx-gl-out .u .lx-btn{height:28px;padding:0 10px;font-size:12.5px}
 .lx-gl-out .u b{font-size:15px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.lx-mc{margin-top:var(--sp-5);border-top:1px solid var(--line)}
+.lx-mc-row{display:grid;grid-template-columns:64px minmax(0,1fr) 120px 80px;gap:6px 18px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.lx-mc-row.head{padding:8px 0;font-size:var(--fs-colhead,11.5px);font-weight:600;color:var(--muted)}
+.lx-mc-row b{display:block;font-size:14px;font-weight:600}
+.lx-mc-row small{display:block;margin-top:2px;font-size:12.5px;line-height:1.4;color:var(--muted)}
+.lx-mc-row .n{text-align:right;font-variant-numeric:tabular-nums}
+.lx-mc-tags{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:var(--sp-5);font-size:13px}
+.lx-mc-tags small{flex-basis:100%;color:var(--muted);font-size:12.5px}
+.lx-mc-sum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--sp-5);margin-top:var(--sp-5)}
+.lx-mc-sum .lab{display:block;font-size:12.5px;color:var(--muted)}
+.lx-mc-sum b{display:block;font-size:var(--num-m);font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.lx-mc-sum b.dim{color:var(--muted)}
+.lx-mc-sum small{font-size:12px;color:var(--muted)}
+@media (max-width:759px){.lx-mc-row{grid-template-columns:56px minmax(0,1fr) auto}.lx-mc-row>div:last-child{display:none}.lx-mc-sum{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:1040px){.lx-gl-in{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:759px){.lx-gl-out.head{display:none}}
 @media (max-width:759px){
@@ -249,19 +316,21 @@ export default {
     if (!ctx.brand) return null;
     const id = encodeURIComponent(ctx.brand.id), soft = p => p.catch(e => { if (e && e.name === 'AbortError') throw e; return null; });
     const now = new Date(), ym = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-    const [brands, plan, rules, fx] = await Promise.all([
+    const [brands, plan, rules, fx, merch] = await Promise.all([
       soft(ctx.api('/api/brands', { worker: 'ah', signal: ctx.signal })),
       soft(ctx.api(`/api/plan?act=${id}&month=${ym}`, { signal: ctx.signal })),
       soft(ctx.api(`/api/brand/rules?act=${id}`, { signal: ctx.signal })),
       soft(ctx.fixture('goals.json')),
+      ctx.sample ? null : soft(ctx.api(`/api/mer-channels?act=${id}&days=30`, { signal: ctx.signal })),
     ]);
     const b = ((brands && brands.brands) || []).find(r => r.id === ctx.brand.id) || {};
     const r = (rules && rules.rules) || {}, g = (plan && plan.goals) || {}, cur = (plan && (plan.current_month || plan.mtd)) || {};
     const example = ['facts', 'inputs'];
     const goal = +g.revenue || +g.sales || +g.revenue_goal || null;
-    const sales = cur.sales ?? cur.revenue ?? null, spend = cur.spend ?? cur.ad_spend ?? null;
+    const sales = cur.sales ?? cur.revenue ?? null, spend = cur.spend ?? cur.ad_spend ?? null, merSales = cur.mer_sales ?? null;
     return {
-      month: monthName(ctx.range.to), mtd: sales != null && spend ? { sales, spend, dates: monthDates() } : null,
+      month: monthName(ctx.range.to), mtd: sales != null && spend ? { sales, mer_sales: merSales, spend, dates: monthDates() } : null,
+      merch: merch || null,
       inputs: { ...(fx ? fx.inputs : {}), ...(goal ? { sales_goal: goal } : {}), ...(+b.margin_pct > 0 ? { keep_pct: Math.round(b.margin_pct * (b.margin_pct <= 1 ? 100 : 1)) } : {}) },
       facts: fx ? fx.facts : {},
       in_use: { target_roas: +b.target_roas || +r.target_roas || null, target_cpa: +b.target_cpa || +r.target_cpa || null, goal_meta: +r.goal_meta || null, goal_google: +r.goal_google || null, goal_tiktok: +r.goal_tiktok || null },

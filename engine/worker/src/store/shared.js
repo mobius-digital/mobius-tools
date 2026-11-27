@@ -37,6 +37,16 @@ export async function shopifyInPlay(ctx, acts) {
   return rows.length > 0 || set.length > 0;
 }
 
+/** Do any of these brands have order channel rows or a MER channel setting (merchannels.js, 2026-11-27)? Then a
+ *  read that shows MER goes to the old worker, where storeSwitchMany cuts MER down to the counted channels.
+ *  Forwarding, not computing here: the cut down day model in economics.js reads no channel rows. */
+export async function merInPlay(ctx, acts) {
+  const why = 'the sales channel table is not there yet, which the old route reads as none';
+  const rows = await soft(ctx.db.all('store.chanAny', { acts }), [], why);
+  const set = await soft(ctx.db.all('store.merSetAny', { acts }), [], why);
+  return rows.length > 0 || set.length > 0;
+}
+
 /** The brand as the old answers show it. */
 export const pubAccount = a => ({ act_id: a.act_id, name: a.name, currency: a.currency, tz: a.tz, tw_shop: a.tw_shop });
 

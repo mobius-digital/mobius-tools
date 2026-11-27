@@ -15,7 +15,7 @@
 
 import { put } from '../../kit.js';
 import { askWhy, helpBar, dl } from '../home/_biz.js';
-import { h, money, pct, x, card, em, takeaway, button, statusDot, pill, gauge, legend, lineChart, table, platformChip, empty, sourceLine } from '../../kit.js';
+import { h, money, pct, x, card, em, takeaway, button, statusDot, pill, gauge, legend, lineChart, table, platformChip, empty, sourceLine, merOf } from '../../kit.js';
 import { ok, asDate, iso, addDays, dayLabel, weekday, monthName, daysIn, span, b, soft, brandFacts, brandGoals, hasSource, pickBrand, noSource, styles, tileRow, tipRows, chartCap, pageStamp, isPhone, TW } from './_m.js';
 
 /** The one line a month with no goal of its own shows (same words as the client daily and the reports). */
@@ -49,8 +49,8 @@ async function load(ctx) {
   const planMer = ok(g.sales) && g.spend > 0 ? g.sales / g.spend : null;
   return {
     month: ym, today, days_in_month: daysIn(ym), source: hasSource(cl),
-    days: rows.map(r => ({ date: r.date, sales: r.sales ?? null, spend: r.spend ?? null, profit: ok(r.cm) ? r.cm : null })),
-    totals: { sales: t.sales ?? null, spend: t.spend ?? null, profit: facts.costsBroken ? null : (t.cm ?? null), meta_spend: t.meta_spend ?? null, google_spend: t.google_spend ?? null },
+    days: rows.map(r => ({ date: r.date, sales: r.sales ?? null, mer_sales: r.mer_sales ?? null, spend: r.spend ?? null, profit: ok(r.cm) ? r.cm : null })),
+    totals: { sales: t.sales ?? null, mer_sales: t.mer_sales ?? null, spend: t.spend ?? null, profit: facts.costsBroken ? null : (t.cm ?? null), meta_spend: t.meta_spend ?? null, google_spend: t.google_spend ?? null },
     profit_withheld: facts.costsBroken,
     goals: ok(g.sales) || ok(g.spend) ? { sales: g.sales ?? null, spend: g.spend ?? null } : null,
     goal_mer: facts.goalRoas || planMer,
@@ -66,7 +66,7 @@ function facts(data) {
   const t = data.totals || {}, g = data.goals || {}, dim = data.days_in_month, days = data.days || [];
   const done = days.length, left = Math.max(0, dim - done), share = dim ? done / dim : 0;
   const planSales = ok(g.sales) ? g.sales * share : null, planSpend = ok(g.spend) ? g.spend * share : null;
-  const mer = t.spend > 0 && ok(t.sales) ? t.sales / t.spend : null;
+  const mer = merOf(t);
   const pace = done && ok(t.sales) ? t.sales / done * dim : null;
   const fc = data.forecast, landing = fc && ok(fc.projected) ? fc.projected : pace;
   return { t, g, dim, days, done, left, planSales, planSpend, mer, landing, fromForecast: !!(fc && ok(fc.projected)) };
@@ -92,7 +92,7 @@ function heroBlock(data, ctx, f) {
     { label: 'Sales', value: money(t.sales), unit: 'money', sub: planSub(t.sales, f.planSales, g.sales), spark: days.map(d => d.sales), href: ctx.href('sales', 'by-day') },
     { label: 'Ad spend', value: money(t.spend), unit: 'money', sub: planSub(t.spend, f.planSpend, g.spend, true), spark: days.map(d => d.spend), href: ctx.href('platforms', 'side-by-side'), source: 'All ad platforms' },
     { label: h('span', null, dl('Store MER', 'mer'), gm ? ', goal ' + x(gm) : ''), value: x(f.mer), sub: merTone ? statusDot(merTone, f.mer >= gm ? 'At goal' : x(gm - f.mer) + ' under goal') : null,
-      spark: days.map(d => (d.spend > 0 && ok(d.sales) ? d.sales / d.spend : null)), sparkFormat: v => x(v) },
+      spark: days.map(d => merOf(d)), sparkFormat: v => x(v) },
     data.profit_withheld
       ? { label: dl('Profit after ads', 'profit_after_ads'), value: 'held back', sub: 'the cost numbers need a check first', href: ctx.href('month', 'profit'), source: TW + ' costs' }
       : { label: dl('Profit after ads', 'profit_after_ads'), value: money(t.profit), unit: 'money', sub: ok(t.profit) && t.sales > 0 ? pct(t.profit / t.sales) + ' of sales' : null, spark: days.map(d => d.profit), href: ctx.href('month', 'profit'), source: TW + ' costs' },
@@ -216,7 +216,7 @@ export default {
     put(el, h('div', { class: 'mo' }, [
       helpBar([
         { title: 'What it is for', text: `Is ${name} on course for its sales goal? The month so far against the plan, where the month is heading, and what each day left needs.` },
-        { title: 'How it is counted', text: 'Sales are store sales less tax (Triple Whale). Store MER is whole store sales over all ad spend. The plan splits evenly across the days of the month, so plan to date is the month goal times the share of days gone.' },
+        { title: 'How it is counted', text: 'Sales are store sales less tax (Triple Whale). Store MER is sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them) over all ad spend. The plan splits evenly across the days of the month, so plan to date is the month goal times the share of days gone.' },
         { title: 'The line on the chart', text: f.fromForecast ? 'On course is the forecast if the rest of the ad budget is spent.' : 'At this pace carries the daily average so far to the end of the month.' },
       ], h('span', { class: 'bz-chip' }, `${name}, day ${f.done} of ${f.dim}`), pageStamp(ctx)),
       heroBlock(data, ctx, f),

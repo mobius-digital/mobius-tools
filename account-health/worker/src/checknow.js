@@ -20,6 +20,7 @@
  * d = { getSetting, putSetting, listAccounts, localDate, localHourFrac, addDays, twSummary, twShift, metaAll,
  *       pickAction, PURCHASE_TYPES, xfetch, subCanAfford }. Nothing here posts or changes anything. */
 import { pulseFor, breezewayFor } from './market.js';
+import { merExcluded, merSalesFor } from './merday.js';
 
 export const NOW_TTL = 10 * 60e3;
 const SHAPE_DAYS = 5;
@@ -97,16 +98,17 @@ export async function twNormal(env, d, acct, from, to) {
     .bind(acct.act_id, from, to, ...TW_METRICS).all().catch(() => ({ results: [] }));
   const by = {};
   for (const r of results || []) (by[r.date] ??= {})[r.metric] = r.value;
-  let n = 0; const t = { revenue: 0, orders: 0, new_customers: 0, spend: 0, nOrders: 0, nNew: 0, nSpend: 0 };
-  for (const x of Object.values(by)) {
+  const ex = await merExcluded(env, acct.act_id, from, to);   // sales left out of MER per day (merday.js, 2026-11-27)
+  let n = 0; const t = { revenue: 0, mer_revenue: 0, orders: 0, new_customers: 0, spend: 0, nOrders: 0, nNew: 0, nSpend: 0 };
+  for (const [date, x] of Object.entries(by)) {
     const sales = x.netSales ?? x.totalSales; if (sales == null) continue;
-    n++; t.revenue += sales - (x.totalNetTaxes || 0);
+    n++; t.revenue += sales - (x.totalNetTaxes || 0); t.mer_revenue += merSalesFor(sales - (x.totalNetTaxes || 0), ex[date]);
     if (x.totalOrders != null) { t.orders += x.totalOrders; t.nOrders++; }
     if (x.newCustomersOrders != null) { t.new_customers += x.newCustomersOrders; t.nNew++; }
     if (x.blendedAds != null) { t.spend += x.blendedAds; t.nSpend++; }
   }
   return { days: n, revenue: n ? t.revenue / n : null, orders: t.nOrders ? t.orders / t.nOrders : null, new_customers: t.nNew ? t.new_customers / t.nNew : null,
-    spend: t.nSpend ? t.spend / t.nSpend : null, mer: t.spend > 0 && n ? t.revenue / t.spend : null, cpa: t.orders > 0 ? t.spend / t.orders : null };
+    spend: t.nSpend ? t.spend / t.nSpend : null, mer: t.spend > 0 && n ? t.mer_revenue / t.spend : null, cpa: t.orders > 0 ? t.spend / t.orders : null };
 }
 
 /* ---------------- Meta by the hour ---------------- */
@@ -175,7 +177,10 @@ export async function brandNow(env, d, acct, { fresh = false } = {}) {
     t.orders = paid;
     t.new_customers = tw.newCustomersOrders != null ? Math.max(0, tw.newCustomersOrders - Math.max(0, (rawOrders ?? 0) - (paid ?? 0))) : null;
     t.spend = tw.blendedAds ?? null;
-    t.mer = t.spend > 0 && t.revenue != null ? t.revenue / t.spend : null;
+    /* MER on the brand's MER channels: today's left-out sales from the hourly channel sync (merday.js), which can
+       trail the live total by up to an hour, so today's MER reads a touch high until it catches up. */
+    const exToday = (await merExcluded(env, acct.act_id, today, today))[today];
+    t.mer = t.spend > 0 && t.revenue != null ? merSalesFor(t.revenue, exToday) / t.spend : null;
     t.cpa = t.orders > 0 && t.spend != null ? t.spend / t.orders : null;
   }
   const n = out.normal_by_now, nd = out.normal_day;

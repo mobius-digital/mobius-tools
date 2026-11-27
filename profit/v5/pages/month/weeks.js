@@ -30,7 +30,7 @@ async function load(ctx) {
   const planMer = ok(g.sales) && g.spend > 0 ? g.sales / g.spend : null;
   return {
     range: { from: w.from, to: w.to, preset: w.preset }, source: hasSource(cl),
-    days: rows.map(r => ({ date: r.date, sales: r.sales ?? null, spend: r.spend ?? null })),
+    days: rows.map(r => ({ date: r.date, sales: r.sales ?? null, mer_sales: r.mer_sales ?? r.sales ?? null, spend: r.spend ?? null })),
     /* a plan is agreed per month and splits evenly across its days, so it is only compared on "This month" */
     plan_day: w.preset === 'month' && dim && (ok(g.sales) || ok(g.spend)) ? { sales: ok(g.sales) ? g.sales / dim : null, spend: ok(g.spend) ? g.spend / dim : null } : null,
     goal_mer: facts.goalRoas || planMer,
@@ -47,11 +47,11 @@ function weeksOf(data) {
     const got = [];
     for (let i = 0; i < 7; i++) { const r = by[addDays(from, i)]; if (r && (ok(r.sales) || ok(r.spend))) got.push(r); }
     if (!got.length) continue;
-    const sales = sum(got, 'sales'), spend = sum(got, 'spend'), n = got.length, to = got[n - 1].date;
+    const sales = sum(got, 'sales'), merSales = sum(got, 'mer_sales'), spend = sum(got, 'spend'), n = got.length, to = got[n - 1].date;
     const p = data.plan_day;
     out.push({
-      from, to, n, full: n === 7, name: span(from, to), sales, spend,
-      mer: spend > 0 && ok(sales) ? sales / spend : null,
+      from, to, n, full: n === 7, name: span(from, to), sales, mer_sales: merSales, spend,
+      mer: spend > 0 && ok(merSales) ? merSales / spend : null,
       plan_sales: p && ok(p.sales) ? p.sales * n : null,
       sales_day: ok(sales) ? sales / n : null, spend_day: ok(spend) ? spend / n : null,
     });
@@ -111,8 +111,8 @@ function chartCard(weeks, data) {
 
 function weeksCard(weeks, data) {
   const gm = data.goal_mer, hasPlan = weeks.some(w => ok(w.plan_sales));
-  const tSales = sum(weeks, 'sales'), tSpend = sum(weeks, 'spend'), tPlan = hasPlan ? sum(weeks, 'plan_sales') : null;
-  const total = { total: true, name: 'All these dates', n: weeks.reduce((n, w) => n + w.n, 0), sales: tSales, spend: tSpend, plan_sales: tPlan, mer: tSpend > 0 && ok(tSales) ? tSales / tSpend : null };
+  const tSales = sum(weeks, 'sales'), tMer = sum(weeks, 'mer_sales'), tSpend = sum(weeks, 'spend'), tPlan = hasPlan ? sum(weeks, 'plan_sales') : null;
+  const total = { total: true, name: 'All these dates', n: weeks.reduce((n, w) => n + w.n, 0), sales: tSales, spend: tSpend, plan_sales: tPlan, mer: tSpend > 0 && ok(tMer) ? tMer / tSpend : null };
   const tone = r => (r.total ? '' : (grade(r.mer, gm) || [])[0]);
   const bar = r => (ok(r.mer) && gm ? gauge({ value: r.mer, max: Math.max(gm * 1.2, ...weeks.map(w => w.mer || 0)), goal: gm, tone: tone(r), thin: true }) : null);
   const vsPlan = r => { if (!ok(r.plan_sales) || !(r.plan_sales > 0) || !ok(r.sales)) return ''; const d = r.sales / r.plan_sales - 1; return h('span', null, delta(d, d >= 0 ? {} : { bad: true }), ' vs plan'); };
@@ -162,7 +162,7 @@ export default {
     put(el, h('div', { class: 'mo' }, [
       helpBar([
         { title: 'What it is for', text: 'Which weeks carried these dates: sales and ad spend for each week, against the plan and the MER goal.' },
-        { title: 'How it is counted', text: `Weeks are seven day blocks from ${dayLabel(weeks[0].from)}; a part week is compared on its average day. Sales are store sales less tax (Triple Whale). MER is whole store sales over all ad spend.` },
+        { title: 'How it is counted', text: `Weeks are seven day blocks from ${dayLabel(weeks[0].from)}; a part week is compared on its average day. Sales are store sales less tax (Triple Whale). MER is sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them) over all ad spend.` },
       ], pageStamp(ctx)),
       heroBlock(weeks, data, ctx),
       say ? takeaway(say, { action: ctx.isClient ? null : askWhy(ctx, 'Which weeks carried the month') }) : null,

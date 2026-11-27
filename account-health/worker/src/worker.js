@@ -6,6 +6,7 @@ import { remoteRefresh as shopRemote } from './shopifywrite.js';
 import { shopToken } from '../../../profit/worker/src/shoptoken.js';
 import { shopDailyTick } from '../../../profit/worker/src/shopsync.js';
 import { storeSwitch, storeTag } from '../../../profit/worker/src/storesource.js';
+import { merSalesFor, syncSalesChannels } from '../../../profit/worker/src/merchannels.js';
 import { monthPlanned, defaultCovers } from './goalplan.js';
 import { handleAgency } from './agency.js';
 import { handleClients, clientAsk, clientOwnsRun, touchClient, meClient, claimInvite, hqSignin } from './clients.js';
@@ -1324,7 +1325,10 @@ function dashSum(list) {
   if (list.length === 1) return list[0];
   const keys = ['revenue', 'ad_spend', 'meta_spend', 'google_spend', 'contribution_margin', 'orders', 'new_customers', 'new_customer_revenue', 'returning_orders', 'returning_revenue', 'email_revenue'];
   const t = {}; for (const k of keys) { let x = 0, any = false; for (const r of list) { if (r && r[k] != null) { x += r[k]; any = true; } } t[k] = any ? x : null; }
-  t.mer = t.ad_spend ? t.revenue / t.ad_spend : null; t.amer = t.ad_spend && t.new_customer_revenue != null ? t.new_customer_revenue / t.ad_spend : null;
+  /* MER on counted sales (merCut, 2026-11-27): a brand without mer_revenue counts whole. */
+  const sumOr = (k, alt) => { let x = 0, any = false; for (const r of list) { const v = r?.[k] ?? r?.[alt]; if (v != null) { x += v; any = true; } } return any ? x : null; };
+  t.mer_revenue = sumOr('mer_revenue', 'revenue'); t.mer_new_customer_revenue = sumOr('mer_new_customer_revenue', 'new_customer_revenue');
+  t.mer = t.ad_spend && t.mer_revenue != null ? t.mer_revenue / t.ad_spend : null; t.amer = t.ad_spend && t.mer_new_customer_revenue != null ? t.mer_new_customer_revenue / t.ad_spend : null;
   t.aov = t.orders ? t.revenue / t.orders : null; t.cac = t.new_customers && t.ad_spend != null ? t.ad_spend / t.new_customers : null;
   t.new_customer_share_of_revenue = t.revenue && t.new_customer_revenue != null ? t.new_customer_revenue / t.revenue : null;
   t.email_share_of_revenue = t.revenue && t.email_revenue != null ? t.email_revenue / t.revenue : null;
@@ -2519,8 +2523,10 @@ async function briefData(env, acct, upTo) {
       cogs: ov && ov.product != null ? ov.product : (piv.totalProductCosts?.[date] ?? null),
       fees: piv.totalPaymentGatewayCosts?.[date] ?? null,
     };
-    a.amer = a.new_rev != null && a.spend ? a.new_rev / a.spend : null;
-    a.mer = sales != null && a.spend ? sales / a.spend : null;
+    /* MER and aMER on the sales the brand counts toward MER (merCut, 2026-11-27); every other line stays whole-store. */
+    Object.assign(a, sales == null ? { mer_sales: null, mer_new_rev: null } : merCut(sales, a.new_rev, piv.merExcluded?.[date]));
+    a.amer = amerOf(a, a.spend);
+    a.mer = merOf(a, a.spend);
     // CM = revenue - every variable cost (product, fulfillment, handling, fees, ads).
     // Fixed costs are excluded by definition. Margin override wins when set.
     const variable = a.cogs != null ? a.cogs + shipCost + handling + (a.fees ?? 0) : null;
@@ -2537,6 +2543,7 @@ async function briefData(env, acct, upTo) {
   const sum = (list, get) => { let s = 0, any = false; for (const x of list) { const v = get(x); if (v != null) { s += v; any = true; } } return any ? s : null; };
   const mtd = {
     sales: sum(done, x => x.a.sales), sales_f: sum(done, x => x.f.sales ?? null),
+    mer_sales: sum(done, x => x.a.mer_sales ?? x.a.sales),   // what month-to-date MER divides (merCut)
     spend: sum(done, x => x.a.spend), spend_f: sum(done, x => x.f.spend ?? null),
     cm: sum(done, x => x.a.cm), cm_f: sum(done, x => x.f.cm ?? null),
   };
@@ -2750,9 +2757,10 @@ async function weeklyBlock(env, acct, data, date) {
   }
   const rows = dates.map(dd => byDate[dd]).filter(Boolean);
   const sum = get => { let s = 0, any = false; for (const r of rows) { const v = get(r); if (v != null) { s += v; any = true; } } return any ? s : null; };
-  const a = { sales: sum(r => r.a?.sales), spend: sum(r => r.a?.spend), cm: sum(r => r.a?.cm), new_rev: sum(r => r.a?.new_rev) };
-  a.amer = a.new_rev != null && a.spend ? a.new_rev / a.spend : null;
-  a.mer = a.sales != null && a.spend ? a.sales / a.spend : null;
+  const a = { sales: sum(r => r.a?.sales), spend: sum(r => r.a?.spend), cm: sum(r => r.a?.cm), new_rev: sum(r => r.a?.new_rev),
+    mer_sales: sum(r => r.a?.mer_sales ?? r.a?.sales), mer_new_rev: sum(r => r.a?.mer_new_rev ?? r.a?.new_rev) };
+  a.amer = amerOf(a, a.spend);
+  a.mer = merOf(a, a.spend);
   const withSales = rows.filter(r => r.a?.sales != null);
   const best = withSales.slice().sort((x, y) => y.a.sales - x.a.sales)[0];
   const worst = withSales.slice().sort((x, y) => x.a.sales - y.a.sales)[0];
@@ -2795,7 +2803,7 @@ NEVER print a raw ad or campaign name. Say "the new creative" or "the relaunched
 NO EM DASHES, EVER. Use a comma, a colon or a full stop. This is a standing rule across everything Mobius writes.
 ${PLAIN_VOICE}
 Every sentence should survive being read once, at speed, by a client who does not work in ads.
-Rules: use ONLY the numbers provided - never invent or extrapolate figures. Money in the account's own currency, rounded to WHOLE units - write $612, never $611.51. Write dates the way a person says them: "September 6", "the 8th". Meta and Google ROAS and order counts are Triple Whale's pixel attribution, and recent days keep settling for a few days as journeys resolve - hedge a read on the last day or two. NEVER report a ROAS the block marks n/a - say the orders have not landed yet and quote the spend instead. MER = ALL store revenue (every channel, not ad-attributed) ÷ ALL ad spend across every platform. aMER is the acquisition version: new-customer revenue ÷ that same total ad spend. Both are blended on BOTH sides - never describe either as a platform or attributed number, and never confuse them with a channel ROAS (which IS attributed, by Triple Whale). Keep the whole narrative under 200 words. Short bullets that are real sentences, never paragraphs disguised as bullets. Slack bold is *single asterisks*; never use ** double asterisks or markdown headers. No greeting, no sign-off, no preamble.`;
+Rules: use ONLY the numbers provided - never invent or extrapolate figures. Money in the account's own currency, rounded to WHOLE units - write $612, never $611.51. Write dates the way a person says them: "September 6", "the 8th". Meta and Google ROAS and order counts are Triple Whale's pixel attribution, and recent days keep settling for a few days as journeys resolve - hedge a read on the last day or two. NEVER report a ROAS the block marks n/a - say the orders have not landed yet and quote the spend instead. MER = store revenue from the sales channels the brand counts toward MER (not ad-attributed; Amazon, Whatnot and wholesale are left out by default, so MER can sit under sales ÷ spend) ÷ ALL ad spend across every platform. aMER is the acquisition version: new-customer revenue ÷ that same total ad spend. Both are blended on BOTH sides - never describe either as a platform or attributed number, and never confuse them with a channel ROAS (which IS attributed, by Triple Whale). Keep the whole narrative under 200 words. Short bullets that are real sentences, never paragraphs disguised as bullets. Slack bold is *single asterisks*; never use ** double asterisks or markdown headers. No greeting, no sign-off, no preamble.`;
 
 /* A REWRITE CAN BE STEERED. "Write it again" on its own produces a different
    brief, not a better one -- the model has no idea what was wrong with the last
@@ -2868,7 +2876,7 @@ async function writeBriefNarrative(env, acct, data, date, steer) {
       // the clearest case: blended 2.52 - goal met - while its Meta ROAS of
       // 1.64 was written up as a miss.
       `Goals this month: ${JSON.stringify(data.goals)}. Forecast weighting: ${data.weights}.\n` +
-      `Meta and Google ROAS below are Triple Whale's pixel attribution (last platform click), not the platforms' own dashboards. Blended ROAS is Triple Whale's store-level figure, the same idea as MER (it counts sales tax, so it runs a shade above our MER). If you quote a channel ROAS, call it Triple Whale's. There is no ROAS target: the only agreed goals are the blended ones above (net sales, spend, MER, aMER). Never judge a platform's ROAS against the MER goal - blended MER counts every channel's revenue against total spend and is always the higher number, so doing that reports a healthy account as failing. Use channel ROAS only to say which channel moved, never to declare a target missed.\n` +
+      `Meta and Google ROAS below are Triple Whale's pixel attribution (last platform click), not the platforms' own dashboards. Blended ROAS is Triple Whale's store-level figure, the same idea as MER (it counts sales tax, so it runs a shade above our MER). If you quote a channel ROAS, call it Triple Whale's. There is no ROAS target: the only agreed goals are the blended ones above (net sales, spend, MER, aMER). Never judge a platform's ROAS against the MER goal - blended MER counts the store's revenue (from the channels the brand counts toward MER) against total spend and is always the higher number, so doing that reports a healthy account as failing. Use channel ROAS only to say which channel moved, never to declare a target missed.\n` +
       (data.goals && data.goals_planned === false
         ? `IMPORTANT: no target was actually set for ${MONTH_OF(data.month)} - the figures above are carried over from ${data.goals_inherited_from ? MONTH_OF(data.goals_inherited_from) : 'the last plan on file'}. Do NOT call them this month's goal or say the client is ahead of/behind "plan" as though it were agreed. Refer to them as last month's pace, and put setting this month's target in What we're doing.\n`
         : '') +
@@ -3041,7 +3049,7 @@ WRITING RULES:
 NO ABBREVIATIONS: write "month to date", "Wednesday", "September 8". Money always as "$36" with the account's currency symbol, whole units. Percentages as "64%". Channel returns as a plain number like 1.52 (that is dollars back per dollar spent).
 NEVER print a raw ad or campaign name. NO EM DASHES, EVER. Slack bold is *single asterisks*; never ** or markdown headers. No greeting, no sign-off.
 ${PLAIN_VOICE}
-Use ONLY the numbers provided. Meta and Google returns are Triple Whale's pixel attribution and the last day or two keep settling, so if a read is weak on very few orders, say so in a few words. MER and aMER are store-wide (all sales or new-customer sales over all ad spend), never call them a platform number. There is no channel ROAS target; never call a channel's return a missed goal. Keep everything under 170 words.`;
+Use ONLY the numbers provided. Meta and Google returns are Triple Whale's pixel attribution and the last day or two keep settling, so if a read is weak on very few orders, say so in a few words. MER and aMER are store-wide (the sales or new-customer sales from the channels the brand counts toward MER, over all ad spend; Amazon, Whatnot and wholesale left out by default), never call them a platform number. There is no channel ROAS target; never call a channel's return a missed goal. Keep everything under 170 words.`;
 
 async function writeBriefNarrativeV2(env, acct, data, date, steer) {
   const f2 = n => n == null ? ' - ' : String(Math.round(n * 100) / 100);
@@ -3550,6 +3558,60 @@ async function amazonOrdersByDay(env, acct, from, to) {
   for (const row of r.rows) { const d = String(row.d || '').slice(0, 10); if (d) out[d] = { sales: Number(row.sales) || 0, orders: Number(row.orders) || 0 }; }
   return out;
 }
+/* SALES THAT COUNT TOWARD MER: THE CHANNEL SYNC (2026-11-27, profit merchannels.js). MER counts only the channels a
+   brand counts (its storefront, Shop app, TikTok Shop...), so Locus needs each day's sales split by order source. Triple
+   Whale's orders table has it: one query per brand writes p_sales_channel for the window (every day in it replaced).
+   Hourly (salesChannelTick): a brand never synced reads 90 days back to today; after that the last 4 days to today in the
+   brand's own zone, at most every 3 hours. 2 brands a tick, the one synced longest ago first. Setting
+   `salesChannels:<brand>` = { at, backfilled }. POST /api/sales-channels/sync runs it now. */
+const SALES_CH_KEY = act => `salesChannels:${act}`;
+const SALES_CH_BACKFILL = 90, SALES_CH_RECENT = 4, SALES_CH_EVERY = 3 * 3600e3, SALES_CH_PER_TICK = 2, SALES_CH_COST = 25;
+async function salesChannelShop(env, a) {
+  if (a?.tw_shop) return a.tw_shop;
+  return (await env.DB.prepare(`SELECT external_id FROM connections WHERE brand_id = ?1 AND kind IN ('tw', 'triplewhale', 'triple_whale') ORDER BY is_primary DESC LIMIT 1`)
+    .bind(a.act_id).first().catch(() => null))?.external_id || null;
+}
+/** One brand: days = null picks the window from its setting (never synced = 90 days, else 4); a number forces it. */
+async function salesChannelSync(env, a, { days = null, shop = null } = {}) {
+  shop = shop || await salesChannelShop(env, a);
+  if (!shop) return { act: a.act_id, name: a.name, skipped: 'no Triple Whale shop' };
+  const prev = safeJson(await getSetting(env, SALES_CH_KEY(a.act_id)), null);
+  /* Not backfilled yet (never synced, or the first pull failed) = the 90 days; else the last 4. */
+  const n = days != null ? Math.max(1, Math.min(180, Math.round(+days) || SALES_CH_RECENT)) : prev?.backfilled ? SALES_CH_RECENT : SALES_CH_BACKFILL;
+  const to = localDate(a.tz || BRIEF_TZ), from = addDays(to, n >= SALES_CH_BACKFILL ? -n : -(n - 1));   // 90 days back + today
+  const r = await syncSalesChannels(env, { sql: args => twSql(env, { xfetch }, args) }, { act: a.act_id, shop, from, to })
+    .catch(e => ({ error: e.message }));
+  /* A failure is written down too (with its time), so one broken brand waits its 3 hours instead of holding the front
+     of the queue every tick; it keeps backfilled as it was, so a failed first pull is the 90 days again next time. */
+  await putSetting(env, SALES_CH_KEY(a.act_id), JSON.stringify({ at: new Date().toISOString(), backfilled: !!prev?.backfilled || (!r.error && n >= SALES_CH_BACKFILL), ...(r.error ? { error: String(r.error).slice(0, 300) } : {}) }));
+  if (r.error) return { act: a.act_id, name: a.name, from, to, error: r.error };
+  return { act: a.act_id, name: a.name, from, to, ...r };
+}
+/** The hourly step: up to 2 brands due (never synced, or last run 3+ hours ago), longest ago first. */
+async function salesChannelTick(env) {
+  if (!env.TW_API_KEY) return { skipped: 'no TW_API_KEY' };
+  const accts = await listAccounts(env, true);
+  const { results } = await env.DB.prepare(`SELECT key, value FROM settings WHERE key LIKE 'salesChannels:%'`).all().catch(() => ({ results: [] }));
+  const last = {};
+  for (const r of results || []) last[r.key.slice('salesChannels:'.length)] = Date.parse(safeJson(r.value, {})?.at || '') || 0;
+  const due = [];
+  for (const a of accts) {
+    const at = last[a.act_id] ?? 0;
+    if (at && Date.now() - at < SALES_CH_EVERY) continue;
+    due.push({ a, at });
+  }
+  due.sort((x, y) => x.at - y.at);
+  const ran = [];
+  for (const { a } of due) {
+    if (ran.length >= SALES_CH_PER_TICK) break;
+    if (!subCanAfford(SALES_CH_COST)) { ran.push({ act: a.act_id, deferred: 'out of subrequest budget' }); break; }
+    const shop = await salesChannelShop(env, a);
+    if (!shop) continue;   // no Triple Whale shop: nothing to read, and it does not use up a slot
+    ran.push(await salesChannelSync(env, a, { shop }).catch(e => ({ act: a.act_id, error: e.message })));
+  }
+  return { due: due.length, ran };
+}
+
 function amazonSum(byDay, from, to) {
   if (!byDay) return null;
   let sales = 0, orders = 0;
@@ -3578,6 +3640,10 @@ async function clientDailyFor(env, acct, date, text, data, { next = true, card =
       plan: days.some(x => x.f?.sales != null) ? days.reduce((n, x) => n + (x.f?.sales || 0), 0) : (data?.mtd?.sales_f ?? null),
       spend: days.length ? days.reduce((n, x) => n + (x.a.spend || 0), 0) : (data?.mtd?.spend ?? null),
       new_rev: days.length && days.every(x => x.a.new_rev != null) ? days.reduce((n, x) => n + x.a.new_rev, 0) : null,
+      /* The month's MER and aMER divide the sales the brand counts toward MER (merCut, 2026-11-27); the Amazon row
+         above still shows Amazon's sales, which sit inside Sales but outside MER by default. */
+      mer_sales: days.length ? days.reduce((n, x) => n + (x.a.mer_sales ?? x.a.sales ?? 0), 0) : (data?.mtd?.mer_sales ?? null),
+      mer_new_rev: days.length && days.every(x => x.a.new_rev != null) ? days.reduce((n, x) => n + (x.a.mer_new_rev ?? x.a.new_rev), 0) : null,
       day_of_month: +date.slice(8, 10), days_in_month: daysInMonth(date) },
     others: days.filter(x => x.date !== date).map(x => x.a.sales), next: nextLine,
     /* No goal typed for the month: no inherited number reaches the client, "No goal set for <Month>" instead. */
@@ -3899,6 +3965,18 @@ async function insightsFreshness(env, a, day) {
  *  (shipping already inside it, never added); CM subtracts every variable
  *  cost; the new/returning split keeps TW's measured SHARE rebased onto the
  *  headline revenue. Keep the three implementations in step. */
+/** Sales that count toward MER for one day (profit merchannels.js, 2026-11-27): whole-store sales minus the channels
+ *  the brand leaves out (Amazon, Whatnot, wholesale by default), and the same cut of new-customer sales for aMER. The
+ *  pivot carries `merExcluded` because storeSwitch put it there. Store sales, orders and profit stay whole. Same rule as
+ *  profit dayEconomics: keep the two in step. */
+function merCut(sales, newRev, excluded) {
+  const merSales = merSalesFor(sales, excluded);
+  return { mer_sales: merSales, mer_new_rev: newRev == null ? null : sales > 0 ? newRev * (merSales / sales) : newRev };
+}
+/** MER and aMER of anything carrying sales (and new_rev): counted sales when it has them, else whole-store. */
+const merOf = (x, spend) => { const s = x?.mer_sales ?? x?.sales; return s != null && spend ? s / spend : null; };
+const amerOf = (x, spend) => { const s = x?.mer_new_rev ?? x?.new_rev; return s != null && spend ? s / spend : null; };
+
 function econDay(piv, metaBy, date, cmPct, rules) {
   const totalSales = twDay(piv, date, TW_SALES);
   if (totalSales == null) return null;
@@ -3927,6 +4005,7 @@ function econDay(piv, metaBy, date, cmPct, rules) {
   const gp = cmPct != null ? sales * cmPct : variable != null ? sales - variable : null;
   return {
     date, sales, spend,
+    ...merCut(sales, newRev, piv.merExcluded?.[date]),
     orders: piv.totalOrders?.[date] ?? null,
     new_rev: newRev,
     ret_rev: newShare != null ? sales * (1 - newShare) : rawRet,
@@ -3953,12 +4032,15 @@ function periodTotals(rows) {
   const sales = sum(r => r.sales), spend = sum(r => r.spend);
   const orders = sum(r => r.orders), newRev = sum(r => r.new_rev), newOrders = sum(r => r.new_orders);
   const gp = sum(r => r.gp);
+  /* MER and aMER on counted sales (merCut); a row without mer_sales counts whole. */
+  const merSales = sum(r => r.mer_sales ?? r.sales), merNewRev = sum(r => r.mer_new_rev ?? r.new_rev);
   return {
     days: rows.length, sales, spend, orders,
     new_rev: newRev, ret_rev: sum(r => r.ret_rev), new_orders: newOrders,
     meta_spend: sum(r => r.meta_spend), google_spend: sum(r => r.google_spend),
-    mer: spend ? sales / spend : null,
-    amer: newRev != null && spend ? newRev / spend : null,
+    mer_sales: merSales, mer_new_rev: merNewRev,
+    mer: spend && merSales != null ? merSales / spend : null,
+    amer: merNewRev != null && spend ? merNewRev / spend : null,
     aov: orders ? sales / orders : null,
     ncpa: spend != null && newOrders ? spend / newOrders : null,
     new_share: sales > 0 && newRev != null ? newRev / sales : null,
@@ -3993,6 +4075,8 @@ async function storePeriod(env, acct, from, to) {
     from, to, days: rows.length, currency: acct.currency,
     revenue: t.sales, ad_spend: t.spend, meta_spend: t.meta_spend, google_spend: t.google_spend,
     mer: t.mer, amer: t.amer, contribution_margin: t.cm, gross_margin_pct: t.margin,
+    /* The sales MER is read on (merCut): revenue minus the channels the brand leaves out of MER. */
+    mer_revenue: t.mer_sales, mer_new_customer_revenue: t.mer_new_rev,
     orders: t.orders, aov: t.aov,
     new_customers: t.new_orders, new_customer_revenue: t.new_rev, new_customer_aov: t.new_orders ? (t.new_rev ?? 0) / t.new_orders : null,
     returning_orders: retOrders, returning_revenue: t.ret_rev, returning_aov: retOrders ? (t.ret_rev ?? 0) / retOrders : null,
@@ -4001,7 +4085,7 @@ async function storePeriod(env, acct, from, to) {
     first_order_margin: t.new_orders && t.margin != null ? ((t.new_rev ?? 0) / t.new_orders) * t.margin : null,
     email_revenue: email, email_share_of_revenue: email != null && t.sales > 0 ? email / t.sales : null,
     ...storeTag(storeSrc),
-    how_to_read: (storeSrc?.source === 'shopify' ? 'Store numbers come from Shopify (revenue, paid orders, new customers); ad spend, costs and the new vs returning revenue split from Triple Whale. ' : '') + 'All Triple Whale store-level (blended), revenue = Shopify total sales less tax. aov = revenue / orders. new_customers = first-time orders (TW newCustomersOrders); cac = ad_spend / new_customers (the same number Reports call New-customer CPA and Customers calls Cost to acquire). first_order_margin = new_customer_aov x gross margin: the money the first order leaves to pay back the cac. email_revenue is Klaviyo-attributed and overlaps new and returning, never added to them. A null means Triple Whale has not synced that metric for the range.',
+    how_to_read: (storeSrc?.source === 'shopify' ? 'Store numbers come from Shopify (revenue, paid orders, new customers); ad spend, costs and the new vs returning revenue split from Triple Whale. ' : '') + 'All Triple Whale store-level (blended), revenue = Shopify total sales less tax. mer = mer_revenue / ad_spend: only the sales channels the brand counts toward MER (Brand settings > Goals > Sales that count toward MER; Amazon, Whatnot and wholesale are left out by default), so mer can sit under revenue / ad_spend. aov = revenue / orders. new_customers = first-time orders (TW newCustomersOrders); cac = ad_spend / new_customers (the same number Reports call New-customer CPA and Customers calls Cost to acquire). first_order_margin = new_customer_aov x gross margin: the money the first order leaves to pay back the cac. email_revenue is Klaviyo-attributed and overlaps new and returning, never added to them. A null means Triple Whale has not synced that metric for the range.',
   };
 }
 
@@ -4879,7 +4963,7 @@ async function reportData(env, acct, period, start, end) {
       const rows = days.filter(r => r.date >= ws && r.date <= we);
       if (rows.length) {
         const t = periodTotals(rows);
-        weeks.push({ from: ws, to: we, sales: t.sales, spend: t.spend, mer: t.mer });
+        weeks.push({ from: ws, to: we, sales: t.sales, mer_sales: t.mer_sales, spend: t.spend, mer: t.mer });
       }
     }
   }
@@ -8465,6 +8549,10 @@ const AH_APP = {
            last 3 days each, one at a time. Tokens refresh through the profit worker (it holds the app secret). */
         if (subCanAfford(40)) ran.shopDaily = await shopDailyTick(env, { F: xfetch, canAfford: n => subCanAfford(n),
           tokenFor: shop => shopToken(env, shop, { F: xfetch, remote: shopRemoteRefresh(env) }) }).catch(e => ({ error: e.message }));
+        /* Sales by order channel (profit merchannels.js -> p_sales_channel, 2026-11-27): what MER leaves out (Amazon,
+           Whatnot, wholesale). 2 brands a tick, the one synced longest ago first; one Triple Whale query each. */
+        if (subCanAfford(SALES_CH_COST)) ran.salesChannels = await salesChannelTick(env).catch(e => ({ error: e.message }));
+        else ran.salesChannels = { deferred: 'out of subrequest budget' };
         /* Cole's task events: catch any he deleted that the Google push missed, and keep the push channels open. */
         if (subCanAfford(30)) ran.blockSync = await blockSyncTick(env, blockDeps()).catch(e => ({ error: e.message }));
         // Whatever budget survived goes to keeping the data fresh. This used to
@@ -10227,6 +10315,22 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const out = [];
       for (const a of list) out.push(await syncTwAttribution(env, a, days).catch(e => ({ name: a.name, error: e.message })));
       return json({ ok: true, results: out });
+    }
+    /* Sales by order channel, now (2026-11-27, salesChannelSync). ?act=<brand|all>&days=N (default: the brand's own
+       window, 90 days when never synced). all = one brand after another, stopping while the budget can still write
+       down what ran. The profit worker calls it after a brand's left-out tags change (PUT /api/mer-channels). */
+    if (path === '/api/sales-channels/sync' && request.method === 'POST') {
+      const act = url.searchParams.get('act');
+      const dq = url.searchParams.get('days');
+      const days = dq != null && dq !== '' && +dq > 0 ? +dq : null;
+      const list = act && act !== 'all' ? [await acctOf(env, act)].filter(Boolean) : await listAccounts(env, true);
+      if (act && act !== 'all' && !list.length) return json({ error: 'unknown brand' }, 404);
+      const out = [];
+      for (const a of list) {
+        if (!subCanAfford(SALES_CH_COST)) { out.push({ act: a.act_id, name: a.name, deferred: 'out of subrequest budget, run it again' }); continue; }
+        out.push(await salesChannelSync(env, a, { days }).catch(e => ({ act: a.act_id, name: a.name, error: e.message })));
+      }
+      return json({ ok: !out.some(r => r.error), results: out });
     }
 
     /* View-only accounts read everything and change nothing: that check now runs at the door

@@ -465,7 +465,7 @@
 
   function baseSec(d) {
     const b = d.baseline || {}, T = b.totals, ro = false;   // a client edits its own plan (the brand edition, 2026-10-10); only notes, alerts and the stock check stay the team's
-    const tiles = T ? `<div class="wr-ks">${kpi('Revenue', Ko(T.sales), `${T.days} days`)}${kpi('Orders', In(T.orders))}${kpi('AOV', Mo(T.aov))}${kpi('Ad spend', Ko(T.spend))}${kpi('MER', Xo(T.mer), 'revenue over ad spend')}${kpi('New customers', In(T.new_orders))}</div>`
+    const tiles = T ? `<div class="wr-ks">${kpi('Revenue', Ko(T.sales), `${T.days} days`)}${kpi('Orders', In(T.orders))}${kpi('AOV', Mo(T.aov))}${kpi('Ad spend', Ko(T.spend))}${kpi('MER', Xo(T.mer), 'sales that count over ad spend')}${kpi('New customers', In(T.new_orders))}</div>`
       : `<p class="v2hint">No Triple Whale days are stored for ${md(b.from)} to ${md(b.to)}, ${String(b.from || '').slice(0, 4)}. Pick other dates, or set the goals by hand.</p>`;
     const mx = Math.max(1, ...(b.days || []).map(x => x.sales || 0));
     const days = (b.days || []).map(x => `<tr${x.date === d.ly_bf ? ' class="bf"' : ''}><td>${wd(x.date)} ${md(x.date)}${x.date === d.ly_bf ? ' <span class="v2pill good">Black Friday</span>' : ''}</td>
@@ -821,11 +821,11 @@
       ${kpi('Revenue today', Ko(T.sales), D.plan_now != null ? `<b>${pace != null ? Math.round(pace * 100) + '%' : '–'}</b> of plan by now (${Ko(D.plan_now)})` : 'No plan for today', ptone, `Plan by now = the day's goal x the share of a normal day done by this hour (${esc(L.curve || '')}).`)}
       ${kpi('Heading for', Ko(D.projected), D.goal ? `day goal ${Ko(D.goal)}` : '', D.projected != null && D.goal ? (D.projected >= D.goal ? 'good' : D.projected >= D.goal * 0.85 ? 'warn' : 'bad') : '', 'Today so far, scaled by how much of a normal day is done.')}
       ${kpi('Orders', In(T.orders), T.aov != null ? `AOV ${Mo(T.aov)}${th.aov ? ` · floor ${Mo(th.aov)}` : ''}` : '', aovTone)}
-      ${kpi('MER today', Xo(T.mer), `${g.target ? `target ${Xo(g.target)}` : ''}${th.mer ? ` · floor ${Xo(th.mer)}` : ''}`, merTone, 'Revenue over all ad spend, today so far (Triple Whale).')}
+      ${kpi('MER today', Xo(T.mer), `${g.target ? `target ${Xo(g.target)}` : ''}${th.mer ? ` · floor ${Xo(th.mer)}` : ''}`, merTone, 'Sales that count (Amazon, Whatnot and wholesale left out unless the brand counts them) over all ad spend, today so far (Triple Whale).')}
       ${kpi('Ad spend', Ko(T.spend), sp ? `of ${Ko(sp)} for the day` : '', spTone)}
       ${kpi('Last 3 hours', Xo(L.last3 && L.last3.mer), esc(lad.text), lad.cls, 'The ladder grades the blended MER of the last three hours that have data.')}
     </div>`;
-    const sale = SS && saleGoal ? `<div class="wr-sale"${U().tipAttr('Finished sale days from the P&amp;L line, plus today so far.')}><span><b>The sale so far</b> ${Ko(SS.sales)} of ${Ko(saleGoal)} · ${In(SS.orders)} orders · MER ${Xo(SS.spend ? SS.sales / SS.spend : null)}</span><i><em style="width:${Math.min(100, SS.sales / saleGoal * 100).toFixed(1)}%"></em></i></div>` : '';
+    const sale = SS && saleGoal ? `<div class="wr-sale"${U().tipAttr('Finished sale days from the P&amp;L line, plus today so far.')}><span><b>The sale so far</b> ${Ko(SS.sales)} of ${Ko(saleGoal)} · ${In(SS.orders)} orders · MER ${Xo(SS.spend ? (SS.mer_sales ?? SS.sales) / SS.spend : null)}</span><i><em style="width:${Math.min(100, SS.sales / saleGoal * 100).toFixed(1)}%"></em></i></div>` : '';
     const stock = `<div class="wr-stockline" id="wrStock2">${isCl() ? '<span class="l">Stock</span><span class="faint">The Mobius team watches stock on the heroes during the sale.</span>' : '<span class="l">Stock</span><span class="faint">Reading stock on the heroes&hellip;</span>'}</div>`;
     void stock;
     return `${callCard(d)}${dry}${hero}${sale}
@@ -1111,7 +1111,7 @@
         <div class="wr-acts"><button type="button" class="v2btn ghost" id="wrRefresh">Refresh</button></div></div>
       <div id="wrStand"><p class="v2hint">Reading the latest check-in&hellip;</p></div>
       ${roNote(d)}
-      ${U().foot('Weekend sales and MER are Triple Whale (store revenue over all ad spend), Thu Nov 26 to Mon Nov 30; before Thursday the check-in is a dry run on today. Budgets and the Meta limit are read from Meta. A check-in runs every 3 hours (9am to 9pm and 11pm CT) and is sent to Cole in Slack. Nothing changes in Meta until someone taps Approve twice.')}</div>`);
+      ${U().foot('Weekend sales and MER are Triple Whale (sales that count over all ad spend; Amazon, Whatnot and wholesale left out unless the brand counts them), Thu Nov 26 to Mon Nov 30; before Thursday the check-in is a dry run on today. Budgets and the Meta limit are read from Meta. A check-in runs every 3 hours (9am to 9pm and 11pm CT) and is sent to Cole in Slack. Nothing changes in Meta until someone taps Approve twice.')}</div>`);
     const root = $('#wrRoot');
     root.querySelectorAll('[data-wrm]').forEach(b => b.onclick = () => goMode('all', b.dataset.wrm));
     root.querySelector('#wrRefresh').onclick = () => { Object.keys(MS).forEach(k => delete MS[k]); Object.keys(DET).forEach(k => delete DET[k]); war(false, WR.page); };

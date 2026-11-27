@@ -17,7 +17,7 @@ function render(el, d, ctx) {
   const planned = ctx.sample || ctx.range.preset === 'month';
   const rows = d.brands.map(b => ({ ...b, st: paceOf(b, d.rules.behind_pct), href: brandHref(b.id, 'month', 'pace'), goTitle: 'Open ' + b.name + ' pace this month' }));
   const stores = rows.filter(b => b.store), withPlan = stores.filter(b => ok(b.plan_sales));
-  const sales = sumOf(stores, b => b.sales), spend = sumOf(rows, b => b.spend), storeSpend = sumOf(stores, b => b.spend);
+  const sales = sumOf(stores, b => b.sales), merSales = sumOf(stores, b => b.mer_sales ?? b.sales), spend = sumOf(rows, b => b.spend), storeSpend = sumOf(stores, b => b.spend);
   const planSales = sumOf(withPlan, b => b.plan_sales), salesOnPlan = sumOf(withPlan, b => b.sales);
   const planSpend = sumOf(rows, b => b.plan_spend), spendOnPlan = sumOf(rows.filter(b => ok(b.plan_spend)), b => b.spend);
   const behind = rows.filter(b => b.st.tone === 'bad');
@@ -28,13 +28,14 @@ function render(el, d, ctx) {
   const hero = tileRow([
     { label: 'Sales, all brands', value: money(sales), sub: gap == null ? `${stores.length} brands with a store` : [delta(gap), `${gap >= 0 ? 'ahead of' : 'behind'} plan ${money(planSales)}`] },
     { label: 'Ad spend, all brands', value: money(spend), source: 'All ad platforms', sub: over == null ? 'every platform' : [delta(over, { bad: over > 0, plain: over <= 0 }), `${over > 0 ? 'over' : 'under'} plan ${money(planSpend)}`] },
-    { label: h('span', null, dl('Store MER', 'mer'), ', all stores'), value: storeSpend > 0 && ok(sales) ? x(sales / storeSpend) : 'no data', sub: 'sales over ad spend, brands with a store' },
+    { label: h('span', null, dl('Store MER', 'mer'), ', all stores'), value: storeSpend > 0 && ok(merSales) ? x(merSales / storeSpend) : 'no data', sub: 'sales that count over ad spend, brands with a store' },
     planned && { label: 'Brands behind plan', value: String(behind.length), sub: behind.length ? behind.map(b => b.name).slice(0, 2).join(', ') + (behind.length > 2 ? ` and ${behind.length - 2} more` : '') : `of ${withPlan.length} with a plan`, source: 'against the plan to date' },
   ], { window: win, source: TW });
   ctx.askContext = `Every brand's pace, ${win}: sales ${money(sales)}, ad spend ${money(spend)}${gap != null ? `, ${gap >= 0 ? 'ahead of' : 'behind'} plan by ${pct(Math.abs(gap))}` : ''}. ${behind.length ? 'Behind plan: ' + behind.map(b => b.name).join(', ') + '.' : 'No brand behind plan.'}`;
 
   let chart = null;
   const daily = d.daily;
+  const dayMer = i => (daily.mer_sales && ok(daily.mer_sales[i]) ? daily.mer_sales[i] : daily.sales[i]);
   if (daily && daily.dates.length > 1) {
     const bb = v => h('b', null, v);
     chart = h('section', { class: 'lx-card ag-chart' },
@@ -42,14 +43,14 @@ function render(el, d, ctx) {
         legend([{ name: 'Sales', lead: true }, { name: 'Ad spend' }])),
       lineChart({ series: [{ name: 'Sales', lead: true, values: daily.sales }, { name: 'Ad spend', values: daily.spend }], labels: daily.dates.map(shortDay),
         endFormat: v => money(v), format: v => money(v, { compact: true }), windowLabel: 'Daily, ' + rangeWords(ctx, { from: daily.dates[0], to: daily.dates[daily.dates.length - 1] }), height: 340, label: `Sales and ad spend by day for every brand, ${shortDay(daily.dates[0])} to ${shortDay(daily.dates[daily.dates.length - 1])}`,
-        hover: i => tipRows(shortDay(daily.dates[i]), [['Sales', money(daily.sales[i]), 'lead'], ['Ad spend', money(daily.spend[i]), 'slate'], daily.spend[i] > 0 ? ['MER', x(daily.sales[i] / daily.spend[i])] : null]) }));
+        hover: i => tipRows(shortDay(daily.dates[i]), [['Sales', money(daily.sales[i]), 'lead'], ['Ad spend', money(daily.spend[i]), 'slate'], daily.spend[i] > 0 && ok(dayMer(i)) ? ['MER', x(dayMer(i) / daily.spend[i])] : null]) }));
   }
 
   const noStore = () => quiet('No sales source connected');
   /* one look for every state in the column: a dot */
   const state = r => statusDot(r.st.tone === 'off' ? '' : r.st.tone, r.st.text);
   const merTone = r => !ok(r.mer) || !ok(r.goal_mer) ? '' : r.mer >= r.goal_mer ? 'good' : r.mer >= r.goal_mer * 0.8 ? 'warn' : 'bad';
-  const total = { total: true, name: 'All brands', store: true, sales, spend, plan_sales: planSales, plan_spend: planSpend, mer: storeSpend > 0 ? sales / storeSpend : null, st: { pace: gap == null ? null : 1 + gap, tone: '' } };
+  const total = { total: true, name: 'All brands', store: true, sales, spend, plan_sales: planSales, plan_spend: planSpend, mer: storeSpend > 0 && ok(merSales) ? merSales / storeSpend : null, st: { pace: gap == null ? null : 1 + gap, tone: '' } };
   const table = brandRows({
     title: 'Brand by brand', note: `${shortDay(d.window.from)} to ${shortDay(d.window.to)}${planned ? ', against the plan to date' : ''}`,
     sort: { key: 'pace', dir: 'asc' }, rows, total,
@@ -69,7 +70,7 @@ function render(el, d, ctx) {
 
   const help = helpBar([
     { title: 'What it is for', text: 'Is every brand on pace: sales against the plan to date, ad spend against its plan, store MER against goal.' },
-    { title: 'How it is counted', text: `Sales are store sales less tax (Triple Whale). MER is whole store sales over all ad spend. ${planned ? `Plan to date is the month plan split evenly over the days so far. Behind plan means more than ${d.rules.behind_pct}% under it.` : 'The plan is agreed per month, so it shows on This month only.'} Click a brand to open its own Pace page.` },
+    { title: 'How it is counted', text: `Sales are store sales less tax (Triple Whale). MER is the sales that count over all ad spend (Amazon, Whatnot and wholesale left out unless the brand counts them). ${planned ? `Plan to date is the month plan split evenly over the days so far. Behind plan means more than ${d.rules.behind_pct}% under it.` : 'The plan is agreed per month, so it shows on This month only.'} Click a brand to open its own Pace page.` },
   ], pageStamp(ctx));
   put(el, h('div', { class: 'ag' }, help, hero, chart, table));
 }

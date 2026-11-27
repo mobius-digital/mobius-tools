@@ -159,7 +159,8 @@ export function monthHistory(raw, acct, upToYm, n, today) {
     return {
       month: ym, days: mr.length, days_in_month: daysInMonth(ym),
       partial: ym === monthOf(today),
-      sales: t.sales, spend: t.spend, new_rev: t.new_rev, returning: t.ret_rev,
+      /* mer_sales: counted sales for MER (merchannels.js, 2026-11-27), as the old history sends it */
+      sales: t.sales, mer_sales: t.mer_sales, spend: t.spend, new_rev: t.new_rev, returning: t.ret_rev,
       cm: t.cm, margin: t.margin, mer: t.mer, amer: t.amer, new_share: t.new_share,
     };
   });

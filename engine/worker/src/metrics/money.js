@@ -6,6 +6,7 @@
    The tracker's `netSales` already holds shipping and tax, so shipping is never added again. */
 // from profit/worker/src/worker.js (SALES_IDS, pick, dayEconomics, sum, totals)
 import { mer, cpa, aov, pct, sum as sumKey } from '../numbers/defs.js';
+import { merSalesFor } from './merchannels.js';
 import { ruleCosts } from './costs.js';
 
 export const SALES_IDS = ['netSales', 'totalSales'];
@@ -56,6 +57,8 @@ export function dayEconomics(piv, meta, date, marginPct, rules) {
   const newShare = rawSplit > 0 && rawNew != null ? pct(rawNew, rawSplit) : null;
   const newRev = newShare != null ? sales * newShare : rawNew;
   const grossProfit = marginPct != null ? sales * marginPct : c.variableCosts != null ? sales - c.variableCosts : null;
+  const merSales = merSalesFor(sales, piv.merExcluded?.[date]);
+  const merNewRev = newRev == null ? null : sales > 0 ? newRev * (merSales / sales) : newRev;
   const row = {
     date, sales, total_sales: totalSales, tax, net_sales: netSales, ship_rev: shipRev, spend,
     orders, new_orders: piv.newCustomersOrders?.[date] ?? null, email_rev: piv.klaviyoPlacedOrderSales?.[date] ?? null,
@@ -64,8 +67,11 @@ export function dayEconomics(piv, meta, date, marginPct, rules) {
     new_share: newShare,
     cogs: c.cogs, ship_cost: c.shipCost, handling: c.handling, fees: c.fees, gross_profit: grossProfit,
     meta_spend: mrow?.spend ?? null, google_spend: gSpend,
-    mer: spend ? mer(sales, spend) : null,
-    amer: newRev != null && spend ? mer(newRev, spend) : null,
+    /* Sales that count toward MER (merchannels.js, 2026-11-27): whole-store sales minus the channels the brand
+       leaves out (Amazon, Whatnot, wholesale by default). aMER takes the same cut of new-customer sales. */
+    mer_sales: merSales, mer_new_rev: merNewRev,
+    mer: spend ? mer(merSales, spend) : null,
+    amer: merNewRev != null && spend ? mer(merNewRev, spend) : null,
     cm: grossProfit != null && spend != null ? grossProfit - spend : null,
     margin: sales > 0 && grossProfit != null ? pct(grossProfit, sales) : null,
   };
@@ -78,6 +84,9 @@ export function totals(rows) {
   const t = key => sumKey(rows, key);
   const sales = t('sales'), spend = t('spend'), newRev = t('new_rev'), gp = t('gross_profit');
   const orders = t('orders'), newOrders = t('new_orders'), emailRev = t('email_rev');
+  /* MER and aMER on counted sales (merchannels.js); a row without mer_sales counts whole. */
+  const merSales = sumKey(rows.map(r => ({ v: r.mer_sales ?? r.sales })), 'v');
+  const merNewRev = sumKey(rows.map(r => ({ v: r.mer_new_rev ?? r.new_rev })), 'v');
   return {
     days: rows.length, sales, spend, new_rev: newRev, ret_rev: t('ret_rev'),
     orders, new_orders: newOrders, aov: orders ? aov(sales, orders) : null,
@@ -90,8 +99,9 @@ export function totals(rows) {
     ad_expense: t('ad_expense'), base_spend: sumKey(rows.map(r => ({ v: r.base_spend ?? r.spend })), 'v'),
     handling: t('handling'), fees: t('fees'), gross_profit: gp,
     meta_spend: t('meta_spend'), google_spend: t('google_spend'),
-    mer: spend ? mer(sales, spend) : null,
-    amer: newRev != null && spend ? mer(newRev, spend) : null,
+    mer_sales: merSales, mer_new_rev: merNewRev,
+    mer: spend ? mer(merSales, spend) : null,
+    amer: merNewRev != null && spend ? mer(merNewRev, spend) : null,
     cm: gp != null && spend != null ? gp - spend : null,
     margin: sales > 0 && gp != null ? pct(gp, sales) : null,
     new_share: sales > 0 && newRev != null ? pct(newRev, sales) : null,

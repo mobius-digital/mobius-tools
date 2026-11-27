@@ -28,6 +28,7 @@ import { resolveBrandId, metaOf } from './brands.js';
 import { routeAction } from '../../../ask/engine.js';
 import { stockView } from './stock.js';
 import { todaysCard } from './morningcard.js';
+import { merExcluded, merSalesFor } from './merday.js';
 import { COLE } from './lane.js';
 import { houseMessage } from './house.js';
 
@@ -136,15 +137,17 @@ async function periodData(env, d, acct, window) {
     .bind(acct.act_id, bStart, end).all().catch(() => ({ results: [] }));
   const meta = Object.fromEntries((mr || []).map(r => [r.date, r]));
   const tw = d.twMetaDaily ? await d.twMetaDaily(env, acct.act_id, bStart, end).catch(() => ({})) : {};
+  const ex = await merExcluded(env, acct.act_id, bStart, end);   // sales left out of MER per day (merday.js)
   const agg = (from, to) => {
-    const o = { days: 0, revenue: 0, orders: 0, new_customers: 0, spend: 0, meta_spend: 0, imps: 0, attr: 0, attrDays: 0, metaDays: 0 };
+    const o = { days: 0, revenue: 0, mer_revenue: 0, orders: 0, new_customers: 0, spend: 0, meta_spend: 0, imps: 0, attr: 0, attrDays: 0, metaDays: 0 };
     for (let x = from; x <= to; x = d.addDays(x, 1)) {
       const t = by[x], sales = t ? (t.netSales ?? t.totalSales) : null;
-      if (sales != null) { o.days++; o.revenue += sales - (t.totalNetTaxes || 0); o.orders += t.totalOrders || 0; o.new_customers += t.newCustomersOrders || 0; o.spend += t.blendedAds ?? (meta[x]?.s || 0); }
+      if (sales != null) { o.days++; const s = sales - (t.totalNetTaxes || 0); o.revenue += s; o.mer_revenue += merSalesFor(s, ex[x]); o.orders += t.totalOrders || 0; o.new_customers += t.newCustomersOrders || 0; o.spend += t.blendedAds ?? (meta[x]?.s || 0); }
       if (meta[x]) { o.metaDays++; o.meta_spend += meta[x].s || 0; o.imps += meta[x].i || 0; }
       if (tw[x]) { o.attrDays++; o.attr += tw[x].rev || 0; }
     }
-    o.mer = o.spend > 0 ? o.revenue / o.spend : null;
+    /* MER counts only the brand's MER channels (Amazon, Whatnot, wholesale left out by default); revenue stays whole. */
+    o.mer = o.spend > 0 ? o.mer_revenue / o.spend : null;
     o.cpa = o.orders > 0 ? o.spend / o.orders : null;
     o.aov = o.orders > 0 ? o.revenue / o.orders : null;
     o.meta_cpm = o.imps > 0 ? o.meta_spend / o.imps * 1000 : null;
