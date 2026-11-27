@@ -4856,7 +4856,7 @@ const GLOSSARY = [
     good: 'It is the base for everything else here. It is <b>not</b> what any ad platform reports - those are attributed claims, this is money.',
     moves: 'A fall with steady spend shows up immediately as a lower MER. Check <b>Profit</b> for which day, then <b>Meta</b> for whether delivery changed.' },
   { k: 'MER', tag: 'blended',
-    one: 'Sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them, set in Brand settings > Goals) divided by all ad spend.',
+    one: 'Sales from the channels that count (the brand's own website; TikTok Shop, Amazon, Whatnot and wholesale left out unless the brand counts them, set in Brand settings > Goals) divided by all ad spend.',
     f: 'MER = sales that count ÷ <b>total</b> ad spend, all platforms combined.',
     good: 'Judged against the MER in that month’s plan, never a universal number. Your six currently sit around 2.1–2.5.',
     moves: 'MER holding while <b>aMER</b> falls is the one that matters - it means the ads stopped acquiring and the email list is carrying the store.' },
@@ -5116,7 +5116,7 @@ const PAGE_HELP = {
     <p><b>The columns:</b><br>
     • <b>Net Sales + Shipping</b> - Shopify Total Sales less sales tax: everything the store sold from every source (paid, organic, email, direct), after discounts and returns, including shipping charged to customers.<br>
     • <b>Ad Spend</b> - every platform combined.<br>
-    • <b>MER</b> - sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them, set in Brand settings > Goals) ÷ Ad Spend. The honest "are the ads paying for themselves" number.<br>
+    • <b>MER</b> - sales from the channels that count (the brand's own website; TikTok Shop, Amazon, Whatnot and wholesale left out unless the brand counts them, set in Brand settings > Goals) ÷ Ad Spend. The honest "are the ads paying for themselves" number.<br>
     • <b>aMER</b> - new-customer sales that count ÷ that same spend. Strips out repeat buyers and email so ads can't take credit for them.<br>
     • <b>Contribution Margin</b> - what's left after product costs, fees and ad spend. The number that decides whether the client is a business or a hobby.</p>
     <p><b>Why these never match Ads Manager:</b> because they shouldn't. Meta and Google each claim credit for sales using their own attribution, and they double-count each other. These figures come from Shopify - real money, counted once. For platform-attributed numbers, use the <b>Meta</b> tab.</p>
@@ -5161,7 +5161,7 @@ const PAGE_HELP = {
     <p><b>The metrics:</b><br>
     • <b>Net Sales + Shipping</b> - Shopify Total Sales less sales tax, via Triple Whale - not ad-platform-attributed revenue.<br>
     • <b>Total Spend</b> - all platforms blended (Meta + Google), from Triple Whale.<br>
-    • <b>MER</b> - sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them, set in Brand settings > Goals) ÷ <i>all</i> ad spend: every counted sale from any source (paid, organic, email, direct) over every dollar spent on every platform. Not attributed revenue - no platform's claims are involved.<br>
+    • <b>MER</b> - sales from the channels that count (the brand's own website; TikTok Shop, Amazon, Whatnot and wholesale left out unless the brand counts them, set in Brand settings > Goals) ÷ <i>all</i> ad spend: every counted sale from any source (paid, organic, email, direct) over every dollar spent on every platform. Not attributed revenue - no platform's claims are involved.<br>
     • <b>aMER</b> - the acquisition version: <b>new-customer</b> sales that count ÷ that same total ad spend. Same blended basis, but repeat buyers and email can't flatter it. This is what CTC leads with, because ads are mostly bought to acquire.<br>
     • <b>Contribution Margin</b> - net sales minus product costs, fees and ad spend: did the day actually make money? Uses the client's real COGS from Triple Whale when they maintain it, or your margin-% override.</p>
     <p><b>The forecast:</b> your monthly goal spread across the days of the month using the account's own trailing 28-day weekday pattern (weekends and weekdays get their real shares). Spend is forecast flat. The plan is frozen for the month - it doesn't drift to flatter us.</p>
@@ -7211,7 +7211,7 @@ async function renderOverview() {
     ${table}
     <details class="footnote"><summary>How these numbers are defined</summary>
       <div class="fn-body"><b>Revenue</b> is Shopify Total Sales minus sales tax: gross sales, less discounts and returns, plus shipping charged to customers, less tax. Every channel counts: paid, organic, email and direct. <b>Orders</b> and <b>AOV</b> come from Triple Whale's order count over the same revenue. <b>Ad spend</b> is every platform, blended.<br><br>
-      <b>MER</b> is sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them, set in Brand settings > Goals) divided by all ad spend; <b>aMER</b> is new-customer sales that count over that same spend. <b>Contribution margin</b> is revenue less every variable cost: product, fulfillment, handling, payment fees and ad spend. <b>Revenue per channel</b> is Triple Whale's last platform click, so Meta and Google can both claim the same order; that is why the channels do not add up to revenue and why MER exists. <b>Pace</b> compares month to date with this month's agreed plan, pro-rated to the days elapsed; more than 30% behind needs a decision, 8 to 30% behind is watched.</div></details>`;
+      <b>MER</b> is sales from the channels that count (the brand's own website; TikTok Shop, Amazon, Whatnot and wholesale left out unless the brand counts them, set in Brand settings > Goals) divided by all ad spend; <b>aMER</b> is new-customer sales that count over that same spend. <b>Contribution margin</b> is revenue less every variable cost: product, fulfillment, handling, payment fees and ad spend. <b>Revenue per channel</b> is Triple Whale's last platform click, so Meta and Google can both claim the same order; that is why the channels do not add up to revenue and why MER exists. <b>Pace</b> compares month to date with this month's agreed plan, pro-rated to the days elapsed; more than 30% behind needs a decision, 8 to 30% behind is watched.</div></details>`;
 
   const open = id => { S.act = id; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; show('overview'); };
   $('#main').querySelectorAll('tr[data-id]').forEach(c => {
@@ -9468,7 +9468,7 @@ function reportBodyHTML(d, summary, opts = {}) {
   const kpis = [
     kpi('Revenue', t.sales, money, f.sales, p.sales, false, 'Shopify Total Sales minus sales tax - every channel (paid, organic, email, direct), after discounts and returns, including shipping charged to customers. Not any ad platform’s attributed number.'),
     kpi('Ad spend', t.spend, money, f.spend, p.spend, 'neutral', 'Every platform combined - Meta, Google and anything else Triple Whale tracks. Shown without a good/bad color on purpose: spend is a decision, not a result - whether it was the right amount is what MER, aMER and CPA answer.'),
-    kpi('MER', t.mer, fmtX, f.mer, p.mer, false, 'Sales that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them) ÷ all ad spend. The honest “are the ads paying for themselves” number - the same thing as blended ROAS.'),
+    kpi('MER', t.mer, fmtX, f.mer, p.mer, false, 'Sales that count (the brand's own website; TikTok Shop, Amazon, Whatnot and wholesale left out unless the brand counts them) ÷ all ad spend. The honest “are the ads paying for themselves” number - the same thing as blended ROAS.'),
     kpi('aMER', t.amer, fmtX, f.amer, p.amer, false, 'New-customer sales that count ÷ that same total ad spend. Repeat buyers and email can’t flatter it - this is what the ads actually bought.'),
     t.cm != null ? kpi('Contribution margin', t.cm, money, f.cm, p.cm, false, 'Revenue minus every variable cost - product, fulfillment, handling, payment fees and ad spend. Excludes fixed costs like rent, salaries and software.') : '',
     /* Fixed costs and net profit (2026-11-25): one total, never a category. Shown only when the report froze the switch

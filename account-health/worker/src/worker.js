@@ -3559,7 +3559,7 @@ async function amazonOrdersByDay(env, acct, from, to) {
   return out;
 }
 /* SALES THAT COUNT TOWARD MER: THE CHANNEL SYNC (2026-11-27, profit merchannels.js). MER counts only the channels a
-   brand counts (its storefront, Shop app, TikTok Shop...), so Locus needs each day's sales split by order source. Triple
+   brand counts (by default its own website only), so Locus needs each day's sales split by order source. Triple
    Whale's orders table has it: one query per brand writes p_sales_channel for the window (every day in it replaced).
    Hourly (salesChannelTick): a brand never synced reads 90 days back to today; after that the last 4 days to today in the
    brand's own zone, at most every 3 hours. 2 brands a tick, the one synced longest ago first. Setting

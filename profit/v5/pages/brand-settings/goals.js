@@ -9,8 +9,8 @@
      the test and call rules for this brand             profit PUT /api/brand/rules?act=<brand id> { rules: { <name>: <number> } }
      which sales count toward MER (2026-11-27)          profit PUT /api/mer-channels { act, counts: { <channel>: bool | null } } / { act, tags }
    SALES THAT COUNT TOWARD MER (profit worker src/merchannels.js): every Shopify order source of the last 30 days with
-   its sales, ticked when it counts. The agency rule ticks the website and social shops and leaves Amazon, Whatnot,
-   wholesale and in-person sales out; a tick that matches the rule is saved as "follow the rule" (null). */
+   its sales, ticked when it counts. The agency rule ticks the brand's own website only and leaves TikTok Shop, the Shop
+   app, Amazon, Whatnot, wholesale and in-person sales out; a tick that matches the rule is saved as "follow the rule" (null). */
 
 import { put } from '../../kit.js';
 import { h, hero, card, gauge, takeaway, kpis, kpi, statusDot, money, x, pct, em, empty, platformChip, addStyles, toggle } from '../../kit.js';
@@ -197,7 +197,7 @@ function draw(el, data, ctx) {
   };
   const KIND = MC ? MC.kinds || {} : {};
   const merCard = !MC ? null : card({ title: 'Sales that count toward MER', note: MC.set ? 'Set for this brand' : 'Agency rule' },
-    h('p', { class: 'lx-st-say' }, "MER is the sales ads drive divided by all ad spend. Your website and social shops count. Amazon, Whatnot, wholesale and in-person sales sit in Shopify too, but ads do not drive them, so they are left out unless you tick them. Store sales, orders and profit still count every sale, and each platform's ROAS is unchanged."),
+    h('p', { class: 'lx-st-say' }, "MER is your own website's sales divided by all ad spend. TikTok Shop and other shops on a platform are judged on that platform's ROAS instead, and Amazon, Whatnot, wholesale and in-person sales are not driven by your ads, so all of them are left out unless you tick them. Store sales, orders and profit still count every sale, and each platform's ROAS is unchanged."),
     MC.channels.length ? h('div', { class: 'lx-mc' },
       h('div', { class: 'lx-mc-row head' }, h('div', null, 'Counts'), h('div', null, 'Channel'), h('div', { class: 'n' }, 'Sales, ' + MC.days + ' days'), h('div', { class: 'n' }, 'Orders')),
       ...MC.channels.map(c => h('div', { class: 'lx-mc-row' + (c.unnamed ? ' unnamed' : '') },
@@ -217,7 +217,7 @@ function draw(el, data, ctx) {
     saveBar(S, ctx, { label: 'Save goals', note: data.saved ? 'Saved ' + data.saved.at + ' by ' + data.saved.by + '.' : undefined, help: setHelp({
       about: 'You give ' + APP_NAME + ' four facts about the brand and it works out break-even and the goals from them, live as you type. Save shows every change first, then writes the goal ROAS, the goal cost and the rules for everyone.' + (ctx.isClient ? ' Changes you make are logged and your team is told.' : ' A change a client makes is logged and the team gets a bell note.'),
       sections: [
-        { title: 'Store MER and ROAS', text: 'Store MER is the sales that count (your website and social shops; Amazon, Whatnot and wholesale left out unless ticked) divided by all ad spend. ROAS is one platform or campaign: the sales Triple Whale credits to it, divided by its own spend. Hover or tap any dotted label for its meaning.' },
+        { title: 'Store MER and ROAS', text: 'Store MER is the sales that count (your own website; TikTok Shop, Amazon, Whatnot and wholesale left out unless ticked) divided by all ad spend. ROAS is one platform or campaign: the sales Triple Whale credits to it, divided by its own spend. Hover or tap any dotted label for its meaning.' },
         { title: 'The four facts', text: 'What an order keeps is the share of each sales dollar left after product cost, postage and payment fees, before any ad spend (the margin). Left after ads is the cents of each sales dollar you want to keep once ads are paid: more cents left means a higher goal MER and less spend on new customers.' },
         { title: 'What ' + APP_NAME + ' reads itself', text: 'Order size is store sales divided by orders, paying orders only ($0 and creator sample orders left out). First order size is the same for a new customer\'s first order. Order again is the share of new customers who order a second time within 90 days. Returning sales is the share of store sales from customers who had ordered before.' },
       ],

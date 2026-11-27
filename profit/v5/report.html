@@ -323,7 +323,7 @@ function render(d, linkOf) {
     readBlock(r.summary),
     numbers(r), platforms(r), chartSection(r), adsSection(r), plans(r),
     older(d.reports, r, linkOf),
-    h('p', { class: 'end' }, 'MER is sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them) divided by all ad spend on every platform. Each report is a fixed snapshot of the period it covers.'));
+    h('p', { class: 'end' }, 'MER is sales from the channels that count (the brand's own website; TikTok Shop, Amazon, Whatnot and wholesale left out unless the brand counts them) divided by all ad spend on every platform. Each report is a fixed snapshot of the period it covers.'));
 }
 /** Fill the page, skipping the parts a report does not have. */
 const put = (...kids) => app.replaceChildren(...kids.flat(Infinity).filter(k => k != null && k !== false));

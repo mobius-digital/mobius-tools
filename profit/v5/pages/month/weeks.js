@@ -162,7 +162,7 @@ export default {
     put(el, h('div', { class: 'mo' }, [
       helpBar([
         { title: 'What it is for', text: 'Which weeks carried these dates: sales and ad spend for each week, against the plan and the MER goal.' },
-        { title: 'How it is counted', text: `Weeks are seven day blocks from ${dayLabel(weeks[0].from)}; a part week is compared on its average day. Sales are store sales less tax (Triple Whale). MER is sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them) over all ad spend.` },
+        { title: 'How it is counted', text: `Weeks are seven day blocks from ${dayLabel(weeks[0].from)}; a part week is compared on its average day. Sales are store sales less tax (Triple Whale). MER is sales from the channels that count (the brand's own website; TikTok Shop, Amazon, Whatnot and wholesale left out unless the brand counts them) over all ad spend.` },
       ], pageStamp(ctx)),
       heroBlock(weeks, data, ctx),
       say ? takeaway(say, { action: ctx.isClient ? null : askWhy(ctx, 'Which weeks carried the month') }) : null,

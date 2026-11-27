@@ -33,11 +33,12 @@ test('the copy decides every channel the way profit does', () => {
   assert.deepEqual(mc.merConfig('not json'), { counts: {}, tags: ['wholesale'] });
 });
 
-test('default rule: the storefront and social shops count, Amazon, Whatnot and wholesale do not; a brand tick wins', () => {
+test('default rule: the brand\'s own website only; TikTok Shop, Shop app, Amazon, Whatnot and wholesale do not; a brand tick wins', () => {
   const cfg = mc.merConfig(null);
   assert.equal(mc.counts('web', cfg), true);
-  assert.equal(mc.counts('tiktok', cfg), true);
-  assert.equal(mc.counts('some_new_app', cfg), true, 'an unknown source counts until someone unticks it');
+  assert.equal(mc.counts('tiktok', cfg), false);
+  assert.equal(mc.counts('3890849', cfg), false);
+  assert.equal(mc.counts('some_new_app', cfg), false, 'an unknown source is left out until someone ticks it');
   assert.equal(mc.counts('amazon', cfg), false);
   assert.equal(mc.counts('whatnot', cfg), false);
   assert.equal(mc.counts('tag:wholesale', cfg), false);

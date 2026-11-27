@@ -168,7 +168,7 @@ function basedOn(m, ctx) {
   const parts = [];
   if (m.basis && m.basis.month && ok(m.basis.sales)) parts.push(`Growth is measured on ${monthName(m.basis.month)}${m.basis.run_rate ? ' at its current pace' : ''}, ${whole(m.basis.sales)} in sales.`);
   if (m.yard && m.yard.from && m.yard.to) parts.push(`Returning customers and the return on ads come from ${dayLabel(m.yard.from)} to ${dayLabel(m.yard.to)}.`);
-  parts.push('The plan splits evenly across the days of the month. MER is sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them) over all ad spend.');
+  parts.push('The plan splits evenly across the days of the month. MER is sales from the channels that count (the brand's own website; TikTok Shop, Amazon, Whatnot and wholesale left out unless the brand counts them) over all ad spend.');
   return helpBar([
     { title: 'What it is for', text: 'The plan agreed for the month: the sales goal, the ad budget, the MER that takes, and whether it can be reached.' },
     { title: 'What it rests on', text: parts.join(' ') },

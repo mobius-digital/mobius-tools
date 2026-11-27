@@ -65,7 +65,7 @@ function draw(el, data, ctx) {
 
   const parts = [h('div', { class: 'mt-helpbar' }, pageHelp({ body: [
     { title: 'What it is for', text: 'One page per brand to read before the Monday team meeting: last week\'s numbers, MER by week, the one decision and last week\'s promises. Everything else is folded.' },
-    { title: 'The numbers', text: 'Last week, Monday to Sunday, final. Sales are every store order (Triple Whale); Store MER is sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them) divided by all ad spend. The Meta and Google rows are Triple Whale last click ROAS, compared with the store goal. The status pill compares Store MER with the brand\'s goal: On goal at or over it, Close within 10% under, Under goal more than 10% under.' },
+    { title: 'The numbers', text: 'Last week, Monday to Sunday, final. Sales are every store order (Triple Whale); Store MER is sales from the channels that count (the brand's own website; TikTok Shop, Amazon, Whatnot and wholesale left out unless the brand counts them) divided by all ad spend. The Meta and Google rows are Triple Whale last click ROAS, compared with the store goal. The status pill compares Store MER with the brand\'s goal: On goal at or over it, Close within 10% under, Under goal more than 10% under.' },
     { title: 'When it is sent', text: SENT_LABEL + '. Decisions are made in Run the meeting, not here.' },
   ] })), picker, head];
 

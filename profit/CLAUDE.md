@@ -4979,11 +4979,12 @@ team presses Reopen.
 
 - **Why.** Brands' 3PLs ship only from Shopify, so Amazon, Whatnot and wholesale orders sit in Shopify at real prices.
   Ads do not drive them; counting them flattered MER (Bonk ~37% of 30-day sales were Amazon orders synced in).
-  Cole 2026-11-27: MER = (website + social shops) / all ad spend; marketplaces and live selling never in MER;
+  Cole 2026-11-27 (final): MER = the brand's own website / all ad spend; TikTok Shop and other platform shops are judged
+  on that platform's ROAS; marketplaces and live selling (Amazon, Whatnot, Showroom) never in MER;
   per-platform ROAS unchanged. Locus is sold to agencies, so it is a default rule plus a per-brand setting.
-- **Rule (code, `worker/src/merchannels.js`):** storefront, Shop app, Facebook and Instagram shop, TikTok Shop,
-  subscription renewals and staff draft orders count; Amazon, eBay, Walmart, Etsy, Whatnot, Faire, Shopify Collective,
-  wholesale, POS and orders tagged `wholesale` do not. An unknown app id counts until someone unticks it.
+- **Rule (code, `worker/src/merchannels.js`):** the online store and its subscription renewals count. Shop app,
+  Facebook and Instagram shop, TikTok Shop, staff draft orders, unknown apps, Amazon, eBay, Walmart, Etsy, Whatnot
+  (Showroom 420755537921), Faire, Shopify Collective, POS and orders tagged `wholesale` do not, unless ticked per brand.
 - **Setting:** `settings.merChannels:<brand>` = { counts: { channel: bool }, tags: [...] }. Brand settings > Goals >
   "Sales that count toward MER" (v5 goals.js) shows every channel's last-30-day sales with a tick, MER both ways, and
   saves through the confirm sheet. Route: profit `GET/PUT /api/mer-channels`.

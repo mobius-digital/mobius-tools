@@ -95,7 +95,7 @@ const ADS = [
     'What one ad platform charged in the period.', 'the platform\'s own spend, added up by day',
     'the platform\'s daily rows in the shared database (Meta: daily_insights)', ['meta_spend', 'google_spend']),
   D('mer', 'MER', 'ratio', 'after',
-    'Dollars of revenue for each dollar of ad spend. It does not care which ad got the credit. Revenue comes only from the channels the brand counts toward MER (its website, Shop app, social shops); Amazon, Whatnot, wholesale and other channels ads do not drive are left out unless the brand ticks them in.',
+    'Dollars of revenue for each dollar of ad spend. It does not care which ad got the credit. Revenue comes only from the channels the brand counts toward MER (by default its own website); TikTok Shop, Amazon, Whatnot, wholesale and other channels are left out unless the brand ticks them in.',
     'revenue from the channels the brand counts toward MER divided by ad spend', 'revenue, the channels the brand counts toward MER (Brand settings, Goals) and ad spend, as defined here', ['mer']),
   D('new_customer_mer', 'New customer MER', 'ratio', 'after',
     'Dollars of first time customer revenue for each dollar of ad spend. It shows whether ads are finding new buyers. Like MER, it uses only the channels the brand counts toward MER.',

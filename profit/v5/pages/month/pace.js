@@ -216,7 +216,7 @@ export default {
     put(el, h('div', { class: 'mo' }, [
       helpBar([
         { title: 'What it is for', text: `Is ${name} on course for its sales goal? The month so far against the plan, where the month is heading, and what each day left needs.` },
-        { title: 'How it is counted', text: 'Sales are store sales less tax (Triple Whale). Store MER is sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them) over all ad spend. The plan splits evenly across the days of the month, so plan to date is the month goal times the share of days gone.' },
+        { title: 'How it is counted', text: 'Sales are store sales less tax (Triple Whale). Store MER is sales from the channels that count (the brand's own website; TikTok Shop, Amazon, Whatnot and wholesale left out unless the brand counts them) over all ad spend. The plan splits evenly across the days of the month, so plan to date is the month goal times the share of days gone.' },
         { title: 'The line on the chart', text: f.fromForecast ? 'On course is the forecast if the rest of the ad budget is spent.' : 'At this pace carries the daily average so far to the end of the month.' },
       ], h('span', { class: 'bz-chip' }, `${name}, day ${f.done} of ${f.dim}`), pageStamp(ctx)),
       heroBlock(data, ctx, f),

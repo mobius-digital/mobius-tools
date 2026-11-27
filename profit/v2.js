@@ -282,7 +282,7 @@
     } else if (m === 'spend') {
       out.push(sec('By platform', `${paid.length ? `${esc(paid.slice().sort((a, b) => b.spend - a.spend)[0].label)} takes the most.` : ''} Each platform’s spend is its own number.`, spendTable(null)));
     } else if (m === 'mer' || m === 'roas') {
-      out.push(sec('By platform', `MER is the sales that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them) on all spend; each platform’s ROAS is its credited revenue on its own spend. ${modelNote}`, roasTable(null)));
+      out.push(sec('By platform', `MER is the sales that count (the brand's own website; TikTok Shop, Amazon, Whatnot and wholesale left out unless the brand counts them) on all spend; each platform’s ROAS is its credited revenue on its own spend. ${modelNote}`, roasTable(null)));
     } else if (m === 'amer') {
       out.push(sec('How it is made', '', tbl(['', 'This period', cmpOn ? 'Before' : ''], [`<tr><td>Revenue from first orders</td><td>${km(c.new_rev)}</td><td>${cmpOn ? km(p.new_rev) : ''}</td></tr>`, `<tr><td>All ad spend</td><td>${km(c.spend)}</td><td>${cmpOn ? km(p.spend) : ''}</td></tr>`, `<tr class="tot"><td>aMER</td><td>${x2(c.amer)}</td><td>${cmpOn ? x2(p.amer) : ''}</td></tr>`, `<tr><td>MER, for comparison</td><td>${x2(c.mer)}</td><td>${cmpOn ? x2(p.mer) : ''}</td></tr>`])));
       out.push(sec('Where the first orders came from', 'By the source Triple Whale gives each order.', ncTable()));

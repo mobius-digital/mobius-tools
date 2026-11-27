@@ -4,7 +4,7 @@
      MER  = sales from the channels that count / all ad spend
      aMER = new-customer sales from those channels / all ad spend (the new-customer share applied to counted sales)
    Store sales, orders, AOV and profit stay whole-store. Per-platform ROAS is untouched.
-   Default rule: storefront, Shop app, social shops (TikTok Shop), subscriptions and staff orders count;
+   Default rule (Cole 2026-11-27): the brand's own website only (online store + its subscription renewals);
    marketplaces, live selling, wholesale and in-person POS do not; an unknown source counts until someone unticks it.
    Per brand setting `merChannels:<brand>` = { counts: { <channel>: true|false }, tags: [...] }.
    Data: p_sales_channel (act_id, day, channel, sales, orders), synced by account-health from Triple Whale.
@@ -17,10 +17,10 @@
 /* What each kind of channel is, and whether it counts by default. */
 export const KINDS = {
   storefront: { label: 'Your website', counts: true },
-  social: { label: 'Social shops', counts: true },
-  subscription: { label: 'Subscriptions', counts: true },
-  staff: { label: 'Typed in by your team', counts: true },
-  other: { label: 'Other apps', counts: true },
+  subscription: { label: 'Subscriptions on your website', counts: true },
+  social: { label: 'Shops on other platforms', counts: false },
+  staff: { label: 'Typed in by your team', counts: false },
+  other: { label: 'Other apps', counts: false },
   marketplace: { label: 'Marketplaces', counts: false },
   live: { label: 'Live selling', counts: false },
   wholesale: { label: 'Wholesale', counts: false },
@@ -44,7 +44,7 @@ const KNOWN = {
   ebay: ['eBay', 'marketplace'],
   walmart: ['Walmart', 'marketplace'],
   etsy: ['Etsy', 'marketplace'],
-  '420755537921': ['Whatnot', 'live'],
+  '420755537921': ['Whatnot (Showroom app)', 'live'],
   '292572659713': ['Whatnot', 'live'],
   whatnot: ['Whatnot', 'live'],
   faire: ['Faire', 'wholesale'],
@@ -73,9 +73,9 @@ export function describe(key) {
   if (k.startsWith('tag:')) return { key: k, label: `Orders tagged "${k.slice(4)}"`, kind: 'wholesale', default: false, unnamed: false };
   const known = KNOWN[k];
   if (known) return { key: k, label: known[0], kind: known[1], default: KINDS[known[1]].counts, unnamed: false };
-  if (k === 'unknown') return { key: k, label: 'No source recorded', kind: 'other', default: true, unnamed: true };
-  if (/^\d+$/.test(k)) return { key: k, label: `An app Locus does not know (Shopify app ${k})`, kind: 'other', default: true, unnamed: true };
-  return { key: k, label: k.replace(/[_-]+/g, ' '), kind: 'other', default: true, unnamed: true };
+  if (k === 'unknown') return { key: k, label: 'No source recorded', kind: 'other', default: false, unnamed: true };
+  if (/^\d+$/.test(k)) return { key: k, label: `An app Locus does not know (Shopify app ${k})`, kind: 'other', default: false, unnamed: true };
+  return { key: k, label: k.replace(/[_-]+/g, ' '), kind: 'other', default: false, unnamed: true };
 }
 
 /** The brand's setting, parsed. Missing or broken = the default rule. */

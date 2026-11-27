@@ -1,5 +1,5 @@
 /**
- * SALES THAT COUNT TOWARD MER (2026-11-27, Cole).
+ * SALES THAT COUNT TOWARD MER (2026-11-27, Cole; default narrowed to the website the same day).
  *
  * A brand's Shopify holds every order its warehouse ships, so marketplace and live-selling orders (Amazon, Whatnot,
  * eBay, wholesale) sit inside the store's total sales at their real prices. Ads do not drive those sales, so counting
@@ -12,10 +12,11 @@
  * (and anything judged on them: the War Room ladder, MER goals, the brief, reports) use counted sales. Per-platform
  * ROAS is untouched: each platform as Triple Whale attributes it.
  *
- * THE DEFAULT RULE (every brand, every agency): a brand's own storefront and ad-driven social commerce count (online
- * store, Shop app, Facebook and Instagram shop, TikTok Shop, subscription renewals, orders typed in by staff).
- * Marketplaces, live-auction apps, wholesale and in-person point of sale do not. An order source Locus does not know
- * counts until someone unticks it, so MER never drops without a person deciding.
+ * THE DEFAULT RULE (every brand, every agency, Cole 2026-11-27): the brand's own website only (Shopify online store,
+ * and subscription renewals bought there). Shops on other platforms (TikTok Shop, Shop app, Facebook and Instagram
+ * shop) are judged on that platform's own ROAS, not MER; marketplaces, live selling (Whatnot, Showroom), wholesale,
+ * in-person sales, orders typed in by staff and any app Locus does not know are left out too. Any of them can be
+ * ticked in per brand (the Shop app is the usual one).
  *
  * PER BRAND: Brand settings > Goals > "Sales that count toward MER" ticks channels in or out, setting
  * `merChannels:<brand>` = { counts: { <channel key>: true|false }, tags: [order tags left out] }. A channel the brand
@@ -37,10 +38,10 @@
 /* What each kind of channel is, and whether it counts by default. */
 export const KINDS = {
   storefront: { label: 'Your website', counts: true },
-  social: { label: 'Social shops', counts: true },
-  subscription: { label: 'Subscriptions', counts: true },
-  staff: { label: 'Typed in by your team', counts: true },
-  other: { label: 'Other apps', counts: true },
+  subscription: { label: 'Subscriptions on your website', counts: true },
+  social: { label: 'Shops on other platforms', counts: false },
+  staff: { label: 'Typed in by your team', counts: false },
+  other: { label: 'Other apps', counts: false },
   marketplace: { label: 'Marketplaces', counts: false },
   live: { label: 'Live selling', counts: false },
   wholesale: { label: 'Wholesale', counts: false },
@@ -64,7 +65,7 @@ const KNOWN = {
   ebay: ['eBay', 'marketplace'],
   walmart: ['Walmart', 'marketplace'],
   etsy: ['Etsy', 'marketplace'],
-  '420755537921': ['Whatnot', 'live'],
+  '420755537921': ['Whatnot (Showroom app)', 'live'],
   '292572659713': ['Whatnot', 'live'],
   whatnot: ['Whatnot', 'live'],
   faire: ['Faire', 'wholesale'],
@@ -93,9 +94,9 @@ export function describe(key) {
   if (k.startsWith('tag:')) return { key: k, label: `Orders tagged "${k.slice(4)}"`, kind: 'wholesale', default: false, unnamed: false };
   const known = KNOWN[k];
   if (known) return { key: k, label: known[0], kind: known[1], default: KINDS[known[1]].counts, unnamed: false };
-  if (k === 'unknown') return { key: k, label: 'No source recorded', kind: 'other', default: true, unnamed: true };
-  if (/^\d+$/.test(k)) return { key: k, label: `An app Locus does not know (Shopify app ${k})`, kind: 'other', default: true, unnamed: true };
-  return { key: k, label: k.replace(/[_-]+/g, ' '), kind: 'other', default: true, unnamed: true };
+  if (k === 'unknown') return { key: k, label: 'No source recorded', kind: 'other', default: false, unnamed: true };
+  if (/^\d+$/.test(k)) return { key: k, label: `An app Locus does not know (Shopify app ${k})`, kind: 'other', default: false, unnamed: true };
+  return { key: k, label: k.replace(/[_-]+/g, ' '), kind: 'other', default: false, unnamed: true };
 }
 
 /** The brand's setting, parsed. Missing or broken = the default rule. */

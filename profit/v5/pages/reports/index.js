@@ -670,12 +670,12 @@ function draw(el, d, ctx) {
   });
   put(el, h('div', { class: 'rp-top' }, helpBar(ctx.isClient ? [
       { title: 'What it is for', text: 'Every weekly and monthly report we sent you. Pick Weekly or Monthly and the period at the top; the newest is shown first.' },
-      { title: 'The numbers', text: 'Sales are every store order in the period. Store MER is sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them) divided by all ad spend. ROAS is one platform or one ad. Hover or tap any dotted label for its meaning.' },
+      { title: 'The numbers', text: 'Sales are every store order in the period. Store MER is sales from the channels that count (the brand's own website; TikTok Shop, Amazon, Whatnot and wholesale left out unless the brand counts them) divided by all ad spend. ROAS is one platform or one ad. Hover or tap any dotted label for its meaning.' },
     ] : [
       { title: 'What it is for', text: 'The weekly and monthly reports for this brand. The newest draft is on top with How we read it: talking points before the Monday call, then the read the team writes and approves, then Send.' },
       { title: 'Which report', text: 'The box at the top says which report is on screen. Pick Daily, Weekly or Monthly and the period with the arrows or the list. Daily shows one day from a weekly or monthly report; nothing is sent per day.' },
       { title: 'What the client gets', text: 'The approved read first, word for word, then the numbers, the platforms, the day by day chart and the best ads, exactly as drawn here. Team only parts (talking points, the notes box) never reach the client.' },
-      { title: 'The numbers', text: 'Sales are every store order in the period, from Triple Whale. Store MER is sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them) divided by all ad spend. Platform and ad ROAS are Triple Whale last platform click, and platform sales overlap. Hover or tap any dotted label for its meaning.' },
+      { title: 'The numbers', text: 'Sales are every store order in the period, from Triple Whale. Store MER is sales from the channels that count (the brand's own website; TikTok Shop, Amazon, Whatnot and wholesale left out unless the brand counts them) divided by all ad spend. Platform and ad ROAS are Triple Whale last platform click, and platform sales overlap. Hover or tap any dotted label for its meaning.' },
     ]), head, ...main,
     h('section', { class: 'cr-sect rp-every' }, heading('Every report', rows.length, 'pick one to show it above'), list(lines, null, { head: [{ label: 'Status', w: 210 }], first: 'Report' }))));
 }

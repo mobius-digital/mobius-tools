@@ -586,7 +586,7 @@ export default {
     put(el, ...[
       helpBar([
         { title: 'What it is for', text: 'How ' + ctx.brand.name + ' is doing on the dates at the top of the page, then what waits on a yes. The tiles at the top are yours: Edit tiles adds, takes off and reorders them, and only you see your set.' },
-        { title: 'Where the numbers come from', text: 'Sales are store sales less tax, from Triple Whale. MER is sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them) over all ad spend. Each platform\'s sales are the ones Triple Whale credits to it, last click; spend and delivery are the platform\'s own. Every tile says its dates and its source, and compares with the same number of days just before. Hover or tap any dotted label for its meaning.' },
+        { title: 'Where the numbers come from', text: 'Sales are store sales less tax, from Triple Whale. MER is sales from the channels that count (the brand's own website; TikTok Shop, Amazon, Whatnot and wholesale left out unless the brand counts them) over all ad spend. Each platform\'s sales are the ones Triple Whale credits to it, last click; spend and delivery are the platform\'s own. Every tile says its dates and its source, and compares with the same number of days just before. Hover or tap any dotted label for its meaning.' },
         { title: 'Plan to date', text: 'On This month the tiles compare with the month plan split evenly over the days so far. On any other dates there is no plan comparison.' },
       ]),
       noSource || tilesBlock(data, ctx, host),

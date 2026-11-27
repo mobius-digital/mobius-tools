@@ -1676,7 +1676,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     return pageHelp({ body: [
       { title: 'What it is for', text: `One page for the Black Friday weekend: how the sale is pacing against its goal, which campaign budgets ${APP_NAME} suggests moving, and the plan that was agreed. ${one ? 'This is one brand.' : 'Every brand is here; open a brand for its own page.'}` },
       { title: 'How the calls are made', text: `At every check-in each live campaign is read on its own ROAS (Triple Whale, last click) since the last check-in and today, against the brand's goal ROAS. This week only breaks a tie. The store MER is the gate: while it is over target nothing is cut, and while it is not clear nothing is raised. Nothing changes without a tap, and every change can be undone. A change less than ${READ_HOURS} hours old is marked as not read yet.` },
-      { title: 'Store MER and ROAS', text: 'Store MER is sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them) divided by all ad spend. ROAS is one platform or one campaign: the sales Triple Whale credits to it, divided by its own spend. Hover or tap any dotted label for its meaning.' },
+      { title: 'Store MER and ROAS', text: 'Store MER is sales from the channels that count (the brand's own website; TikTok Shop, Amazon, Whatnot and wholesale left out unless the brand counts them) divided by all ad spend. ROAS is one platform or one campaign: the sales Triple Whale credits to it, divided by its own spend. Hover or tap any dotted label for its meaning.' },
       { title: 'Who sees it', text: 'The team sees everything here. A client sees only the pace and the plan for their own brand, never the calls or the break-even lines. The client update card is what goes to the client.' },
     ] });
   }
@@ -1763,7 +1763,7 @@ function renderClient(el, data, ctx) {
   put(el, h('div', { class: 'wr3' },
     h('div', { class: 'wr3-bar' }, pageHelp({ body: [
       { title: 'What it is for', text: 'How your Black Friday sale is pacing against the goal we agreed, today by the hour, and the plan for the sale.' },
-      { title: 'Store MER', text: 'Sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them) divided by all ad spend. Hover or tap any dotted label for its meaning.' },
+      { title: 'Store MER', text: 'Sales from the channels that count (the brand's own website; TikTok Shop, Amazon, Whatnot and wholesale left out unless the brand counts them) divided by all ad spend. Hover or tap any dotted label for its meaning.' },
     ] })),
     paceHero(m),
     card({ title: 'The plan', note: 'what was agreed for the sale', flush: true }, planTable([row], { team: false, waiting: false, planHref: planHrefOf(ctx) }))));

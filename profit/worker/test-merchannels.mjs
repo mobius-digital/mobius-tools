@@ -10,12 +10,14 @@ import { makeDb } from './test-d1.mjs';
 
 let n = 0; const ok = async (name, fn) => { await fn(); n++; console.log('PASS ', name); };
 
-await ok('default rule: storefront and social shops count; marketplaces, live selling, wholesale, in person do not', () => {
-  for (const k of ['web', '3890849', '2329312', 'tiktok', 'subscription_contract_checkout_one', 'shopify_draft_order']) assert.equal(counts(k, merConfig(null)), true, k);
-  for (const k of ['amazon', '420755537921', '292572659713', 'ebay', 'faire', 'shopify-collective-automatic-payments', 'pos', 'tag:wholesale']) assert.equal(counts(k, merConfig(null)), false, k);
-  assert.equal(describe('420755537921').label, 'Whatnot');
+await ok('default rule: the brand\'s own website only; platform shops, marketplaces, live selling, wholesale, staff, in person do not', () => {
+  for (const k of ['web', '580111', 'subscription_contract_checkout_one']) assert.equal(counts(k, merConfig(null)), true, k);
+  for (const k of ['3890849', '2329312', 'tiktok', 'shopify_draft_order', 'amazon', '420755537921', '292572659713', 'ebay', 'faire',
+    'shopify-collective-automatic-payments', 'pos', 'tag:wholesale']) assert.equal(counts(k, merConfig(null)), false, k);
+  assert.equal(describe('420755537921').label, 'Whatnot (Showroom app)');
   assert.equal(describe('1615469').unnamed, true, 'an app Locus does not know is named as such');
-  assert.equal(counts('1615469', merConfig(null)), true, 'and counts until someone unticks it');
+  assert.equal(counts('1615469', merConfig(null)), false, 'and is left out until someone ticks it');
+  assert.equal(counts('3890849', merConfig({ counts: { '3890849': true } })), true, 'the Shop app can be ticked in per brand');
 });
 
 await ok('the brand setting wins over the default, both ways; tags default to wholesale', () => {
