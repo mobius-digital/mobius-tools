@@ -535,11 +535,28 @@ async function didRows(env, deps, act) {
   const win = new Date(Date.now() - DID_WINDOW).toISOString(), since = floor > win ? floor : win;
   const acts = (await metaActs(env, act)).map(m => m.act);
   if (!acts.length) return { items: [], ids: [], floor, tracked: false };
-  const rows = ((await env.DB.prepare(`SELECT id, summary, category, object_type, object_name, client_why, event_time FROM activities WHERE act_id IN (${acts.map((_, i) => `?${i + 2}`).join(', ')})
-    AND client_why IS NOT NULL AND client_why != '' AND event_time >= ?1 ORDER BY event_time`).bind(since, ...acts).all().catch(() => ({ results: [] }))).results) || [];
+  /* Left out, as the Updates card leaves them out: rows Meta did not confirm (confirmed = -1) and Locus writes undone
+     since (p_meta_write.undone, joined by the "Write mw_..." note). They are not marked either. A failed read returns
+     failed: the send keeps the list it had instead of saying "No changes", and markDid only pins the floor (no ids),
+     so the old "since the last send" fallback cannot skip the unmarked rows next time. */
+  let rows;
+  try {
+    rows = ((await env.DB.prepare(`SELECT id, summary, category, object_type, object_name, client_why, event_time, note FROM activities WHERE act_id IN (${acts.map((_, i) => `?${i + 2}`).join(', ')})
+    AND client_why IS NOT NULL AND client_why != '' AND COALESCE(confirmed, 0) <> -1 AND event_time >= ?1 ORDER BY event_time`).bind(since, ...acts).all()).results) || [];
+  } catch { return { items: [], ids: [], floor, tracked: true, failed: true }; }
+  const mwOf = r => (String(r.note || '').match(/\b(mw_[0-9a-f]+)/) || [])[1];
+  const mws = [...new Set(rows.map(mwOf).filter(Boolean))], undone = new Set();
+  try {
+    for (let i = 0; i < mws.length; i += 50) {
+      const ch = mws.slice(i, i + 50);
+      const { results } = await env.DB.prepare(`SELECT id, undone FROM p_meta_write WHERE id IN (${ch.map(() => '?').join(',')})`).bind(...ch).all();
+      for (const w of results || []) if (w.undone) undone.add(w.id);
+    }
+  } catch { return { items: [], ids: [], floor, tracked: true, failed: true }; }
   const out = [], byLine = new Map();
   for (const r of rows) {
     if (st && r.id != null && st.ids[r.id]) continue;   // already in a sent update
+    if (undone.has(mwOf(r))) continue;                   // undone in Locus: it did not happen
     const line = changeLine(r);
     if (!line) continue;
     if (byLine.has(line)) { byLine.get(line).ids.push([r.id, r.event_time]); continue; }
@@ -571,6 +588,7 @@ const isUpdTitle = x => !!x && ((x.type === 'header' && x.text && x.text.text ==
  *  numbers). Returns {dr, did}: did goes to markDid once Slack takes the post. */
 async function freshDraft(env, deps, dr, rec = null) {
   const did = await didRows(env, deps, dr.act);
+  if (did.failed) return { dr: JSON.parse(JSON.stringify(dr)), did };   // Change Log unreadable: the saved list, nothing marked
   const out = JSON.parse(JSON.stringify(dr)), text = updText(did.items.map(i => i.line));
   const fix = bl => { for (let i = 1; i < (bl || []).length; i++) if (isUpdTitle(bl[i - 1]) && bl[i] && bl[i].type === 'section' && bl[i].text) bl[i].text.text = text; };
   if (out.msg) { fix(out.msg.blocks); for (const a of out.msg.attachments || []) fix(a.blocks); }

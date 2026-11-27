@@ -66,14 +66,16 @@ function profitAnswer(url, hour) {
 }
 /** A world with Meta accounts per brand and a Change Log (activities) the test writes to. */
 function world({ metaAccts = true } = {}) {
-  const settings = new Map(), slack = [], posts = [], claims = new Map(), log = [];
+  const settings = new Map(), slack = [], posts = [], claims = new Map(), log = [], mw = new Map(), fail = { activities: false };
   const DB = { prepare(sql) {
     const st = { args: [], bind(...a) { st.args = a; return st; },
       async all() {
         if (/FROM connections/.test(sql)) return { results: metaAccts ? [{ act: 'act_' + st.args[0].replace('brand_', ''), name: 'Acct' }] : [] };
+        if (/FROM p_meta_write/.test(sql)) return { results: st.args.filter(id => mw.has(id)).map(id => ({ id, undone: mw.get(id) })) };
         if (/FROM activities/.test(sql)) {
-          const [since, ...acts] = st.args;
-          return { results: log.filter(r => acts.includes(r.act_id) && r.client_why && r.event_time >= since).sort((p, q) => p.event_time < q.event_time ? -1 : 1).map(r => ({ ...r })) };
+          if (fail.activities) throw new Error('D1 read failed');
+          const [since, ...acts] = st.args, conf = /confirmed/.test(sql);
+          return { results: log.filter(r => acts.includes(r.act_id) && r.client_why && r.event_time >= since && (!conf || (r.confirmed ?? 0) !== -1)).sort((p, q) => p.event_time < q.event_time ? -1 : 1).map(r => ({ ...r })) };
         }
         return { results: [] };
       },
@@ -106,9 +108,9 @@ function world({ metaAccts = true } = {}) {
   };
   let n = 0;
   /** A Locus budget write with a client line, as metawrite logs it. */
-  const change = (act, iso, from, to, name = 'Sale Campaign') => log.push({ id: `manual:${act}:${++n}`, act_id: 'act_' + act.replace('brand_', ''), event_time: iso,
-    summary: `Budget: $${from}/day → $${to}/day`, category: 'budget', object_type: 'CAMPAIGN', object_name: name, client_why: 'Sales are running ahead of the goal.' });
-  return { env, deps, settings, slack, posts, claims, log, change };
+  const change = (act, iso, from, to, name = 'Sale Campaign', extra = {}) => log.push({ id: `manual:${act}:${++n}`, act_id: 'act_' + act.replace('brand_', ''), event_time: iso,
+    summary: `Budget: $${from}/day → $${to}/day`, category: 'budget', object_type: 'CAMPAIGN', object_name: name, client_why: 'Sales are running ahead of the goal.', ...extra });
+  return { env, deps, settings, slack, posts, claims, log, change, mw, fail };
 }
 const route = async (mod, w, method, p, body) => {
   const url = new URL('https://ah.test' + p);
@@ -238,6 +240,44 @@ await check('changes sent before this began (before the floor) and outside 48 ho
   at('2026-11-30T14:10:00Z');
   await route(NEW, w, 'POST', '/api/standing/send', { act: 'brand_alpha', slot: slot2 });
   assert.equal(updatesOf(toClient(w, 'brand_alpha')[1]), '•  No changes since the last update');
+});
+
+await check('an undone Locus write and a row Meta did not confirm are never listed and never marked', async () => {
+  const w = world(); seed = 1;
+  const slot = await checkIn(NEW, w, '2026-11-27T02:13:00Z');
+  w.change('brand_alpha', '2026-11-27T02:20:00.000Z', 250, 315, 'Sale Campaign', { note: 'Write mw_abc123' });
+  w.change('brand_alpha', '2026-11-27T02:22:00.000Z', 100, 125, 'Prospecting', { confirmed: -1 });
+  w.mw.set('mw_abc123', 1);                                              // undone at 8:25, after the preview
+  at('2026-11-27T02:30:00Z');
+  const r = await (await route(NEW, w, 'POST', '/api/standing/send', { act: 'brand_alpha', slot })).json();
+  assert.equal(r.sent, true);
+  assert.equal(updatesOf(toClient(w, 'brand_alpha')[0]), '•  No changes since the last update');
+  const st = JSON.parse(w.settings.get('wsDid:brand_alpha') || '{"ids":{}}');
+  assert.deepEqual(Object.keys(st.ids), [], 'nothing marked');
+  /* A write still standing (not undone) is listed as before. */
+  w.change('brand_alpha', '2026-11-27T14:01:00.000Z', 60, 75, 'Sale Campaign', { note: 'Write mw_def456' });
+  w.mw.set('mw_def456', 0);
+  const slot2 = await checkIn(NEW, w, '2026-11-27T14:05:00Z');
+  at('2026-11-27T14:10:00Z');
+  await route(NEW, w, 'POST', '/api/standing/send', { act: 'brand_alpha', slot: slot2 });
+  assert.equal(updatesOf(toClient(w, 'brand_alpha')[1]), '•  Raised the Sale Campaign budget from $60 to $75 a day');
+});
+
+await check('a failed Change Log read at send keeps the saved list and marks nothing', async () => {
+  const w = world(); seed = 1;
+  w.change('brand_alpha', '2026-11-27T02:05:00.000Z', 250, 315);
+  const slot = await checkIn(NEW, w, '2026-11-27T02:13:00Z');
+  w.fail.activities = true;
+  at('2026-11-27T02:30:00Z');
+  const r = await (await route(NEW, w, 'POST', '/api/standing/send', { act: 'brand_alpha', slot })).json();
+  assert.equal(r.sent, true);
+  assert.equal(updatesOf(toClient(w, 'brand_alpha')[0]), `•  ${RAISE1}`, 'the list built at the check-in');
+  assert.deepEqual(JSON.parse(w.settings.get('wsDid:brand_alpha')).ids, {}, 'nothing marked, only the floor pinned');
+  w.fail.activities = false;
+  const slot2 = await checkIn(NEW, w, '2026-11-27T14:05:00Z');
+  at('2026-11-27T14:10:00Z');
+  await route(NEW, w, 'POST', '/api/standing/send', { act: 'brand_alpha', slot: slot2 });
+  assert.equal(updatesOf(toClient(w, 'brand_alpha')[1]), `•  ${RAISE1}`, 'the next update still carries it');
 });
 
 if (OLD) {
