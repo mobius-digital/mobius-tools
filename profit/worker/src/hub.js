@@ -29,6 +29,7 @@
 import { metaOf } from './brandids.js';
 import { rulesFor, goalOf, LEAD_CPL } from './brand.js';
 import { storeSwitchMany, markSource, sourceOf, storeTag, SHOP_METRICS } from './storesource.js';
+import { merLive } from './merchannels.js';
 import { memo } from './memo.js';
 /* Speed (2026-10-26): the buyer's list is built once for a page that asks for /api/hub/kept and /api/hub/today at the
    same moment (in-flight calls share, then 20 seconds), and the Agency view's command answer is kept 3 minutes. Keys
@@ -120,8 +121,8 @@ export async function handleHub(ctx) {
         const t = ctx.localDate(a.tz);
         const d = await ctx.twDay(a, t).catch(() => null);
         if (!d) return { act_id: a.act_id, name: a.name, currency: a.currency };
-        const row = ctx.liveRow(a, d, liveRules[a.act_id]) || {};
-        return { act_id: a.act_id, name: a.name, currency: a.currency, sales: row.sales ?? null, spend: row.spend ?? null, orders: row.orders ?? null, as_of: d.as_of || null };
+        const row = (await merLive(env, a.act_id, ctx.liveRow(a, d, liveRules[a.act_id]), t)) || {};
+        return { act_id: a.act_id, name: a.name, currency: a.currency, sales: row.sales ?? null, mer_sales: row.mer_sales ?? null, spend: row.spend ?? null, orders: row.orders ?? null, as_of: d.as_of || null };
       }));
       return json({ brands: rows });
     }
@@ -146,7 +147,8 @@ async function movedMany(env, ctx, accts) {
   for (const a of accts) {
     const P = piv[a.act_id] || {};
     const day = dt => { const g = k => num(P[k] && P[k][dt]); const rev = g('totalSales') - g('totalNetTaxes'), sp = g('blendedAds'), o = g('totalOrders'), n = g('newCustomersOrders');
-      return { has: !!(P.totalSales && P.totalSales[dt] != null), rev, sp, o, mer: sp ? rev / sp : null, aov: o ? rev / o : null, cac: n ? sp / n : null }; };
+      /* MER on counted sales (merchannels.js: the switch put the left-out channels in merExcluded) */
+      return { has: !!(P.totalSales && P.totalSales[dt] != null), rev, sp, o, mer: sp ? Math.max(0, rev - num(P.merExcluded && P.merExcluded[dt])) / sp : null, aov: o ? rev / o : null, cac: n ? sp / n : null }; };
     const x = day(d); if (!x.has) continue;
     const base = Array.from({ length: 28 }, (_, i) => day(ctx.addDays(d, -1 - i))).filter(r => r.has);
     if (base.length < 20) continue;
@@ -232,7 +234,7 @@ async function yesterdayMany(env, ctx, accts, all) {
       const mo = pending ? null : num(at?.meta?.ord), go = pending ? null : num(at?.google?.ord);
       const gsp = Math.max(0, sp - g('fb_ads_spend'));
       const cpa = (s, ord) => (ord == null ? null : ord > 0 ? s / ord : s > 0 ? s : null);
-      return { has: !!(P.totalSales && P.totalSales[dt] != null), pending, rev, sp, orders: o, new_orders: n, mer: sp ? rev / sp : null, cac: n ? sp / n : null, aov: o ? rev / o : null,
+      return { has: !!(P.totalSales && P.totalSales[dt] != null), pending, rev, sp, orders: o, new_orders: n, mer: sp ? Math.max(0, rev - g('merExcluded')) / sp : null, cac: n ? sp / n : null, aov: o ? rev / o : null,
         msp: m.spend, impr: m.impr, clicks: m.clicks, meta_orders: mo, meta_rev: pending ? null : num(at?.meta?.rev), mcpa: cpa(m.spend, mo),
         gsp, google_orders: go, gcpa: cpa(gsp, go), email: P.klaviyoPlacedOrderSales && P.klaviyoPlacedOrderSales[dt] != null ? g('klaviyoPlacedOrderSales') : null,
         cpm: m.impr ? m.spend * 1000 / m.impr : null, ctr: m.impr ? m.clicks / m.impr : null, cvr: mo != null && m.clicks ? mo / m.clicks : null };
@@ -1104,6 +1106,8 @@ function channelRows(ctx, a, w, meta, g, t, piv, ncBy) {
     amzSpend: sumM(piv, 'amazonAds', from, to), amzRev: sumM(piv, 'amazonAdsConversionValue', from, to),
     email: sumM(piv, 'klaviyoPlacedOrderSales', from, to), camp: sumM(piv, 'totalKlaviyoPlacedOrderTotalPriceCampaigns', from, to), flows: sumM(piv, 'totalKlaviyoPlacedOrderTotalPriceFlows', from, to),
     blended: sumM(piv, 'blendedAds', from, to), revenue: (sumM(piv, 'netSales', from, to) ?? 0) - (sumM(piv, 'totalNetTaxes', from, to) ?? 0), nc: sumM(piv, 'newCustomersOrders', from, to),
+    /* the left-out channels (merchannels.js), for MER on the sales that count */
+    excluded: sumM(piv, 'merExcluded', from, to) ?? 0,
   });
   const cr = rng(w.from, w.to), pr = w.pf ? rng(w.pf, w.pt) : null;
   const rows = [
@@ -1123,14 +1127,16 @@ function channelRows(ctx, a, w, meta, g, t, piv, ncBy) {
      blended spend from Triple Whale, and the paid platforms' credited purchases, spend, impressions and clicks
      (Meta's own delivery rows, Google and TikTok as Triple Whale carries them). */
   const day = (piv2, d) => { const s = piv2.netSales?.[d]; return s == null ? null : s - num(piv2.totalNetTaxes?.[d]); };
+  const merDay = (piv2, d) => { const r = day(piv2, d); const ex = num(piv2.merExcluded?.[d]); return r == null ? null : ex ? Math.max(0, r - ex) : r; };
   const at = (list) => Object.fromEntries((list || []).map(x => [x.date, x]));
   const mS = at(meta.series), gS = at(g.series), tS = at(t.series), mP = at(meta.prev_series), gP = at(g.prev_series), tP = at(t.prev_series);
   const paidOf = (d, A, B, C) => { const x = [A[d], B[d], C[d]].filter(Boolean); const s = k => x.reduce((y, r) => y + num(r[k]), 0); return { purchases: s('purchases'), paid_spend: s('spend'), impressions: s('impressions'), clicks: s('clicks') }; };
-  const series = dates(w.from, w.to, ctx.addDays).map(d => ({ date: d, meta: num(mBy[d]), google: num(gBy[d]), tiktok: num(tBy[d]), revenue: day(piv, d), spend: piv.blendedAds?.[d] ?? null, ...paidOf(d, mS, gS, tS) }));
-  const prev_series = w.pf ? dates(w.pf, w.pt, ctx.addDays).map(d => ({ date: d, revenue: day(piv, d), spend: piv.blendedAds?.[d] ?? null, ...paidOf(d, mP, gP, tP) })) : [];
+  const series = dates(w.from, w.to, ctx.addDays).map(d => ({ date: d, meta: num(mBy[d]), google: num(gBy[d]), tiktok: num(tBy[d]), revenue: day(piv, d), mer_sales: merDay(piv, d), spend: piv.blendedAds?.[d] ?? null, ...paidOf(d, mS, gS, tS) }));
+  const prev_series = w.pf ? dates(w.pf, w.pt, ctx.addDays).map(d => ({ date: d, revenue: day(piv, d), mer_sales: merDay(piv, d), spend: piv.blendedAds?.[d] ?? null, ...paidOf(d, mP, gP, tP) })) : [];
   const paid = (m, gg, tt) => { const x = [m, gg, tt].filter(Boolean); const s = k => x.reduce((y, r) => y + num(r[k]), 0); const pend = x.some(r => r.attr_pending);
     return { spend: s('spend'), purchases: pend ? null : s('purchases'), impressions: s('impressions'), clicks: s('clicks'), attr_pending: pend || undefined }; };
-  return { act_id: a.act_id, name: a.name, currency: a.currency, revenue: cr.revenue, blended_spend: cr.blended, prev_revenue: pr ? pr.revenue : null, prev_blended: pr ? pr.blended : null, new_orders: cr.nc, rows, series, prev_series,
+  return { act_id: a.act_id, name: a.name, currency: a.currency, revenue: cr.revenue, mer_sales: cr.excluded ? Math.max(0, cr.revenue - cr.excluded) : cr.revenue, blended_spend: cr.blended, prev_revenue: pr ? pr.revenue : null,
+    prev_mer_sales: pr ? (pr.excluded ? Math.max(0, pr.revenue - pr.excluded) : pr.revenue) : null, prev_blended: pr ? pr.blended : null, new_orders: cr.nc, rows, series, prev_series,
     paid: paid(meta.cur, g.cur, t.cur), prev_paid: w.pf ? paid(meta.prev, g.prev, t.prev) : null };
 }
 
@@ -1436,11 +1442,12 @@ async function drillMany(env, ctx, accts, w, model) {
     const [rows, fc] = rowsOf(w.from, w.to), [prows, fp] = rowsOf(w.pf, w.pt);
     const T = ctx.totals(rows), P = prows.length ? ctx.totals(prows) : null;
     const em = (f, t) => ({ campaigns: sumM(piv, 'totalKlaviyoPlacedOrderTotalPriceCampaigns', f, t), flows: sumM(piv, 'totalKlaviyoPlacedOrderTotalPriceFlows', f, t) });
-    const head = (x, f, t) => x && { sales: x.sales, spend: x.spend, orders: x.orders, new_orders: x.new_orders, new_rev: x.new_rev, ret_rev: x.ret_rev, aov: x.aov, new_aov: x.new_aov,
+    /* mer_sales / mer_new_rev: counted sales for MER and aMER (merchannels.js); screens divide those, never `sales`. */
+    const head = (x, f, t) => x && { sales: x.sales, mer_sales: x.mer_sales, mer_new_rev: x.mer_new_rev, spend: x.spend, orders: x.orders, new_orders: x.new_orders, new_rev: x.new_rev, ret_rev: x.ret_rev, aov: x.aov, new_aov: x.new_aov,
       cac: x.cac, mer: x.mer, amer: x.amer, email_rev: x.email_rev, ad_expense: x.ad_expense, ...em(f, t) };
     const money = (x, fx) => { if (!x) return null; const o = Object.fromEntries(MONEY.map(k => [k, x[k] ?? null])); o.ad_expense = x.ad_expense ?? null; o.fixed = fx; o.net = x.cm != null ? x.cm - fx : null; return o; };
     const ch = chs[i] || null, st = sts[0] || null;
-    const day = r => ({ date: r.date, sales: r.sales, spend: r.spend, orders: r.orders, new_orders: r.new_orders, new_rev: r.new_rev, email_rev: r.email_rev,
+    const day = r => ({ date: r.date, sales: r.sales, mer_sales: r.mer_sales, mer_new_rev: r.mer_new_rev, spend: r.spend, orders: r.orders, new_orders: r.new_orders, new_rev: r.new_rev, email_rev: r.email_rev,
       campaigns: piv.totalKlaviyoPlacedOrderTotalPriceCampaigns?.[r.date] ?? null, flows: piv.totalKlaviyoPlacedOrderTotalPriceFlows?.[r.date] ?? null });
     const spendBy = Object.fromEntries((ch?.series || []).map(x => [x.date, x]));
     return {

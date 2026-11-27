@@ -6,6 +6,7 @@ import { isEngineError } from '../platform/errors.js';
 import { swallowed } from '../platform/log.js';
 import { TW_METRICS } from './money.js';
 import { storeMode } from './storesource.js';
+import { merConfig } from './merchannels.js';
 
 const TW_ROWS_A_READ = 25000;
 const TW_MAX_PARTS = 6;
@@ -65,13 +66,17 @@ async function softAll(ctx, name, params) {
   }
 }
 
-/** Shopify daily store totals and each brand's store source setting (storesource.js), for the switch.
- *  Returns { rows: { brand: [day rows] }, modes: { brand: mode }, now }. Two light reads, one after the other. */
+/** Shopify daily store totals and each brand's store source setting (storesource.js), for the switch, plus the
+ *  sales per order channel and each brand's MER channel setting (merchannels.js, 2026-11-27).
+ *  Returns { rows: { brand: [day rows] }, modes: { brand: mode }, mer: { rows: { brand: [...] }, cfg: { brand: cfg } },
+ *  now }. Four light reads, one after the other. A brand with no setting gets the default rule. */
 export async function loadShop(ctx, acts, from, to) {
-  const out = { rows: {}, modes: {}, now: ctx.now.getTime() };
+  const out = { rows: {}, modes: {}, mer: { rows: {}, cfg: {} }, now: ctx.now.getTime() };
   if (!acts.length) return out;
   for (const r of await softAll(ctx, 'metrics.shopDays', { acts, from, to })) (out.rows[r.act_id] ??= []).push(r);
   for (const r of await softAll(ctx, 'metrics.storeModes', { acts })) out.modes[r.act_id] = storeMode(r.value);
+  for (const r of await softAll(ctx, 'metrics.salesChannels', { acts, from, to })) (out.mer.rows[r.act_id] ??= []).push(r);
+  for (const r of await softAll(ctx, 'metrics.merChannels', { acts })) out.mer.cfg[r.act_id] = merConfig(r.value);
   return out;
 }
 

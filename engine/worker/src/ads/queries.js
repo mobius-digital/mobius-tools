@@ -57,6 +57,13 @@ const many = {
   storeModeAny: { scope: 'brands',
     sql: `SELECT b.act_id AS act_id FROM brand_accounts b JOIN settings s ON s.key = 'storeSource:' || b.act_id
           WHERE {{brands:b.act_id}} AND b.act_id IN (:acts) LIMIT 1` },
+  /* Sales that count toward MER (profit merchannels.js, 2026-11-27): any order channel rows or a MER channel
+     setting for these brands? Then a read that shows MER goes to the old worker, which applies the channels. */
+  chanAny: { scope: 'brands',
+    sql: `SELECT act_id FROM p_sales_channel WHERE {{brands:act_id}} AND act_id IN (:acts) LIMIT 1` },
+  merSetAny: { scope: 'brands',
+    sql: `SELECT b.act_id AS act_id FROM brand_accounts b JOIN settings s ON s.key = 'merChannels:' || b.act_id
+          WHERE {{brands:b.act_id}} AND b.act_id IN (:acts) LIMIT 1` },
   goalDocs: { scope: 'brands',
     sql: `SELECT act_id, data_json FROM p_br_doc WHERE {{brands:act_id}} AND act_id IN (:acts) AND line_id = '' AND key = 'rules'` },
 };

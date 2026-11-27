@@ -16,7 +16,7 @@ function render(el, d, ctx) {
   if (!d || !d.brands || !d.brands.length) return put(el, empty({ title: 'No brands for these dates', text: 'Pick other dates, or add a brand in Agency settings.' }));
   const rows = d.brands.map(b => ({ ...b, margin: ok(b.profit) && b.sales > 0 ? b.profit / b.sales : null, href: brandHref(b.id, 'month', 'profit'), goTitle: 'Open ' + b.name + ' profit this month' }));
   const known = rows.filter(b => ok(b.profit));
-  const sales = sumOf(known, b => b.sales), gross = sumOf(known, b => b.gross_profit), spend = sumOf(known, b => b.spend), profit = sumOf(known, b => b.profit);
+  const sales = sumOf(known, b => b.sales), merSales = sumOf(known, b => b.mer_sales ?? b.sales), gross = sumOf(known, b => b.gross_profit), spend = sumOf(known, b => b.spend), profit = sumOf(known, b => b.profit);
   const losing = known.filter(b => b.profit < 0), thin = known.filter(b => b.profit >= 0 && b.margin < 0.08);
   const left = rows.filter(b => !ok(b.profit));
 
@@ -25,7 +25,7 @@ function render(el, d, ctx) {
   const hero = tileRow([
     { label: h('span', null, dl('Left after ads', 'profit_after_ads'), ', all brands'), value: money(profit), sub: ok(profit) && sales > 0 ? `${pct(profit / sales)} of ${money(sales)} in sales` : 'no brand with trusted costs' },
     { label: dl('Left before ads', 'left_before_ads'), value: money(gross), sub: ok(gross) && sales > 0 ? `${pct(gross / sales)} of sales` : '' },
-    { label: 'Ad spend', value: money(spend), source: 'All ad platforms', sub: `brands with trusted costs, MER ${spend > 0 && ok(sales) ? x(sales / spend) : 'no data'}` },
+    { label: 'Ad spend', value: money(spend), source: 'All ad platforms', sub: `brands with trusted costs, MER ${spend > 0 && ok(merSales) ? x(merSales / spend) : 'no data'}` },
     { label: 'Brands losing money', value: String(losing.length), sub: losing.length ? losing.map(b => b.name).join(', ') : thin.length ? `${thin.length} close to zero` : `of ${known.length} with trusted costs`, source: TW + ' costs' },
   ], { window: win, source: TW + ' costs' });
   ctx.askContext = `Which brands made money after ads, ${win}: left after ads ${money(profit)} on ${money(sales)} sales across ${known.length} brands with trusted costs. ${losing.length ? 'Losing money: ' + losing.map(b => b.name).join(', ') + '.' : 'No brand losing money.'}`;

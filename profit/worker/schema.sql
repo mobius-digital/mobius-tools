@@ -501,3 +501,16 @@ CREATE TABLE IF NOT EXISTS p_product_cost (
   PRIMARY KEY (act_id, sku, start_date)
 );
 CREATE INDEX IF NOT EXISTS p_product_cost_act ON p_product_cost(act_id, start_date);
+
+-- Sales that count toward MER (src/merchannels.js, 2026-11-27): Shopify orders per store day per order channel
+-- (source_name, or "tag:<tag>" for orders carrying a left-out tag), from Triple Whale's orders_table. Synced by
+-- account-health salesChannelTick. The brand's ticks live in settings `merChannels:<brand>`.
+CREATE TABLE IF NOT EXISTS p_sales_channel (
+  act_id    TEXT NOT NULL,
+  day       TEXT NOT NULL,
+  channel   TEXT NOT NULL,
+  sales     REAL NOT NULL DEFAULT 0,   -- gross - product discounts + shipping + buyer fees + additional - refunds (tax out)
+  orders    INTEGER NOT NULL DEFAULT 0,
+  synced_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (act_id, day, channel)
+);

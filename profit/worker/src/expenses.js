@@ -210,8 +210,10 @@ export function applyAdSpend(rows, adByDate) {
     if (!x || r.ad_expense != null) continue;
     r.base_spend = r.spend; r.ad_expense = x;
     r.spend = (r.spend || 0) + x;
-    r.mer = r.spend ? r.sales / r.spend : null;
-    r.amer = r.new_rev != null && r.spend ? r.new_rev / r.spend : null;
+    /* counted sales (merchannels.js), whole-store sales on a row that has none */
+    r.mer = r.spend ? (r.mer_sales ?? r.sales) / r.spend : null;
+    const nr = r.mer_new_rev ?? r.new_rev;
+    r.amer = nr != null && r.spend ? nr / r.spend : null;
     r.cm = r.gross_profit != null ? r.gross_profit - r.spend : null;
   }
   return rows;

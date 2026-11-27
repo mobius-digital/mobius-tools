@@ -117,7 +117,8 @@ async function load(ctx) {
     as_of: (st && st.as_of) || (pace && pace.pulled_at) || new Date().toISOString(), today, hour: metaNow ? metaNow.hour : (chart ? chart.hour : null),
     currency: (tb && tb.currency) || (st && st.currency) || 'USD', connected: platforms.length > 0 || ok(store.sales),
     sales_source: hasSales, sales_pending: pending, goal_roas: +goal > 0 ? +goal : null,
-    store: { ...store, mer: div(store.sales, store.spend) }, platforms, chart,
+    /* MER: the sales that count (mer_sales, Amazon, Whatnot and wholesale left out) when the live read carries them */
+    store: { ...store, mer: div(hasSales && st && ok(st.mer_sales) ? st.mer_sales : store.sales, store.spend) }, platforms, chart,
   };
 }
 
@@ -195,7 +196,7 @@ function render(el, d, ctx) {
   const top = tiles([
     kpi({ label: 'Ad spend today', value: ok(s.spend) ? usd(s.spend, cur) : 'not read', window: T, source: 'each platform', sub: ok(usualAll) ? `a usual whole day is ${usd(usualAll, cur)}` : 'all platforms' + by }),
     kpi({ label: 'Store sales today', value: ok(s.sales) ? usd(s.sales, cur) : 'no data', window: T, source: ok(s.sales) ? TW : null, sub: ok(s.sales) ? 'every sale, ads or not' : 'No sales source connected' }),
-    kpi({ label: def('MER today', 'mer'), value: ok(s.mer) ? x(s.mer) : 'no data', window: T, source: ok(s.mer) ? TW : null, sub: ok(s.mer) ? 'store sales over all ad spend' : ok(s.sales) ? 'no ad spend yet today' : '' }),
+    kpi({ label: def('MER today', 'mer'), value: ok(s.mer) ? x(s.mer) : 'no data', window: T, source: ok(s.mer) ? TW : null, sub: ok(s.mer) ? 'sales that count over all ad spend' : ok(s.sales) ? 'no ad spend yet today' : '' }),
     kpi({ label: 'Orders today', value: ok(s.orders) ? num(s.orders) : 'no data', window: T, source: ok(s.orders) ? TW : null, sub: ok(s.orders) && s.orders > 0 && ok(s.sales) ? usd(s.sales / s.orders, cur) + ' each' : '' }),
   ], { cols: 4 });
   ctx.askWindow = T;

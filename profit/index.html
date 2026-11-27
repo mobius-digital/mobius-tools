@@ -3002,7 +3002,8 @@ async function renderPerfShare(token) {
     + ` &nbsp; <span style="color:#C08A2E;font-weight:700">ad spend:</span> <b>${fmtMoney(r.spend, cur)}</b>`
     // The client payload carries money only, never derived ratios, so MER is
     // computed here rather than read off a field that does not exist.
-    + ` &nbsp; MER <b>${fmtX(r.spend ? r.sales / r.spend : null)}</b>`);
+    // MER counts only the sales channels the brand counts (mer_sales); sales from an older payload.
+    + ` &nbsp; MER <b>${fmtX(r.spend ? (r.mer_sales ?? r.sales) / r.spend : null)}</b>`);
   clientFooter('This page shows one client and updates as the month runs.');
 }
 
@@ -4855,13 +4856,13 @@ const GLOSSARY = [
     good: 'It is the base for everything else here. It is <b>not</b> what any ad platform reports - those are attributed claims, this is money.',
     moves: 'A fall with steady spend shows up immediately as a lower MER. Check <b>Profit</b> for which day, then <b>Meta</b> for whether delivery changed.' },
   { k: 'MER', tag: 'blended',
-    one: 'How much revenue every advertising dollar brought in, across the whole store.',
-    f: 'MER = revenue ÷ <b>total</b> ad spend, all platforms combined.',
+    one: 'Sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them, set in Brand settings > Goals) divided by all ad spend.',
+    f: 'MER = sales that count ÷ <b>total</b> ad spend, all platforms combined.',
     good: 'Judged against the MER in that month’s plan, never a universal number. Your six currently sit around 2.1–2.5.',
     moves: 'MER holding while <b>aMER</b> falls is the one that matters - it means the ads stopped acquiring and the email list is carrying the store.' },
   { k: 'aMER', tag: 'blended, new customers only',
     one: 'The same thing, but only counting revenue from people buying for the first time.',
-    f: 'aMER = new-customer revenue ÷ that same total ad spend.',
+    f: 'aMER = new-customer sales from the channels that count ÷ that same total ad spend.',
     good: 'Compared with this account’s own trailing 28 days. Across your six it runs roughly 1.3–2.1.',
     moves: 'Falling aMER means acquisition is getting more expensive. Check <b>Customers</b> for payback, then <b>Meta → Creative</b> for whether you are coasting on old ads.' },
   { k: 'Contribution margin', tag: 'CM',
@@ -5115,8 +5116,8 @@ const PAGE_HELP = {
     <p><b>The columns:</b><br>
     • <b>Net Sales + Shipping</b> - Shopify Total Sales less sales tax: everything the store sold from every source (paid, organic, email, direct), after discounts and returns, including shipping charged to customers.<br>
     • <b>Ad Spend</b> - every platform combined.<br>
-    • <b>MER</b> - Net Sales ÷ Ad Spend. Blended on both sides. The honest "are the ads paying for themselves" number.<br>
-    • <b>aMER</b> - new-customer revenue ÷ that same spend. Strips out repeat buyers and email so ads can't take credit for them.<br>
+    • <b>MER</b> - sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them, set in Brand settings > Goals) ÷ Ad Spend. The honest "are the ads paying for themselves" number.<br>
+    • <b>aMER</b> - new-customer sales that count ÷ that same spend. Strips out repeat buyers and email so ads can't take credit for them.<br>
     • <b>Contribution Margin</b> - what's left after product costs, fees and ad spend. The number that decides whether the client is a business or a hobby.</p>
     <p><b>Why these never match Ads Manager:</b> because they shouldn't. Meta and Google each claim credit for sales using their own attribution, and they double-count each other. These figures come from Shopify - real money, counted once. For platform-attributed numbers, use the <b>Meta</b> tab.</p>
     <p><b>If a row says "cost data ⚠":</b> that client's COGS in Triple Whale is unreliable, so no profit number is shown for it. Open the <b>Costs</b> tab for that client to see exactly what's wrong and fix it.</p>`,
@@ -5160,8 +5161,8 @@ const PAGE_HELP = {
     <p><b>The metrics:</b><br>
     • <b>Net Sales + Shipping</b> - Shopify Total Sales less sales tax, via Triple Whale - not ad-platform-attributed revenue.<br>
     • <b>Total Spend</b> - all platforms blended (Meta + Google), from Triple Whale.<br>
-    • <b>MER</b> - <i>all</i> store revenue ÷ <i>all</i> ad spend. <b>Blended on both sides</b>: every sale the store made from any source (paid, organic, email, direct) over every dollar spent on every platform. Not attributed revenue - no platform's claims are involved.<br>
-    • <b>aMER</b> - the acquisition version: <b>new-customer</b> revenue ÷ that same total ad spend. Same blended basis, but repeat buyers and email can't flatter it. This is what CTC leads with, because ads are mostly bought to acquire.<br>
+    • <b>MER</b> - sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them, set in Brand settings > Goals) ÷ <i>all</i> ad spend: every counted sale from any source (paid, organic, email, direct) over every dollar spent on every platform. Not attributed revenue - no platform's claims are involved.<br>
+    • <b>aMER</b> - the acquisition version: <b>new-customer</b> sales that count ÷ that same total ad spend. Same blended basis, but repeat buyers and email can't flatter it. This is what CTC leads with, because ads are mostly bought to acquire.<br>
     • <b>Contribution Margin</b> - net sales minus product costs, fees and ad spend: did the day actually make money? Uses the client's real COGS from Triple Whale when they maintain it, or your margin-% override.</p>
     <p><b>The forecast:</b> your monthly goal spread across the days of the month using the account's own trailing 28-day weekday pattern (weekends and weekdays get their real shares). Spend is forecast flat. The plan is frozen for the month - it doesn't drift to flatter us.</p>
     <p><b>The narrative:</b> Claude writes Notes → So What? → What's Next? from the numbers <i>plus the Change Log</i> - so the more whys you tag there, the sharper the story ("CPA recovered after Tuesday's budget trim"), exactly like an analyst who was watching all day.</p>
@@ -7103,12 +7104,13 @@ async function renderOverview() {
   const oneCur = curs.length === 1 ? curs[0] : null;
   const sum = (get, src = 'window') => { let t = 0, any = false; for (const a of all) { const v = get(a[src] || {}); if (v != null) { t += v; any = true; } } return any ? t : null; };
   const tots = src => {
-    const t = { sales: sum(w => w.sales, src), spend: sum(w => w.spend, src), newRev: sum(w => w.new_rev, src), orders: sum(w => w.orders, src),
+    /* merSales / merNewRev: the sales that count toward MER and aMER (mer_sales); sales when the payload has none */
+    const t = { sales: sum(w => w.sales, src), merSales: sum(w => w.mer_sales ?? w.sales, src), spend: sum(w => w.spend, src), newRev: sum(w => w.new_rev, src), merNewRev: sum(w => w.mer_new_rev ?? w.new_rev, src), orders: sum(w => w.orders, src),
       newOrders: sum(w => w.new_orders, src),
       cm: (() => { let x = 0, any = false; for (const a of all) { const w = a[src]; if (w && cmTrusted(a.cost_health) && w.cm != null) { x += w.cm; any = true; } } return any ? x : null; })() };
     t.cac = t.spend != null && t.newOrders ? t.spend / t.newOrders : null;
-    t.mer = t.sales != null && t.spend ? t.sales / t.spend : null;
-    t.amer = t.newRev != null && t.spend ? t.newRev / t.spend : null;
+    t.mer = t.merSales != null && t.spend ? t.merSales / t.spend : null;
+    t.amer = t.merNewRev != null && t.spend ? t.merNewRev / t.spend : null;
     t.aov = t.orders ? t.sales / t.orders : null;
     t.newShare = t.newRev != null && t.sales ? t.newRev / t.sales : null;
     t.cmPct = t.cm != null && t.sales ? t.cm / t.sales : null;
@@ -7125,8 +7127,8 @@ async function renderOverview() {
   /* Month to date against the plan, labeled MTD. Only brands with a plan are summed. */
   const withPlan = all.filter(a => a.plan?.sales != null && a.mtd?.sales != null);
   const psum = get => withPlan.reduce((t, a) => t + (get(a) ?? 0), 0);
-  const mtd = withPlan.length ? { sales: psum(a => a.mtd.sales), pSales: psum(a => a.plan.sales), spend: psum(a => a.mtd.spend), pSpend: psum(a => a.plan.spend) } : null;
-  if (mtd) { mtd.mer = mtd.spend ? mtd.sales / mtd.spend : null; mtd.pMer = mtd.pSpend ? mtd.pSales / mtd.pSpend : null; }
+  const mtd = withPlan.length ? { sales: psum(a => a.mtd.sales), merSales: psum(a => a.mtd.mer_sales ?? a.mtd.sales), pSales: psum(a => a.plan.sales), spend: psum(a => a.mtd.spend), pSpend: psum(a => a.plan.spend) } : null;
+  if (mtd) { mtd.mer = mtd.spend ? mtd.merSales / mtd.spend : null; mtd.pMer = mtd.pSpend ? mtd.pSales / mtd.pSpend : null; }
 
   const judged = all.map(a => ({ a, t: triage(a) }));
 
@@ -7138,8 +7140,8 @@ async function renderOverview() {
       ${tile('Revenue', fmtK(tot.sales, oneCur), `${esc(rangeLabel())}${liveAt ? ` &middot; live as of ${fmtCentralTime(liveAt)}` : ''}`, deltaPill(tot.sales, prev.sales))}
       ${tile('Orders', fmtInt(tot.orders), tot.aov != null ? `AOV ${fmtMoney(tot.aov, oneCur)} ${deltaPill(tot.aov, prev.aov)}` : '', deltaPill(tot.orders, prev.orders))}
       ${tile('Ad spend', fmtK(tot.spend, oneCur), 'every platform, blended', deltaPill(tot.spend, prev.spend, true))}
-      ${tile('MER', fmtX(tot.mer), 'revenue &divide; ad spend', deltaPill(tot.mer, prev.mer))}
-      ${tile('aMER', fmtX(tot.amer), 'new-customer revenue &divide; ad spend', deltaPill(tot.amer, prev.amer))}
+      ${tile('MER', fmtX(tot.mer), 'sales that count &divide; ad spend', deltaPill(tot.mer, prev.mer))}
+      ${tile('aMER', fmtX(tot.amer), 'new-customer sales that count &divide; ad spend', deltaPill(tot.amer, prev.amer))}
       ${tile('New customers', tot.newShare == null ? '&mdash;' : fmtPct(tot.newShare), tot.newOrders ? `${fmtInt(tot.newOrders)} first orders` : 'share of revenue from first orders', deltaPill(tot.newShare, prev.newShare))}
       ${tile('Cost per new customer', tot.cac == null ? '&mdash;' : fmtMoney(tot.cac, oneCur), 'ad spend &divide; first orders', deltaPill(tot.cac, prev.cac, true))}
       ${tile('Contribution margin', tot.cm == null ? '&mdash;' : fmtK(tot.cm, oneCur), untrusted.length ? `${untrusted.length} brand${untrusted.length === 1 ? '' : 's'} excluded: cost data` : tot.cmPct != null ? `${fmtPct(tot.cmPct)} of revenue, after every variable cost` : 'after every variable cost', deltaPill(tot.cm, prev.cm), tot.cm == null ? '' : tot.cm >= 0 ? 'good' : 'bad')}
@@ -7147,7 +7149,7 @@ async function renderOverview() {
   };
 
   /* ---- the daily chart, every brand on screen added up by day ---- */
-  const merge = key => { const m = new Map(); for (const a of all) for (const p of (a[key] || [])) { const r = m.get(p.date) || { date: p.date, sales: 0, spend: 0, orders: 0 }; r.sales += p.sales || 0; r.spend += p.spend || 0; r.orders += p.orders || 0; m.set(p.date, r); } return [...m.values()].sort((x, y) => x.date < y.date ? -1 : 1); };
+  const merge = key => { const m = new Map(); for (const a of all) for (const p of (a[key] || [])) { const r = m.get(p.date) || { date: p.date, sales: 0, mer_sales: 0, spend: 0, orders: 0 }; r.sales += p.sales || 0; r.mer_sales += (p.mer_sales ?? p.sales) || 0; r.spend += p.spend || 0; r.orders += p.orders || 0; m.set(p.date, r); } return [...m.values()].sort((x, y) => x.date < y.date ? -1 : 1); };
   const rows = merge('series'), prevRows = hasPrev ? merge('prev_series') : [];
   const chart = oneCur && rows.length > 1 ? `<div class="card hm-chart">
       <div class="hm-ch-h"><h3>Day by day</h3><span class="hint"><span class="hm-lg" style="color:#14608C">Revenue</span><span class="hm-lg" style="color:#C08A2E">Ad spend</span>${prevRows.length ? `<span class="hm-lg dash">${esc(CMP_LABEL[S.cmp])}</span>` : ''}&nbsp; Hover or tap a day.</span></div>
@@ -7209,7 +7211,7 @@ async function renderOverview() {
     ${table}
     <details class="footnote"><summary>How these numbers are defined</summary>
       <div class="fn-body"><b>Revenue</b> is Shopify Total Sales minus sales tax: gross sales, less discounts and returns, plus shipping charged to customers, less tax. Every channel counts: paid, organic, email and direct. <b>Orders</b> and <b>AOV</b> come from Triple Whale's order count over the same revenue. <b>Ad spend</b> is every platform, blended.<br><br>
-      <b>MER</b> is revenue divided by all ad spend; <b>aMER</b> is new-customer revenue over that same spend. <b>Contribution margin</b> is revenue less every variable cost: product, fulfillment, handling, payment fees and ad spend. <b>Revenue per channel</b> is Triple Whale's last platform click, so Meta and Google can both claim the same order; that is why the channels do not add up to revenue and why MER exists. <b>Pace</b> compares month to date with this month's agreed plan, pro-rated to the days elapsed; more than 30% behind needs a decision, 8 to 30% behind is watched.</div></details>`;
+      <b>MER</b> is sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them, set in Brand settings > Goals) divided by all ad spend; <b>aMER</b> is new-customer sales that count over that same spend. <b>Contribution margin</b> is revenue less every variable cost: product, fulfillment, handling, payment fees and ad spend. <b>Revenue per channel</b> is Triple Whale's last platform click, so Meta and Google can both claim the same order; that is why the channels do not add up to revenue and why MER exists. <b>Pace</b> compares month to date with this month's agreed plan, pro-rated to the days elapsed; more than 30% behind needs a decision, 8 to 30% behind is watched.</div></details>`;
 
   const open = id => { S.act = id; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; show('overview'); };
   $('#main').querySelectorAll('tr[data-id]').forEach(c => {
@@ -7219,7 +7221,7 @@ async function renderOverview() {
   $('#main').querySelectorAll('#ovSort button[data-s]').forEach(b => b.onclick = () => { localStorage.setItem('pf_ov_sort', b.dataset.s); inPlace(async () => renderOverview()); });
   if (rows.length > 1) wireSalesSpend('hmSvg', 'hmRead', rows, r => {
     const i = rows.indexOf(r), p = prevRows[i];
-    return `<b>${prettyDate(r.date, true)}</b> &middot; revenue <b>${fmtK(r.sales, oneCur)}</b> &middot; spend <b>${fmtK(r.spend, oneCur)}</b>${r.spend ? ` &middot; MER ${fmtX(r.sales / r.spend)}` : ''}${r.orders ? ` &middot; ${fmtInt(r.orders)} orders` : ''}${p ? ` &middot; <span class="tiny">${esc(CMP_LABEL[S.cmp])}: ${fmtK(p.sales, oneCur)} on ${prettyDate(p.date)}</span>` : ''}`;
+    return `<b>${prettyDate(r.date, true)}</b> &middot; revenue <b>${fmtK(r.sales, oneCur)}</b> &middot; spend <b>${fmtK(r.spend, oneCur)}</b>${r.spend ? ` &middot; MER ${fmtX(r.mer_sales / r.spend)}` : ''}${r.orders ? ` &middot; ${fmtInt(r.orders)} orders` : ''}${p ? ` &middot; <span class="tiny">${esc(CMP_LABEL[S.cmp])}: ${fmtK(p.sales, oneCur)} on ${prettyDate(p.date)}</span>` : ''}`;
   });
   wireOvAsk(scope);
 
@@ -7489,9 +7491,10 @@ function dashBlockFrom(b, spec, ovs) {
 }
 function dashTotals(all, src) {
   const sum = get => { let t = 0, any = false; for (const a of all) { const v = get(a[src] || {}); if (v != null) { t += v; any = true; } } return any ? t : null; };
-  const t = { sales: sum(w => w.sales), spend: sum(w => w.spend), new_rev: sum(w => w.new_rev), orders: sum(w => w.orders), new_orders: sum(w => w.new_orders), email_rev: sum(w => w.email_rev), meta_spend: sum(w => w.meta_spend), google_spend: sum(w => w.google_spend),
+  /* mer_sales / mer_new_rev: the sales that count toward MER and aMER; sales and new_rev when the payload has none */
+  const t = { sales: sum(w => w.sales), mer_sales: sum(w => w.mer_sales ?? w.sales), spend: sum(w => w.spend), new_rev: sum(w => w.new_rev), mer_new_rev: sum(w => w.mer_new_rev ?? w.new_rev), orders: sum(w => w.orders), new_orders: sum(w => w.new_orders), email_rev: sum(w => w.email_rev), meta_spend: sum(w => w.meta_spend), google_spend: sum(w => w.google_spend),
     cm: (() => { let x = 0, any = false; for (const a of all) { const w = a[src]; if (w && cmTrusted(a.cost_health) && w.cm != null) { x += w.cm; any = true; } } return any ? x : null; })() };
-  t.mer = t.spend ? t.sales / t.spend : null; t.amer = t.spend && t.new_rev != null ? t.new_rev / t.spend : null; t.aov = t.orders ? t.sales / t.orders : null;
+  t.mer = t.spend && t.mer_sales != null ? t.mer_sales / t.spend : null; t.amer = t.spend && t.mer_new_rev != null ? t.mer_new_rev / t.spend : null; t.aov = t.orders ? t.sales / t.orders : null;
   t.cac = t.new_orders && t.spend != null ? t.spend / t.new_orders : null; t.new_share = t.sales && t.new_rev != null ? t.new_rev / t.sales : null; t.email_share = t.sales && t.email_rev != null ? t.email_rev / t.sales : null;
   return t;
 }
@@ -7526,11 +7529,11 @@ function dashBlockHtml(b, all, spec, cur) {
   }
   if (b.type === 'channels') return cur ? channelsCard(all, t.sales, cur).replace('<h3>Where the money came from</h3>', `<h3>${esc(b.title || 'Where the money came from')}</h3>${rl}`) : '';
   if (b.type === 'daily') {
-    const merge = key => { const m = new Map(); for (const a of all) for (const q of (a[key] || [])) { const r = m.get(q.date) || { date: q.date, sales: 0, spend: 0, orders: 0 }; r.sales += q.sales || 0; r.spend += q.spend || 0; r.orders += q.orders || 0; m.set(q.date, r); } return [...m.values()].sort((x, y) => x.date < y.date ? -1 : 1); };
+    const merge = key => { const m = new Map(); for (const a of all) for (const q of (a[key] || [])) { const r = m.get(q.date) || { date: q.date, sales: 0, mer_sales: 0, spend: 0, orders: 0 }; r.mer_sales += (q.mer_sales ?? q.sales) || 0; r.sales += q.sales || 0; r.spend += q.spend || 0; r.orders += q.orders || 0; m.set(q.date, r); } return [...m.values()].sort((x, y) => x.date < y.date ? -1 : 1); };
     const rows = merge('series'), prev = spec.compare !== 'none' ? merge('prev_series') : [];
     if (!cur || rows.length < 2) return `<div class="card">${h}<p class="hint">Not enough days in this window for a chart.</p></div>`;
     const id = 'ds' + Math.random().toString(36).slice(2, 7);
-    setTimeout(() => LX.wireDual(id, rows, (r, i) => `<b>${U.day(r.date)}</b> · revenue ${fmtK(r.sales, cur)} · spend ${fmtK(r.spend, cur)}${r.spend ? ` · MER ${fmtX(r.sales / r.spend)}` : ''}${prev[i] ? `<br><span class="faint">${esc(CMP_LABEL[spec.compare] || 'before')}: ${fmtK(prev[i].sales, cur)}</span>` : ''}`), 0);
+    setTimeout(() => LX.wireDual(id, rows, (r, i) => `<b>${U.day(r.date)}</b> · revenue ${fmtK(r.sales, cur)} · spend ${fmtK(r.spend, cur)}${r.spend ? ` · MER ${fmtX(r.mer_sales / r.spend)}` : ''}${prev[i] ? `<br><span class="faint">${esc(CMP_LABEL[spec.compare] || 'before')}: ${fmtK(prev[i].sales, cur)}</span>` : ''}`), 0);
     return `<section class="v2card"><div class="v2h">${b.title ? h : `<h3>Day by day</h3>${rl}`}</div>${LX.dual(id, rows, cur, { prev, prevLabel: CMP_LABEL[spec.compare] || 'Compare period' })}</section>`;
   }
   if (b.type === 'email') {
@@ -8250,7 +8253,7 @@ async function renderProfit(first) {
      because the headline figures follow the period control. `plan.sales` is the plan
      pro-rated to the days elapsed, so it is the right yardstick for an unfinished month. */
   const pm = acct?.plan, pmtd = acct?.mtd;
-  const mtdMer = pmtd?.sales != null && pmtd?.spend ? pmtd.sales / pmtd.spend : null;
+  const mtdMer = pmtd?.sales != null && pmtd?.spend ? (pmtd.mer_sales ?? pmtd.sales) / pmtd.spend : null;   // MER on the sales that count
   const planMer = pm?.mer ?? (pm?.sales != null && pm?.spend ? pm.sales / pm.spend : null);
   const planLine = (a, p, fmt) => a != null && p != null ? `MTD ${fmt(a)} of ${fmt(p)} planned ${asOf ? 'through yesterday' : 'by now'}` : '';
 
@@ -9465,8 +9468,8 @@ function reportBodyHTML(d, summary, opts = {}) {
   const kpis = [
     kpi('Revenue', t.sales, money, f.sales, p.sales, false, 'Shopify Total Sales minus sales tax - every channel (paid, organic, email, direct), after discounts and returns, including shipping charged to customers. Not any ad platform’s attributed number.'),
     kpi('Ad spend', t.spend, money, f.spend, p.spend, 'neutral', 'Every platform combined - Meta, Google and anything else Triple Whale tracks. Shown without a good/bad color on purpose: spend is a decision, not a result - whether it was the right amount is what MER, aMER and CPA answer.'),
-    kpi('MER', t.mer, fmtX, f.mer, p.mer, false, 'All store revenue ÷ all ad spend, blended on both sides. The honest “are the ads paying for themselves” number - the same thing as blended ROAS.'),
-    kpi('aMER', t.amer, fmtX, f.amer, p.amer, false, 'New-customer revenue ÷ that same total ad spend. Repeat buyers and email can’t flatter it - this is what the ads actually bought.'),
+    kpi('MER', t.mer, fmtX, f.mer, p.mer, false, 'Sales that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them) ÷ all ad spend. The honest “are the ads paying for themselves” number - the same thing as blended ROAS.'),
+    kpi('aMER', t.amer, fmtX, f.amer, p.amer, false, 'New-customer sales that count ÷ that same total ad spend. Repeat buyers and email can’t flatter it - this is what the ads actually bought.'),
     t.cm != null ? kpi('Contribution margin', t.cm, money, f.cm, p.cm, false, 'Revenue minus every variable cost - product, fulfillment, handling, payment fees and ad spend. Excludes fixed costs like rent, salaries and software.') : '',
     /* Fixed costs and net profit (2026-11-25): one total, never a category. Shown only when the report froze the switch
        on at generation (d.fixed.in_posts), the same value its headline and client post read. Report contribution margin
@@ -9953,7 +9956,7 @@ function wireReportChart(d, cur, internal) {
   const id = internal ? 'rpSvg' : 'rsSvg';
   if ((d.chart || []).length > 1) LX.wireDual(id, d.chart, r => {
     const gap = r.sales != null && r.spend != null ? r.sales - r.spend : null;
-    const mer = r.spend ? r.sales / r.spend : null;
+    const mer = r.spend ? (r.mer_sales ?? r.sales) / r.spend : null;   // MER on the sales that count (mer_sales); older reports have sales only
     return `<b>${window.V2UI.day(r.date)}</b> · revenue ${fmtMoney(r.sales, cur)} · ad spend ${fmtMoney(r.spend, cur)}`
       + (gap != null ? `<br>left after ads ${fmtMoney(gap, cur)}` : '')
       + (mer != null ? ` · MER ${fmtX(mer)}` : '');
@@ -12181,7 +12184,7 @@ async function renderSettings() {
             <span class="ga-cell" data-l="Goal">${inp(KEY[m], u, 'not set', 76)}${use}</span>
             <span class="ga-cell" data-l="Break-even"><b>${f(BE[m], u)}</b>${BE[m] == null ? `<small>${m === 'cpl' ? 'needs a lead value' : margin ? 'needs orders' : 'needs the brand costs'}</small>` : beNote}</span>
             <span class="ga-cell" data-l="Meta, 30 days"><b class="${tone(m, metaV)}">${f(metaV, u)}</b><small>${metaV == null ? (m === 'cpa' || m === 'roas' ? 'no Meta sales yet' : 'Meta does not report it') : 'what Today’s moves judge'}</small></span>
-            <span class="ga-cell" data-l="Whole store, 90 days"><b class="${tone(m, realV)}">${f(realV, u)}</b><small>${realV == null ? 'no data' : m === 'roas' ? 'MER, every channel' : m === 'ncpa' ? 'all ad spend / new customers' : 'all ad spend / orders'}</small></span>
+            <span class="ga-cell" data-l="Whole store, 90 days"><b class="${tone(m, realV)}">${f(realV, u)}</b><small>${realV == null ? 'no data' : m === 'roas' ? 'MER, sales that count' : m === 'ncpa' ? 'all ad spend / new customers' : 'all ad spend / orders'}</small></span>
           </div>
         </div>${low}
         <div class="ga-sub"><b>Goal per platform</b><small>Optional, in ${D.name}. Leave blank to use the goal above. Each platform credits sales its own way, so one can need a looser number.</small></div>

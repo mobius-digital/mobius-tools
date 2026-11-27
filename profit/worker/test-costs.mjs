@@ -115,8 +115,27 @@ function withoutStoreSource(text) {
   walk(j);
   return seen ? JSON.stringify(j) : text;
 }
+/* MER CHANNELS (2026-11-27, merchannels.js) added mer_sales + mer_new_rev beside sales and new_rev. With no channel rows
+   they must equal sales and new_rev (MER unchanged); without them the answer is the one MAIN hashed. */
+function withoutMerSales(x) {
+  const isText = typeof x === 'string';
+  const j = isText ? JSON.parse(x) : JSON.parse(JSON.stringify(x));
+  let seen = 0;
+  const walk = o => {
+    if (Array.isArray(o)) { o.forEach(walk); return; }
+    if (!o || typeof o !== 'object') return;
+    if ('mer_sales' in o) {
+      if ('sales' in o) assert.equal(o.mer_sales, o.sales ?? null, 'no channel left out: mer_sales = sales');
+      if ('mer_new_rev' in o && 'new_rev' in o) assert.equal(o.mer_new_rev, o.new_rev ?? null, 'no channel left out: mer_new_rev = new_rev');
+      delete o.mer_sales; delete o.mer_new_rev; seen++;
+    }
+    Object.values(o).forEach(walk);
+  };
+  walk(j);
+  return isText ? (seen ? JSON.stringify(j) : x) : JSON.stringify(j);
+}
 function beforeGoalsPlanned(k, text0) {
-  const text = withoutStoreSource(text0);
+  const text = withoutMerSales(withoutStoreSource(text0));
   if (k !== 'client' && k !== 'overview') return text;
   const j = JSON.parse(text);
   if (k === 'client') { assert.equal(typeof j.goals_planned, 'boolean'); delete j.goals_planned; }
@@ -225,8 +244,8 @@ await check('1. dayEconomics with no rule equals the old function, byte for byte
     const piv = randomPivot(r), meta = r() < 0.5 ? {} : { [D]: { spend: cents(r() * 800) } }, m = r() < 0.5 ? null : 0.6;
     const want = JSON.stringify(dayEconomicsV0(piv, meta, D, m));
     if (want !== 'null') withRow++;
-    assert.equal(JSON.stringify(PW.dayEconomics(piv, meta, D, m)), want, `day ${i}, four arguments`);
-    for (const [k, rules] of NO_RULE.entries()) assert.equal(JSON.stringify(PW.dayEconomics(piv, meta, D, m, rules)), want, `day ${i}, no-rule input ${k}`);
+    assert.equal(withoutMerSales(PW.dayEconomics(piv, meta, D, m)), want, `day ${i}, four arguments`);
+    for (const [k, rules] of NO_RULE.entries()) assert.equal(withoutMerSales(PW.dayEconomics(piv, meta, D, m, rules)), want, `day ${i}, no-rule input ${k}`);
   }
   assert.ok(withRow > 1000, 'most random days produce a row');
 });
@@ -236,7 +255,7 @@ await check('3. with the new tables missing, every answer hashes to what the com
   for (const k of Object.keys(ROUTES)) assert.equal(hash(beforeGoalsPlanned(k, first[k])), MAIN[k], `${k} changed for a brand with no cost rule`);
 });
 await check('11a. GET /api/costs keeps every old key with the same value as before the change', () => {
-  assert.equal(hash(firstCosts), MAIN.costs_old);
+  assert.equal(hash(withoutMerSales(firstCosts)), MAIN.costs_old);
 });
 let betaRule;
 await check('2. a rule on ANOTHER brand changes nothing for this one; a rule added then removed here changes nothing either', async () => {
@@ -281,12 +300,12 @@ await check('5. a shipping rule moves ship_cost, gross profit, CM and margin fro
   const piv = { netSales: {}, totalOrders: {}, totalProductCosts: {}, totalShippingCosts: {}, blendedAds: {} };
   for (const d of ['2026-09-30', '2026-10-01']) { piv.netSales[d] = 1000; piv.totalOrders[d] = 10; piv.totalProductCosts[d] = 300; piv.totalShippingCosts[d] = 80; piv.blendedAds[d] = 200; }
   const rule = [R({ amount: 5 })];
-  assert.equal(JSON.stringify(PW.dayEconomics(piv, {}, '2026-09-30', null, rule)), JSON.stringify(dayEconomicsV0(piv, {}, '2026-09-30', null)), 'the day before the start is untouched');
+  assert.equal(withoutMerSales(PW.dayEconomics(piv, {}, '2026-09-30', null, rule)), JSON.stringify(dayEconomicsV0(piv, {}, '2026-09-30', null)), 'the day before the start is untouched');
   const a = PW.dayEconomics(piv, {}, '2026-10-01', null, rule), b = dayEconomicsV0(piv, {}, '2026-10-01', null);
   assert.equal(a.ship_cost, 50); assert.equal(b.ship_cost, 80);
   assert.equal(a.gross_profit, b.gross_profit + 30); assert.equal(a.cm, b.cm + 30); near(a.margin, b.margin + 0.03, 'margin');
   assert.deepEqual(a.cost_src, { shipping: 'typed' }); assert.ok(!('cost_src' in b));
-  assert.deepEqual(Object.keys(a).slice(0, -1), Object.keys(b), 'the old keys keep their order');
+  assert.deepEqual(Object.keys(a).filter(k => k !== 'mer_sales' && k !== 'mer_new_rev').slice(0, -1), Object.keys(b), 'the old keys keep their order');
   const m = PW.dayEconomics(piv, {}, '2026-10-01', 0.6, rule), m0 = dayEconomicsV0(piv, {}, '2026-10-01', 0.6);
   assert.equal(m.gross_profit, m0.gross_profit); assert.equal(m.cm, m0.cm);
   const p = PW.dayEconomics({ netSales: { [D]: 1000 }, blendedAds: { [D]: 100 } }, {}, D, null, [R({ cost: 'product', rule: 'pct_revenue', amount: 40, start_date: '2026-01-01' })]);

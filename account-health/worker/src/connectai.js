@@ -440,7 +440,7 @@ export async function decide(env, d, request, person, { id, yes, expect = null, 
 
 /* ---------------- the tools: a fixed list ---------------- */
 const TW = 'Sales, orders, revenue and ROAS are Triple Whale (last platform click). Spend and delivery are from the ad platform.';
-const STORE = 'Store numbers: revenue is Shopify total sales minus tax, through Triple Whale; spend is every ad platform together; MER is revenue divided by spend.';
+const STORE = 'Store numbers: revenue is Shopify total sales minus tax, through Triple Whale; spend is every ad platform together; MER is the revenue from the sales channels the brand counts toward MER divided by spend (Amazon, Whatnot and wholesale are left out by default, so MER can sit under revenue / spend).';
 const flat = o => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => v == null || typeof v !== 'object'));
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 const PROPOSE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };

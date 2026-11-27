@@ -376,7 +376,7 @@ function datesOf(r) {
   return '';
 }
 /* calc counts as "worked out in code" only when it worked out a ratio, not when it only named weekdays. */
-const CALC_RATIO = ['spend', 'sales', 'revenue', 'net_sales', 'ad_spend', 'new_customers', 'leads', 'orders', 'product_costs', 'budget_from', 'budget_to'];
+const CALC_RATIO = ['spend', 'sales', 'revenue', 'net_sales', 'mer_sales', 'ad_spend', 'new_customers', 'leads', 'orders', 'product_costs', 'budget_from', 'budget_to'];
 const calcRatio = r => { try { return Object.keys(calc(r.input || {})).some(k => k !== 'weekdays' && k !== 'error') && CALC_RATIO.some(k => (r.input || {})[k] != null); } catch { return false; } };
 
 /* Which reads the answer used: the numbers it quotes (100 or more, not a year; any decimal) are looked for in what each
@@ -519,7 +519,10 @@ export function calc(input = {}) {
   const few = sales != null && sales < min ? `too few sales to call (${sales} sale${sales === 1 ? '' : 's'}, the line is ${min})` : null;
   if (spend != null && sales != null) out.cost_per_sale = sales > 0 ? { value: usd(spend / sales), sum: `${usd(spend)} / ${sales}`, ...(few ? { call: few } : {}) } : { value: null, call: `no sales on ${usd(spend)}` };
   if (spend != null && revenue != null) out.roas = spend > 0 ? { value: x2(revenue / spend), sum: `${usd(revenue)} / ${usd(spend)}`, ...(few ? { call: few } : {}) } : { value: null, call: 'no spend' };
-  if (net != null && ad != null) out.mer = ad > 0 ? { value: x2(net / ad), sum: `${usd(net)} / ${usd(ad)}` } : { value: null, call: 'no ad spend' };
+  /* MER divides the sales the brand counts toward MER (mer_sales, 2026-11-27) when the read gave them; AOV and margin
+     keep whole-store net_sales. */
+  const merNet = num(i.mer_sales) ?? net;
+  if (merNet != null && ad != null) out.mer = ad > 0 ? { value: x2(merNet / ad), sum: `${usd(merNet)} / ${usd(ad)}` } : { value: null, call: 'no ad spend' };
   if (ad != null && newc != null) out.cac = newc > 0 ? { value: usd(ad / newc), sum: `${usd(ad)} / ${newc} new customers`, ...(newc < min ? { call: `too few new customers to call (${newc})` } : {}) } : { value: null, call: 'no new customers' };
   if (net != null && orders != null && orders > 0) out.aov = { value: usd(net / orders), sum: `${usd(net)} / ${orders} orders` };
   if (spend != null && leads != null) {
@@ -540,10 +543,11 @@ export function calc(input = {}) {
 export function answerTools() {
   return [{
     def: { name: 'calc',
-      description: 'Work out a ratio from numbers you already read, in code: cost per sale (spend + sales), ROAS (spend + revenue), MER (net_sales + ad_spend), CAC (ad_spend + new_customers), AOV (net_sales + orders), cost per lead (spend + leads, against the lead line or lead_goal), product margin (net_sales + product_costs), a budget step (budget_from + budget_to, flags over 50%), and weekday names (dates). ALWAYS use it before quoting any of these; never divide in your head. Under 3 sales it says too few sales to call.',
+      description: 'Work out a ratio from numbers you already read, in code: cost per sale (spend + sales), ROAS (spend + revenue), MER (net_sales + ad_spend, plus mer_sales when the read has the sales that count toward MER), CAC (ad_spend + new_customers), AOV (net_sales + orders), cost per lead (spend + leads, against the lead line or lead_goal), product margin (net_sales + product_costs), a budget step (budget_from + budget_to, flags over 50%), and weekday names (dates). ALWAYS use it before quoting any of these; never divide in your head. Under 3 sales it says too few sales to call.',
       input_schema: { type: 'object', properties: {
         spend: { type: 'number' }, sales: { type: 'number', description: 'Purchases / orders (a count).' }, revenue: { type: 'number', description: 'Attributed revenue (Triple Whale).' },
-        net_sales: { type: 'number', description: 'Store sales, net of tax.' }, ad_spend: { type: 'number', description: 'All ad spend (blended), for MER and CAC; never the spend of one ad.' }, new_customers: { type: 'number' }, orders: { type: 'number', description: 'Store orders (a count), for AOV.' },
+        net_sales: { type: 'number', description: 'Store sales, net of tax.' },
+        mer_sales: { type: 'number', description: 'The sales that count toward MER (mer_revenue / mer_sales in the read), when the read gave them: MER uses these over net_sales.' }, ad_spend: { type: 'number', description: 'All ad spend (blended), for MER and CAC; never the spend of one ad.' }, new_customers: { type: 'number' }, orders: { type: 'number', description: 'Store orders (a count), for AOV.' },
         leads: { type: 'number' }, lead_goal: { type: 'number', description: 'The brand\'s own cost-per-lead goal, when it has one.' }, product_costs: { type: 'number' },
         budget_from: { type: 'number' }, budget_to: { type: 'number' }, dates: { type: 'array', items: { type: 'string' }, description: 'YYYY-MM-DD dates to name the weekday of.' },
         min_sales: { type: 'number', description: 'Default 3.' } } } },

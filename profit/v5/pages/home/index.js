@@ -31,7 +31,7 @@ import { fixture } from '../../data.js';
 import { refresh } from '../../router.js';
 import { h, money, num, pct, x, card, em, button, platformChip, statusDot, pill, delta, gauge, lineChart,
   dateBlock, table, empty, addStyles, staleStamp, tipRow, svgNode, sourceLine, toast } from '../../kit.js';
-import { tiles } from '../../kit.js';
+import { tiles, merOf, merSales } from '../../kit.js';
 import { CATALOG, tileOf, tileNode, tileStyles, savedTiles, saveTiles, editTiles, feedsFor, cleanTiles, tilePrefsSupported } from './_tiles.js';
 import { waitingYes } from './_yes.js';
 
@@ -144,7 +144,7 @@ export function prevWindow({ from, to }) {
 /* ---------- live data: shape the answers into the one object the page draws (the sample fixture has the same shape) ---------- */
 const STATUS = { locked: ['good', 'Ready'], draft: ['warn', 'Draft offer'], missing: ['warn', 'No offer yet'] };
 const PLATS = ['meta', 'google', 'tiktok', 'amazon', 'pinterest', 'email'];
-const DAYKEYS = ['sales', 'spend', 'orders', 'new_orders', 'new_rev', 'ret_rev', 'gross_profit', 'email_rev'];
+const DAYKEYS = ['sales', 'mer_sales', 'spend', 'orders', 'new_orders', 'new_rev', 'mer_new_rev', 'ret_rev', 'gross_profit', 'email_rev'];
 
 /** A platform answer (/api/hub/paid?platform=meta|google|tiktok) as a tile feed: { series, prev, pending }. */
 export function feedOf(r) {
@@ -285,7 +285,7 @@ function sentence(data) {
   const t = data.totals || {}, g = data.goal || {}, pv = data.prev || {}, days = (data.days || []).filter(d => ok(d.sales));
   const b = v => h('b', null, v);
   const best = days.length > 2 ? days.reduce((m, d) => d.sales > m.sales ? d : m, days[0]) : null;
-  const mer = t.spend > 0 && ok(t.sales) ? t.sales / t.spend : null;
+  const mer = merOf(t);
   const parts = [];
   if (best) parts.push('Best day was ', b(dayLabel(best.date)), '.');
   if (g.mer && mer != null && mer < g.mer) {
@@ -299,13 +299,13 @@ function sentence(data) {
 
 function merCard(data, ctx) {
   const t = data.totals || {}, g = data.goal || {}, days = data.days || [], cur = data.currency;
-  const mer = t.spend > 0 && ok(t.sales) ? t.sales / t.spend : null;
+  const mer = merOf(t);
   const win = rangeWords(ctx, data.range);
   const gap = mer != null && g.mer ? mer - g.mer : null;
   const say = h('p', { class: 'hm-mer-say' },
     h('span', null, dl('MER', 'mer'), ' ', h('b', null, mer != null ? x(mer) : 'not tracked yet'), ', ' + win + '.'),
     h('span', { class: 'g' }, g.mer ? 'Goal ' + x(g.mer) + '.' : data.no_goal ? 'No goal set for ' + data.no_goal + '.' : 'No goal set.'));
-  const sub = h('p', { class: 'hm-mer-sub' }, `Whole store sales ${money(t.sales, { cur })} over all ad spend ${money(t.spend, { cur })} · Triple Whale`);
+  const sub = h('p', { class: 'hm-mer-sub' }, `Sales that count ${money(merSales(t), { cur })} over all ad spend ${money(t.spend, { cur })} · Triple Whale`);
   const gz = mer != null && g.mer ? h('div', { class: 'hm-mer-g' },
     gauge({ value: mer, max: Math.max(g.mer * 1.3, mer * 1.08), goal: g.mer, tone: gap >= 0 ? 'good' : gap > -0.15 * g.mer ? 'warn' : 'bad',
       ticks: [{ side: 'l', text: '0' }, { at: g.mer, text: 'goal ' + x(g.mer), on: true }] }),
@@ -320,7 +320,7 @@ function merCard(data, ctx) {
         format: v => money(v, { cur, compact: true }), endFormat: v => money(v, { cur }), height: 300,
         label: `Sales and ad spend by day, ${dayLabel(days[0].date)} to ${dayLabel(days[days.length - 1].date)}`,
         hover: i => { const d = days[i]; return [h('div', { class: 'lx-tip-h' }, dayLabel(d.date)), tipRow('lead', 'Sales', money(d.sales, { cur })), tipRow('slate', 'Ad spend', money(d.spend, { cur })),
-          ok(d.sales) && d.spend > 0 ? tipRow('', 'MER', x(d.sales / d.spend)) : null]; },
+          merOf(d) != null ? tipRow('', 'MER', x(merOf(d))) : null]; },
       })
     : empty({ title: 'Not enough days yet', text: 'The chart draws once there are two days of numbers.' });
   const cap = h('div', { class: 'hm-chart-cap' }, h('span', { class: 'lx-small' }, 'Sales and ad spend by day'),
@@ -397,7 +397,7 @@ function platformCard(data, ctx) {
     const pg = g.platforms && g.platforms[r.id] > 0 ? g.platforms[r.id] : null, gr = pg ? grade(roas, pg) : null;
     return { ...r, paidRow, roas, grade: gr, fillTone: gr ? gr[0] : '' };
   });
-  const mer = t.spend > 0 && ok(t.sales) ? t.sales / t.spend : null, mg = grade(mer, g.mer);
+  const mer = merOf(t), mg = grade(mer, g.mer);
   const total = { total: true, spend: t.spend, sales: t.sales, roas: mer, paidRow: true, grade: mg && [mg[0] === 'bad' ? 'bad' : mg[0] === 'good' ? 'good' : 'warn', mg[1]], fillTone: '' };
   const bar = r => ok(r.roas) && g.mer ? h('span', { class: 'hm-g' + (r.total ? ' hm-total' : '') }, gauge({ value: r.roas, max: g.mer * 1.2, goal: g.mer, tone: r.fillTone, thin: true })) : '';
   const name = r => r.total ? 'Whole store' : platformChip(r.id);
@@ -571,7 +571,7 @@ export default {
     styles();
     if (!ctx.brand) return put(el, empty({ title: 'Pick a brand', text: 'Home shows one brand at a time. Choose one from the switcher at the top.' }));
     if (!data) return put(el, empty({ title: 'No numbers yet', text: 'This brand has nothing to show for these dates yet.' }));
-    const t = data.totals || {}, g = data.goal || {}, mer = t.spend > 0 && ok(t.sales) ? t.sales / t.spend : null;
+    const t = data.totals || {}, g = data.goal || {}, mer = merOf(t);
     const team = !ctx.isClient;
     const host = { at: ctx.sample ? Date.now() - 4 * 60e3 : Date.now() };
     const win = rangeWords(ctx, data.range);
@@ -586,7 +586,7 @@ export default {
     put(el, ...[
       helpBar([
         { title: 'What it is for', text: 'How ' + ctx.brand.name + ' is doing on the dates at the top of the page, then what waits on a yes. The tiles at the top are yours: Edit tiles adds, takes off and reorders them, and only you see your set.' },
-        { title: 'Where the numbers come from', text: 'Sales are store sales less tax, from Triple Whale. MER is whole store sales over all ad spend. Each platform\'s sales are the ones Triple Whale credits to it, last click; spend and delivery are the platform\'s own. Every tile says its dates and its source, and compares with the same number of days just before. Hover or tap any dotted label for its meaning.' },
+        { title: 'Where the numbers come from', text: 'Sales are store sales less tax, from Triple Whale. MER is sales from the channels that count (your website and social shops; Amazon, Whatnot and wholesale left out unless the brand counts them) over all ad spend. Each platform\'s sales are the ones Triple Whale credits to it, last click; spend and delivery are the platform\'s own. Every tile says its dates and its source, and compares with the same number of days just before. Hover or tap any dotted label for its meaning.' },
         { title: 'Plan to date', text: 'On This month the tiles compare with the month plan split evenly over the days so far. On any other dates there is no plan comparison.' },
       ]),
       noSource || tilesBlock(data, ctx, host),

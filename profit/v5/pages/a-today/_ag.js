@@ -3,7 +3,7 @@
    Money for the whole store is MER; one platform is ROAS. Sales per platform are Triple Whale, last platform click. */
 
 import { exampleChip as kitExampleChip } from '../../kit.js';
-import { h, money, pct, x, num, pill, statusDot, gauge, table, card, empty, button, addStyles, handEm } from '../../kit.js';
+import { h, money, pct, x, num, pill, statusDot, gauge, table, card, empty, button, addStyles, handEm, merOf, merSales } from '../../kit.js';
 import { fixture } from '../../data.js';
 import { PLATFORM_NAME } from '../../icons.js';
 
@@ -51,7 +51,7 @@ export async function readBrands(ctx, { from, to, preset } = ctx.range, { cmp = 
     if (!platforms.length) for (const [id, v] of [['meta', w.meta_spend], ['google', w.google_spend]]) if (v > 0) platforms.push({ id, spend: v, sales: null, roas: null, cost: null });
     return {
       id: a.act_id, name: a.name, store,
-      sales: store ? w.sales : null, spend: w.spend ?? null, mer: store ? w.mer : null,
+      sales: store ? w.sales : null, mer_sales: store ? merSales(w) : null, spend: w.spend ?? null, mer: store ? (ok(w.mer_sales) ? merOf(w) : w.mer) : null,
       orders: store ? w.orders : null, new_orders: store ? w.new_orders : null, cac: store ? w.cac : null,
       gross_profit: store && costsOk ? w.gross_profit : null, profit: store && costsOk ? w.cm : null, costs_ok: costsOk,
       plan_sales: plan ? plan.sales : null, plan_spend: plan ? plan.spend : null,
@@ -59,8 +59,8 @@ export async function readBrands(ctx, { from, to, preset } = ctx.range, { cmp = 
       goal_mer: !noGoal && a.goals && ok(a.goals.sales) && a.goals.spend ? a.goals.sales / a.goals.spend : null,
       goal_roas: +g.target_roas > 0 ? +g.target_roas : null, goal_cost: +g.target_cpa > 0 ? +g.target_cpa : null,
       platforms,
-      prev: a.prev ? { sales: a.prev.sales ?? null, spend: a.prev.spend ?? null, meta_spend: a.prev.meta_spend ?? null, google_spend: a.prev.google_spend ?? null } : null,
-      days: (a.series || []).map(r => ({ date: r.date, sales: store ? r.sales : null, spend: r.spend })),
+      prev: a.prev ? { sales: a.prev.sales ?? null, mer_sales: merSales(a.prev) ?? null, spend: a.prev.spend ?? null, meta_spend: a.prev.meta_spend ?? null, google_spend: a.prev.google_spend ?? null } : null,
+      days: (a.series || []).map(r => ({ date: r.date, sales: store ? r.sales : null, mer_sales: store ? merSales(r) : null, spend: r.spend })),
     };
   });
   return { window: { from: ov.from || from, to: ov.to || to }, rules: { behind_pct: +behind || 10 }, brands, daily: dailyOf(brands) };
@@ -70,17 +70,18 @@ export function monthWord(ym) {
   const m = /^(\d{4})-(\d{2})$/.exec(String(ym || ''));
   return m ? new Date(Date.UTC(+m[1], +m[2] - 1, 15)).toLocaleString('en-US', { month: 'long', timeZone: 'UTC' }) : 'this month';
 }
-/** Every brand's days added up: sales (brands with a sales source only) and ad spend. */
+/** Every brand's days added up: sales and the sales that count toward MER (brands with a sales source only) and ad spend. */
 export function dailyOf(brands) {
   const by = new Map();
   for (const b of brands) for (const r of b.days || []) {
-    const d = by.get(r.date) || { date: r.date, sales: null, spend: null };
+    const d = by.get(r.date) || { date: r.date, sales: null, mer_sales: null, spend: null };
     if (ok(r.sales)) d.sales = (d.sales || 0) + r.sales;
+    if (ok(r.mer_sales)) d.mer_sales = (d.mer_sales || 0) + r.mer_sales;
     if (ok(r.spend)) d.spend = (d.spend || 0) + r.spend;
     by.set(r.date, d);
   }
   const rows = [...by.values()].sort((a, b) => a.date.localeCompare(b.date));
-  return { dates: rows.map(r => r.date), sales: rows.map(r => r.sales), spend: rows.map(r => r.spend) };
+  return { dates: rows.map(r => r.date), sales: rows.map(r => r.sales), mer_sales: rows.map(r => r.mer_sales), spend: rows.map(r => r.spend) };
 }
 
 /* ---------- the status rule, one place ---------- */

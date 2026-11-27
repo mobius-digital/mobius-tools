@@ -38,7 +38,9 @@ function cardWindow(a, asked, cmp, now) {
   return { today, ym: monthOf(today), from, to, monthStart, pFrom, pTo, fetchFrom };
 }
 
-const seriesPoint = r => ({ date: r.date, sales: r.sales ?? null, spend: r.spend ?? null, orders: r.orders ?? null,
+/* mer_sales / mer_new_rev: counted sales for MER (merchannels.js, 2026-11-27), as the old overview sends them. */
+const seriesPoint = r => ({ date: r.date, sales: r.sales ?? null, mer_sales: r.mer_sales ?? null, mer_new_rev: r.mer_new_rev ?? null,
+  spend: r.spend ?? null, orders: r.orders ?? null,
   new_orders: r.new_orders ?? null, new_rev: r.new_rev ?? null, cm: r.cm ?? null });
 
 /* The rows of the period a card is compared with. */

@@ -29,6 +29,7 @@
 import { brandsFor, clientScope } from './brandguard.js';
 import { whoIs } from './slackaccess.js';
 import { ensureStratTables } from './stratmem.js';
+import { merExcluded, merSalesFor } from './merday.js';
 
 export const SETTING = 'freeLookups';
 /* The smallest current Claude model (claude-api skill table dated 2026-11-03: $0.10 in, $0.50 out per million
@@ -345,12 +346,13 @@ export async function storeTotals(env, brand, from, to) {
   const days = await rows(env.DB, `SELECT date, metric, value FROM tw_daily WHERE act_id = ?1 AND date >= ?2 AND date <= ?3 AND metric IN (${TW_KEYS.map(k => `'${k}'`).join(',')})`, brand.id, from, to);
   const piv = {};
   for (const r of days) (piv[r.date] ??= {})[r.metric] = r.value;
-  const t = { days: 0, revenue: 0, net_sales: 0, spend: null, orders: null, new_orders: null, product_cost: null, google_spend: null };
+  const t = { days: 0, revenue: 0, mer_revenue: 0, net_sales: 0, spend: null, orders: null, new_orders: null, product_cost: null, google_spend: null };
   const add = (k, v) => { if (v != null) t[k] = (t[k] ?? 0) + v; };
+  const ex = await merExcluded(env, brand.id, from, to);   // sales left out of MER per day (merday.js, 2026-11-27)
   for (const d of Object.keys(piv)) {
     const p = piv[d], sales = p.netSales ?? p.totalSales;
     if (sales == null) continue;
-    t.days++; t.revenue += sales - (p.totalNetTaxes ?? 0); t.net_sales += sales;
+    t.days++; t.revenue += sales - (p.totalNetTaxes ?? 0); t.net_sales += sales; t.mer_revenue += merSalesFor(sales - (p.totalNetTaxes ?? 0), ex[d]);
     add('spend', p.blendedAds); add('orders', p.totalOrders); add('new_orders', p.newCustomersOrders); add('product_cost', p.totalProductCosts); add('google_spend', p.ga_adCost);
   }
   return t;
@@ -421,7 +423,13 @@ export async function runLookups(env, ids, brand, win, params = {}, question = '
     for (const id of ids) {
       if (id === 'revenue') { parts.push(`revenue ${usd(t.revenue, cur)}`); numbers.revenue = r2(t.revenue); saysRevenue = true; }
       if (id === 'ad_spend') { if (t.spend == null) none('ad spend'); else { parts.push(`ad spend ${usd(t.spend, cur)}`); numbers.spend = r2(t.spend); notes.push('Ad spend is every platform together, as Triple Whale reports it.'); } }
-      if (id === 'mer') { if (!t.spend) none('MER (no ad spend)'); else { parts.push(`MER ${x2(t.revenue / t.spend)} (${usd(t.revenue, cur)} revenue on ${usd(t.spend, cur)} ad spend)`); numbers.mer = r2(t.revenue / t.spend); numbers.revenue = r2(t.revenue); numbers.spend = r2(t.spend); saysRevenue = true; notes.push('MER is revenue divided by all ad spend.'); } }
+      /* MER counts only the brand's MER channels (2026-11-27): when some sales are left out (Amazon, Whatnot,
+         wholesale by default), the line names the counted sales instead of the whole revenue. */
+      if (id === 'mer') { if (!t.spend) none('MER (no ad spend)'); else {
+        const cut = Math.abs(t.mer_revenue - t.revenue) >= 0.005;
+        parts.push(`MER ${x2(t.mer_revenue / t.spend)} (${usd(t.mer_revenue, cur)} ${cut ? 'counted sales' : 'revenue'} on ${usd(t.spend, cur)} ad spend)`); numbers.mer = r2(t.mer_revenue / t.spend); numbers.revenue = r2(t.revenue); numbers.spend = r2(t.spend); saysRevenue = true;
+        if (cut) numbers.mer_sales = r2(t.mer_revenue);
+        notes.push(cut ? `MER is the sales that count toward MER divided by all ad spend; ${usd(t.revenue - t.mer_revenue, cur)} of the ${usd(t.revenue, cur)} revenue came from channels the brand leaves out of MER (Brand settings > Goals).` : 'MER is revenue divided by all ad spend.'); } }
       if (id === 'orders') { if (t.orders == null) none('the order count'); else { parts.push(`${int(t.orders)} orders`); numbers.orders = t.orders; } }
       if (id === 'aov') { if (!t.orders) none('AOV (no orders)'); else { parts.push(`AOV ${usd(t.revenue / t.orders, cur)} (${usd(t.revenue, cur)} over ${int(t.orders)} orders)`); numbers.aov = r2(t.revenue / t.orders); saysRevenue = true; } }
       if (id === 'new_customers') { if (t.new_orders == null) none('the new customer count'); else { parts.push(`${int(t.new_orders)} new customers`); numbers.new_customers = t.new_orders; notes.push('A new customer is a first-time order.'); } }

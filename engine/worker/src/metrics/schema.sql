@@ -68,3 +68,9 @@ CREATE TABLE IF NOT EXISTS p_shop_daily (
   orders_source TEXT, currency TEXT, synced_at TEXT NOT NULL DEFAULT (datetime('now')), orders_at TEXT,
   PRIMARY KEY (act_id, day)
 );
+
+-- Sales per order channel per day (profit/worker/src/merchannels.js CHANNEL_TABLE), read for MER channels.
+CREATE TABLE IF NOT EXISTS p_sales_channel (
+  act_id TEXT NOT NULL, day TEXT NOT NULL, channel TEXT NOT NULL, sales REAL NOT NULL DEFAULT 0, orders INTEGER NOT NULL DEFAULT 0,
+  synced_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (act_id, day, channel)
+);

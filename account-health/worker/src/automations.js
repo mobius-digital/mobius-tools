@@ -65,6 +65,7 @@
  *   GET    /api/notices, POST /api/notices/done */
 import { catalogTypes, catalogView, notifyOf, applyBody, saveNotify, savedNotify, ensureNotify, defaultNotify } from './notify.js';
 import { featuresNow } from './jobflags.js';
+import { merExcluded, excludedSum } from './merday.js';
 
 const ORG = 'default';
 const ORG_TZ = 'America/Chicago';
@@ -533,7 +534,8 @@ export async function metricValue(env, d, acct, metric, window, now) {
   for (const [, t] of Object.entries(by)) { const sales = t.netSales ?? t.totalSales; if (sales == null) continue; days++; revenue += sales - (t.totalNetTaxes || 0); spend += t.blendedAds || 0; }
   if (days < len) return { wait: 'The store numbers for that window have not synced yet' };
   if (metric === 'spend') return { value: spend, start, end, len };
-  if (metric === 'mer') return spend > 0 ? { value: revenue / spend, start, end, len } : { wait: 'No ad spend in that window' };
+  /* MER counts only the brand's MER channels (merday.js, 2026-11-27): the left-out sales come off the top. */
+  if (metric === 'mer') return spend > 0 ? { value: Math.max(0, revenue - excludedSum(await merExcluded(env, acct.act_id, start, end), start, end)) / spend, start, end, len } : { wait: 'No ad spend in that window' };
   if (!d.twMetaDaily) return { wait: 'ROAS cannot be read here' };
   const tw = await d.twMetaDaily(env, acct.act_id, start, end).catch(() => ({}));
   const m = await env.DB.prepare(`SELECT SUM(spend) AS s FROM daily_insights WHERE act_id IN (SELECT external_id FROM connections WHERE brand_id = ?1 AND kind = 'meta') AND date >= ?2 AND date <= ?3`)

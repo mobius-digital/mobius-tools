@@ -14,7 +14,7 @@
      camps      every live campaign with its own three windows and its own ROAS in each (Triple Whale attributed, last
                 click), its own call (Raise 50%, Raise 25%, Hold, Cut 25%, Put it back) against the campaign ROAS line,
                 and the guards (pace, Meta limit room, "not read yet" warning). Never a forced wait.
-   MER is the whole store only (all sales over all ad spend). A campaign is judged on its ROAS, never on a MER.
+   MER is the whole store only (the sales that count over all ad spend). A campaign is judged on its ROAS, never on a MER.
    The campaign ROAS line: the brand's goal ROAS (accounts.target_roas) is the hold line; break-even ROAS is the
    record's own when it has one (and it is not over the goal), else goal ROAS / 1.25 (an assumption the page states).
    A campaign with no Triple Whale sales on record all week is not read (the sync may be behind), never read as 0x.
@@ -96,7 +96,11 @@ export function isDue(cad, latestSlot, now) {
 }
 
 /* ---------- windows ---------- */
-const win = (sales, spend) => ({ sales: ok(sales) ? sales : null, spend: ok(spend) ? spend : null, mer: ok(sales) && spend > 0 ? sales / spend : null });
+/* mer: the sales that count toward MER (mer_sales: Amazon, Whatnot, wholesale left out) over all ad spend; sales when
+   a record has no mer_sales (written before it existed) */
+const win = (sales, spend, merSales = sales) => ({ sales: ok(sales) ? sales : null, spend: ok(spend) ? spend : null, mer: ok(merSales) && spend > 0 ? merSales / spend : null });
+/* the counted-sales key two records can both be cut on: mer_sales only when both carry it */
+const merKey = (a, b) => (a && ok(a.mer_sales) && (!b || ok(b.mer_sales)) ? 'mer_sales' : 'sales');
 const diff = (a, b, k) => (a && ok(a[k]) ? a[k] : null) == null ? null : Math.max(0, a[k] - (b && ok(b[k]) ? b[k] : 0));
 
 /** How the Since window is cut against the previous record: same day, same week, or the sale so far. */
@@ -111,15 +115,15 @@ export function sinceBasis(curSlot, prvSlot) {
 /** The store in three windows. cur and prv are the same brand in the latest and the previous check-in. */
 export function storeWindows(cur, prv, basis) {
   const t = cur.today || {}, w = cur.week || {};
-  const today = { ...win(t.sales, t.spend), label: 'Today' };
+  const today = { ...win(t.sales, t.spend, t.mer_sales ?? t.sales), label: 'Today' };
   today.readable = ok(today.spend) && today.spend >= MIN_STORE_SPEND;
-  const week = { ...win(w.sales, w.spend), label: 'This week' };
+  const week = { ...win(w.sales, w.spend, w.mer_sales ?? w.sales), label: 'This week' };
   week.readable = ok(week.spend) && week.spend > 0;
   let since = null;
   if (prv && basis) {
     const k = basis.same === 'day' ? 'today' : basis.same === 'week' ? 'week' : 'so_far';
     const a = cur[k], b = prv[k];
-    since = { ...win(diff(a, b, 'sales'), diff(a, b, 'spend')), label: basis.label, synced: basis.synced };
+    since = { ...win(diff(a, b, 'sales'), diff(a, b, 'spend'), diff(a, b, merKey(a, b))), label: basis.label, synced: basis.synced };
     since.readable = ok(since.spend) && since.spend >= MIN_SINCE_SPEND;
   }
   return { since, today, week };

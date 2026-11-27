@@ -9,12 +9,13 @@
  "month": "2026-01",
  "status": "current",
  "actual": {
-  "sales": 34061.41,
-  "spend": 8395.52,
-  "cm": 9926.68,
-  "mer": 4.06,
-  "amer": 2.21,
-  "days": 24,
+  "sales": 36980.38,
+  "mer_sales": 36980.38,
+  "spend": 9160.4,
+  "cm": 10761.31,
+  "mer": 4.04,
+  "amer": 2.2,
+  "days": 26,
   "days_in_month": 30,
   "partial": true
  },
@@ -24,34 +25,36 @@
    "days": 30,
    "days_in_month": 30,
    "partial": false,
-   "sales": 44618.42,
-   "spend": 9513.24,
-   "new_rev": 24794.55,
-   "returning": 19823.87,
-   "cm": 14520.72,
+   "sales": 43906.26,
+   "mer_sales": 43906.26,
+   "spend": 9445.66,
+   "new_rev": 24200.73,
+   "returning": 19705.53,
+   "cm": 14081.79,
    "margin": 0.54,
-   "mer": 4.69,
-   "amer": 2.61,
-   "new_share": 0.56
+   "mer": 4.65,
+   "amer": 2.56,
+   "new_share": 0.55
   },
   {
    "month": "2026-01",
    "days": 31,
    "days_in_month": 31,
    "partial": false,
-   "sales": 47512.21,
-   "spend": 10359.85,
-   "new_rev": 25956.48,
-   "returning": 21555.73,
-   "cm": 15026.84,
-   "margin": 0.53,
-   "mer": 4.59,
-   "amer": 2.51,
+   "sales": 48199.43,
+   "mer_sales": 48199.43,
+   "spend": 10346.76,
+   "new_rev": 26530.32,
+   "returning": 21669.11,
+   "cm": 15526.84,
+   "margin": 0.54,
+   "mer": 4.66,
+   "amer": 2.56,
    "new_share": 0.55
   }
  ],
  "basis": {
-  "sales": 40666.56,
+  "sales": 40670.63,
   "label": "2026-01 actual",
   "month": "2026-01"
  },
@@ -59,11 +62,11 @@
   "days_in_month": 30,
   "returning_per_day": 647.11,
   "amer": 2.2,
-  "margin": 0.51,
+  "margin": 0.5,
   "measured": {
    "returning_per_day": 647.11,
    "amer": 2.18,
-   "margin": 0.51
+   "margin": 0.5
   },
   "overrides": {
    "amer": 2.2
@@ -75,7 +78,7 @@
    "trailing_to": "2026-01-15",
    "margin_month": "2026-01",
    "basis_month": "2026-01",
-   "trailing_spend_per_day": 350.03
+   "trailing_spend_per_day": 350.1
   }
  },
  "options": [
@@ -83,46 +86,46 @@
    "mode": "growth",
    "input": 0,
    "unreachable": null,
-   "sales": 40666.56,
+   "sales": 40670.63,
    "expected_returning": 19413.29,
-   "new_needed": 21253.27,
-   "required_spend": 9660.58,
+   "new_needed": 21257.34,
+   "required_spend": 9662.43,
    "growth_pct": 0,
    "implied_mer": 4.21,
-   "expected_cm": 10890.53,
+   "expected_cm": 10870.97,
    "expected_cm_margin": 0.27
   },
   {
    "mode": "growth",
    "input": 0.1,
    "unreachable": null,
-   "sales": 44733.22,
+   "sales": 44737.69,
    "expected_returning": 19413.29,
-   "new_needed": 25319.92,
-   "required_spend": 11509.06,
+   "new_needed": 25324.4,
+   "required_spend": 11511.09,
    "growth_pct": 0.1,
    "implied_mer": 3.89,
-   "expected_cm": 11097.16,
+   "expected_cm": 11075.65,
    "expected_cm_margin": 0.25
   }
  ],
  "to_hit": {
-  "revenue_per_day": 2989.77,
-  "new_per_day": 2342.66,
-  "spend_per_day": 1076.73,
-  "spend_ramp": 3.08,
+  "revenue_per_day": 3754.91,
+  "new_per_day": 3107.8,
+  "spend_per_day": 1428.69,
+  "spend_ramp": 4.08,
   "already_there": false,
   "covered_by_returning": false
  },
  "pace": {
-  "days_elapsed": 24,
-  "days_remaining": 6,
+  "days_elapsed": 26,
+  "days_remaining": 4,
   "days_in_month": 30,
-  "mtd_sales": 34061.41,
-  "mtd_spend": 8395.52,
-  "spend_per_day": 350.03,
-  "projected": 43723.53,
-  "at_pace": 42626.3,
+  "mtd_sales": 36980.38,
+  "mtd_spend": 9160.4,
+  "spend_per_day": 350.1,
+  "projected": 43651.23,
+  "at_pace": 42695.83,
   "store_source": "triple_whale"
  },
  "goals": {
@@ -149,7 +152,7 @@
  "planned": true,
  "current_month": "2026-01",
  "at_current_pace": {
-  "projected": 42626.3,
+  "projected": 42695.83,
   "month": "2026-01"
  },
  "store_source": "triple_whale",

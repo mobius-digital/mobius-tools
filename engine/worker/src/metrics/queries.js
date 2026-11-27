@@ -41,6 +41,14 @@ export const queries = {
   storeModes: { scope: 'brands',
     sql: `SELECT b.act_id AS act_id, s.value AS value FROM brand_accounts b
           JOIN settings s ON s.key = 'storeSource:' || b.act_id WHERE {{brands:b.act_id}} AND b.act_id IN (:acts)` },
+  /* Sales per order channel per day (profit merchannels.js, 2026-11-27) and the brand's MER channel setting: which
+     channels count toward MER. Read softly like shopDays: the table only exists once the first sync ran. */
+  salesChannels: { scope: 'brands',
+    sql: `SELECT act_id, day, channel, sales, orders FROM p_sales_channel
+          WHERE {{brands:act_id}} AND act_id IN (:acts) AND day BETWEEN :from AND :to` },
+  merChannels: { scope: 'brands',
+    sql: `SELECT b.act_id AS act_id, s.value AS value FROM brand_accounts b
+          JOIN settings s ON s.key = 'merChannels:' || b.act_id WHERE {{brands:b.act_id}} AND b.act_id IN (:acts)` },
   emailTools: { scope: 'brands',
     sql: `SELECT b.act_id AS act_id, s.value AS value FROM brand_accounts b
           JOIN settings s ON s.key = 'emailTool:' || b.act_id WHERE {{brands:b.act_id}}` },

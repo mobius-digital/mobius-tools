@@ -32,6 +32,19 @@ async function shopifyInPlay(ctx, acts) {
   return (await read('ads.shopAny')).length > 0 || (await read('ads.storeModeAny')).length > 0;
 }
 
+/* All channels also shows store revenue against blended spend (MER). A brand with order channel rows or a MER
+   channel setting (merchannels.js, 2026-11-27) gets MER on its counted channels on the old route, so it goes there. */
+async function merInPlay(ctx, acts) {
+  const read = async name => {
+    try { return await ctx.db.all(name, { acts }); } catch (e) {
+      if (isEngineError(e)) throw e;
+      swallowed('the sales channel table is not there yet, which the old route reads as none', e);
+      return [];
+    }
+  };
+  return (await read('ads.chanAny')).length > 0 || (await read('ads.merSetAny')).length > 0;
+}
+
 /** GET /pw/api/hub/paid: spend, delivery and credited sales per brand for Meta, Google, TikTok or all channels. */
 export async function hubPaid(ctx, input) {
   const q = input.query, base = switches(q);
@@ -41,6 +54,9 @@ export async function hubPaid(ctx, input) {
   const platform = PLATFORMS.includes(q.platform) ? q.platform : 'meta';
   if (platform === 'all' && await shopifyInPlay(ctx, brands.map(b => b.act_id))) {
     return ctx.forward('the brand has Shopify store totals or a store source setting, the old worker holds the switch');
+  }
+  if (platform === 'all' && await merInPlay(ctx, brands.map(b => b.act_id))) {
+    return ctx.forward('the brand has sales channel rows or a MER channel setting, the old worker counts MER on those channels');
   }
   let out;
   if (platform === 'meta') out = brands.length === 1 ? [await metaBrand(ctx, brands[0], w, base.model)] : await metaMany(ctx, brands, w, base.model);

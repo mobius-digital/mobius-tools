@@ -23,6 +23,8 @@
  * storesource.js, a copy of the pure part). Tests: node test-storesource.mjs.
  */
 
+import { readMer, applyMerChannels, merSalesFor } from './merchannels.js';
+
 export const STORE_MODES = ['auto', 'tw', 'shopify'];
 export const storeSettingKey = act => `storeSource:${act}`;
 export const storeMode = v => (STORE_MODES.includes(v) ? v : 'auto');
@@ -187,6 +189,11 @@ export async function storeSwitchMany(env, accts, pivs, from, to, opts = {}) {
     if (d.source === 'shopify') overlayShopify((pivs[act] ??= {}), shop.rows[act] || [], from, to);
     out[act] = d;
   }
+  /* Sales that count toward MER (merchannels.js, 2026-11-27): the left-out channels' sales per day ride in the pivot
+     as `merExcluded`, whichever source the store numbers came from (both hold the same Shopify orders). */
+  const ids = (accts || []).map(a => (typeof a === 'string' ? a : a.act_id)).filter(Boolean);
+  const mer = opts.mer || await readMer(env, ids, from, to);
+  for (const act of ids) if (mer.rows[act]?.length) applyMerChannels((pivs[act] ??= {}), mer.rows[act], mer.cfg[act], from, to);
   return out;
 }
 
@@ -222,7 +229,7 @@ export async function storeDaily(env, acct, from, to, opts = {}) {
     const total = piv.netSales?.[day] ?? piv.totalSales?.[day];
     if (total == null) continue;
     const tax = piv.totalNetTaxes?.[day] ?? 0;
-    days.push({ date: day, sales: total - tax, total_sales: total, tax, shipping: piv.totalShippingPrice?.[day] ?? null,
+    days.push({ date: day, sales: total - tax, mer_sales: merSalesFor(total - tax, piv.merExcluded?.[day]), total_sales: total, tax, shipping: piv.totalShippingPrice?.[day] ?? null,
       refunds: piv.totalRefunds?.[day] ?? null, orders: piv.totalOrders?.[day] ?? null, new_orders: piv.newCustomersOrders?.[day] ?? null });
   }
   return { ...storeTag(d), mode: d.mode, days };

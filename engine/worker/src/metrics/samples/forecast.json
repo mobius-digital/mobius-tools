@@ -8,45 +8,45 @@
  },
  "month": "2026-01",
  "days_in_month": 30,
- "days_elapsed": 24,
- "days_remaining": 6,
+ "days_elapsed": 26,
+ "days_remaining": 4,
  "basis": {
   "days": 28,
   "from": "2026-01-15",
   "to": "2026-01-15",
   "amer": 2.18,
-  "spend_per_day": 350.03,
+  "spend_per_day": 350.1,
   "returning_per_day": 647.11,
   "email_share": 0.19,
   "email_connected": true
  },
  "mtd": {
-  "sales": 34061.41,
-  "new_rev": 18518.37,
-  "returning": 15543.04,
-  "spend": 8395.52
+  "sales": 36980.38,
+  "new_rev": 20165.45,
+  "returning": 16814.93,
+  "spend": 9160.4
  },
  "expected": {
-  "returning": 3995.53,
-  "new_rev": 5666.59,
-  "spend": 2604.48,
-  "sales": 9662.12
+  "returning": 2669.2,
+  "new_rev": 4001.64,
+  "spend": 1839.6,
+  "sales": 6670.85
  },
- "projected": 43723.53,
+ "projected": 43651.23,
  "goal": 52000,
- "gap": -8276.47,
+ "gap": -8348.77,
  "at_current_pace": {
-  "sales": 42626.3,
-  "spend": 10495.69,
-  "gap": -9373.7
+  "sales": 42695.83,
+  "spend": 10560.79,
+  "gap": -9304.17
  },
- "planned_spend_per_day": 434.08,
- "spend_ramp": 1.24,
+ "planned_spend_per_day": 459.9,
+ "spend_ramp": 1.31,
  "to_hit": {
-  "revenue_per_day": 2989.77,
-  "new_per_day": 2342.66,
-  "spend_per_day": 1076.73,
-  "spend_ramp": 3.08,
+  "revenue_per_day": 3754.91,
+  "new_per_day": 3107.8,
+  "spend_per_day": 1428.69,
+  "spend_ramp": 4.08,
   "already_there": false,
   "covered_by_returning": false
  },
@@ -59,8 +59,8 @@
    "complete": true,
    "target": 12133.33,
    "target_to_date": 12133.33,
-   "sales": 8767.09,
-   "spend": 2298.98
+   "sales": 9390.64,
+   "spend": 2441.15
   },
   {
    "from": "2026-01-15",
@@ -70,8 +70,8 @@
    "complete": true,
    "target": 12133.33,
    "target_to_date": 12133.33,
-   "sales": 10986.77,
-   "spend": 2572.71
+   "sales": 10097.99,
+   "spend": 2470.05
   }
  ],
  "store_source": "triple_whale",

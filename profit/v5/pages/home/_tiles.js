@@ -13,7 +13,8 @@
        server carries the field (tilePrefsSupported).
 
    The numbers come from one bundle the Home page builds (index.js feeds()):
-     days    the store by day, the worker's own names: sales, spend, orders, new_orders, new_rev, ret_rev, gross_profit, cm, email_rev
+     days    the store by day, the worker's own names: sales, spend, orders, new_orders, new_rev, ret_rev, gross_profit, cm, email_rev,
+             and mer_sales / mer_new_rev (the sales that count toward MER; MER and aMER fall back to sales / new_rev without them)
      totals  the same names over the window; prev the same over the days just before
      meta / google / tiktok   { series: [{ date, spend, revenue, purchases, impressions, clicks }], prev: { same, summed } }
      amazon  { spend, revenue, prev_spend, prev_revenue }
@@ -38,18 +39,20 @@ export const GROUPS = [
   { id: 'amazon', label: 'Amazon', chip: 'amazon', note: 'Amazon ads, as Triple Whale carries them' },
 ];
 
+/* MER counts only the sales channels a brand counts: mer_sales, else sales from a payload sent before it existed. */
+const FALLBACK = { mer_sales: 'sales', mer_new_rev: 'new_rev' };
 /* sum: one field added up. ratio: [top, bottom, times]. unit: money | x | pct | num. lower: a rise is bad. plain: no judgment. */
 const T = (id, group, label, o) => ({ id, group, label, ...o });
 export const CATALOG = [
   T('sales', 'store', 'Sales', { sum: 'sales', unit: 'money', src: TW, link: ['month', 'pace'] }),
   T('spend', 'store', 'Ad spend', { sum: 'spend', unit: 'money', plain: true, src: 'All ad platforms', link: ['platforms', 'side-by-side'] }),
-  T('mer', 'store', 'MER', { def: 'mer', ratio: ['sales', 'spend'], unit: 'x', src: TW, link: ['month', 'pace'] }),
+  T('mer', 'store', 'MER', { def: 'mer', ratio: ['mer_sales', 'spend'], unit: 'x', src: TW, link: ['month', 'pace'] }),
   T('orders', 'store', 'Orders', { sum: 'orders', unit: 'num', src: TW, link: ['sales', null] }),
   T('aov', 'store', 'AOV', { def: 'aov', ratio: ['sales', 'orders'], unit: 'money', src: TW, link: ['sales', null] }),
   T('new_customers', 'store', 'New customers', { sum: 'new_orders', unit: 'num', src: TW, link: ['customers', 'snapshot'] }),
   T('cac', 'store', 'Cost per new customer', { def: 'new_customer_cost', ratio: ['spend', 'new_orders'], unit: 'money', lower: true, src: TW, link: ['customers', 'snapshot'] }),
   T('new_rev', 'store', 'New customer sales', { sum: 'new_rev', unit: 'money', src: TW, link: ['customers', 'snapshot'] }),
-  T('amer', 'store', 'New customer ROAS', { def: 'new_customer_roas', ratio: ['new_rev', 'spend'], unit: 'x', src: TW, link: ['customers', 'snapshot'] }),
+  T('amer', 'store', 'New customer ROAS', { def: 'new_customer_roas', ratio: ['mer_new_rev', 'spend'], unit: 'x', src: TW, link: ['customers', 'snapshot'] }),
   T('ret_rev', 'store', 'Returning customer sales', { sum: 'ret_rev', unit: 'money', src: TW, link: ['customers', 'snapshot'] }),
   T('profit', 'store', 'Profit after ads', { def: 'profit_after_ads', sum: 'cm', unit: 'money', src: TW + ' costs', costs: true, link: ['month', 'profit'] }),
   T('gross_profit', 'store', 'Left before ads', { def: 'left_before_ads', sum: 'gross_profit', unit: 'money', src: TW + ' costs', costs: true, link: ['month', 'profit'] }),
@@ -118,7 +121,8 @@ function valueOf(t, o) {
   if (!o) return null;
   if (t.sum) return ok(o[t.sum]) ? o[t.sum] : null;
   const [a, b, k = 1] = t.ratio;
-  return ok(o[a]) && o[b] > 0 ? o[a] / o[b] * k : null;
+  const top = o[a] ?? (FALLBACK[a] ? o[FALLBACK[a]] : undefined);
+  return ok(top) && o[b] > 0 ? top / o[b] * k : null;
 }
 function sumSeries(series) {
   const out = {}; let any = false;

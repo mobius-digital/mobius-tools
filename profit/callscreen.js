@@ -635,13 +635,15 @@
     const tile = (l, v, d, sub, tone) => `<div class="cs-tile"><span class="l">${l}</span><span class="v">${v}${d}</span><span class="sub${tone ? ` ${tone}` : ''}">${sub}</span></div>`;
     const was = (v, f2) => v != null ? `${f2(v)} the week before` : 'no week before to compare';
     const sales = t.sales, spend = t.spend;
-    const merNoLeads = L && sales != null && spend > L.spend ? sales / (spend - L.spend) : null;
+    /* MER counts only the sales channels the brand counts (mer_sales); sales on a report saved before it */
+    const merSales = t.mer_sales ?? sales;
+    const merNoLeads = L && merSales != null && spend > L.spend ? merSales / (spend - L.spend) : null;
     const noLeads = merNoLeads ? `. Without lead ads: ${x2(merNoLeads)}` : '';
     const merSub = f.mer ? `${t.mer >= f.mer ? 'on' : 'under'} the ${x2(f.mer)} goal${noLeads}` : `${was(p.mer, x2)}${noLeads}`;
     return `<div class="cs-tiles">
       ${tile('Sales, whole store', money(sales), delta(sales, p.sales), was(p.sales, money))}
       ${tile('Ad spend, every channel', money(spend), delta(spend, p.spend, 'n'), was(p.spend, money))}
-      ${tile('MER (sales ÷ ad spend)', x2(t.mer), delta(t.mer, p.mer), merSub, f.mer && t.mer != null ? (t.mer >= f.mer ? 'up' : 'down') : '')}
+      ${tile('MER (sales that count ÷ ad spend)', x2(t.mer), delta(t.mer, p.mer), merSub, f.mer && t.mer != null ? (t.mer >= f.mer ? 'up' : 'down') : '')}
       ${tile('Orders', t.orders != null ? Math.round(t.orders).toLocaleString('en-US') : '–', delta(t.orders, p.orders), was(p.orders, v => Math.round(v).toLocaleString('en-US')))}
       ${t.ncpa != null ? tile('Cost per new customer', money(t.ncpa), delta(t.ncpa, p.ncpa, true), was(p.ncpa, money)) : ''}
       ${L ? tile('Lead ads', money(L.spend), '', `inside ad spend · ${L.leads.toLocaleString('en-US')} leads at ${cents(L.leads ? L.spend / L.leads : null)}`) : ''}
@@ -1286,7 +1288,7 @@
   }
   /* Start = the scoreboard: every brand, last week, before anyone talks. */
   function scoreboard2() {
-    const rows = mondayList().map(b => { const t = (b.read && b.read.totals) || {}, f = (b.read && b.read.plan) || {}, L = b.read && b.read.leads; const ex = L && t.sales != null && t.spend > L.spend ? t.sales / (t.spend - L.spend) : t.mer; const tone = !f.mer || ex == null ? '' : ex >= f.mer ? 'up' : ex >= f.mer * 0.75 ? 'flat' : 'down';
+    const rows = mondayList().map(b => { const t = (b.read && b.read.totals) || {}, f = (b.read && b.read.plan) || {}, L = b.read && b.read.leads; const ms = t.mer_sales ?? t.sales; const ex = L && ms != null && t.spend > L.spend ? ms / (t.spend - L.spend) : t.mer; const tone = !f.mer || ex == null ? '' : ex >= f.mer ? 'up' : ex >= f.mer * 0.75 ? 'flat' : 'down';
       return `<tr data-goto="${esc(b.act_id)}" class="cmp"><td><b>${esc(b.name)}</b> <small class="muted">${esc(STRAT[b.act_id] || '')}</small></td><td>${money(t.sales)}</td><td>${money(t.spend)}</td><td>${x2(t.mer)}${L ? ` <small class="muted">${x2(ex)} without leads</small>` : ''}</td><td>${f.mer ? pill(tone === 'up' ? 'on goal' : tone === 'flat' ? 'close' : 'under', tone) : ''}</td><td>${(b.posts || []).length ? pill('posted', 'up') : pill('not posted', 'down')}</td><td>${(b.open || []).length || ''}</td></tr>`; }).join('');
     return sec('Every brand, last week', 'Same order every week: Noma\'s brands, then Ahsan\'s. Tap a brand to go to it.', `<div class="cs-tw"><table class="cs-tbl cs-camp"><thead><tr><th>Brand</th><th>Sales</th><th>Spend</th><th>MER</th><th>vs goal</th><th>Plan in Slack</th><th>Open tasks</th></tr></thead><tbody>${rows}</tbody></table></div>`);
   }
