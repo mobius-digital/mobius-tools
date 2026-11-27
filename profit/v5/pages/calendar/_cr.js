@@ -52,19 +52,52 @@ export function row({ lead, title, sub, cells = [], action, onclick, late, one }
     /* the action slot is always there (empty when the row has none), so every row's cells stay in their columns */
     h('span', { class: 'cr-go' }, action || null));
 }
-/** list(rows, none, { head, go }) : the rows under one optional header row.
-    head: [{ label, w }] one entry per cell, same widths as the rows' cells; first: the words over the title column.
+/** list(rows, none, { head, first, go, sort, onSort, firstSort }) : the rows under one optional header row.
+    head: [{ label, w, sort }] one entry per cell, same widths as the rows' cells; first: the words over the title column.
     go: the width of the action slot in px, so every row (with or without buttons) lines its cells up.
+    sort: { key, dir } the order on screen; a head cell with `sort: 'key'` (and firstSort for the title column) is a
+    button that calls onSort(key): the page flips the direction and redraws. Sorting is a desktop control (the header
+    row is hidden on a phone, where the list keeps the page's own order).
     The header shows on a desktop only; on a phone each cell carries its own small label. */
-export function list(rows, none, { head, first = '', go } = {}) {
+export function list(rows, none, { head, first = '', go, sort, onSort, firstSort } = {}) {
   const el = h('div', { class: 'cr-list', style: go ? { '--go': go + 'px' } : null });
-  if (head && rows.length) el.append(h('div', { class: 'cr-row nolead cr-head', 'aria-hidden': 'true' },
-    h('span', { class: 'cr-what' }, first),
-    h('span', { class: 'cr-cells' }, head.filter(Boolean).map(c => h('span', { class: 'cr-cell ' + (c.class || ''), style: c.w ? { '--w': c.w + 'px' } : null }, c.label))),
+  const hc = (label, key) => {
+    if (!key || !onSort) return label;
+    const on = sort && sort.key === key;
+    return h('button', { type: 'button', class: 'cr-sort' + (on ? ' on' : ''), 'aria-label': 'Sort by ' + label + (on ? (sort.dir === 'asc' ? ', now low to high' : ', now high to low') : ''),
+      onclick: () => onSort(key) }, label, h('i', { 'aria-hidden': 'true' }, on ? (sort.dir === 'asc' ? '↑' : '↓') : '↕'));
+  };
+  if (head && rows.length) el.append(h('div', { class: 'cr-row nolead cr-head' },
+    h('span', { class: 'cr-what' }, hc(first, firstSort)),
+    h('span', { class: 'cr-cells' }, head.filter(Boolean).map(c => h('span', { class: 'cr-cell ' + (c.class || ''), style: c.w ? { '--w': c.w + 'px' } : null }, hc(c.label, c.sort)))),
     h('span', { class: 'cr-go' })));
   el.append(...(rows.length ? rows : [h('p', { class: 'cr-none' }, none || 'Nothing here yet.')]));
   return el;
 }
+/** sortRows(rows, sort, valueOf) : a copy of rows in sort order. valueOf(row, key) gives a number or text; empty
+    values go last whichever way. */
+export function sortRows(rows, sort, valueOf) {
+  if (!sort || !sort.key) return rows.slice();
+  const m = sort.dir === 'asc' ? 1 : -1;
+  return rows.slice().sort((a, b) => {
+    const va = valueOf(a, sort.key), vb = valueOf(b, sort.key);
+    const ea = va == null || va === '', eb = vb == null || vb === '';
+    if (ea || eb) return ea === eb ? 0 : ea ? 1 : -1;
+    return (typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb))) * m;
+  });
+}
+/** flipSort(sort, key, firstDir) : the next { key, dir } after a head click. */
+export const flipSort = (sort, key, firstDir = 'asc') => sort && sort.key === key ? { key, dir: sort.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: firstDir };
+
+/** box({ title, n, note, action }, ...kids) : the white card a list or a section sits in (the batch 1 card look:
+    card title 14/600, a count, a quiet note, actions on the right). */
+export function box({ title, n, note, action, class: cls } = {}, ...kids) {
+  return h('section', { class: 'lx-card cr-box' + (cls ? ' ' + cls : '') },
+    title || action ? h('div', { class: 'cr-box-h' }, title ? h('h3', { class: 'lx-card-t' }, title) : null, n != null ? h('span', { class: 'lx-count' }, String(n)) : null,
+      note ? h('span', { class: 'note' }, note) : null, action ? h('div', { class: 'act' }, action) : null) : null,
+    kids);
+}
+
 /** A quiet word in the action slot of a row that has no buttons ("Link ended"). */
 export const goNote = text => h('span', { class: 'cr-gonote' }, text);
 
@@ -173,8 +206,11 @@ const CSS = `
 .cr-tools .lx-input{height:36px;font-size:13.5px;border-radius:10px;width:auto}
 .cr-tools .cr-search{flex:1 1 220px;min-width:180px;max-width:320px}
 .cr-tools .cr-select{flex:none;max-width:200px}
+.cr-tools .cr-phonesort{display:none}
+.cr-tools:not(:has(> :not(.cr-phonesort))){display:none}
 .cr-fnote{display:inline-flex;gap:10px;align-items:center;font-size:13px;color:var(--muted)}
-.cr-clear{border:0;background:none;padding:0;font:inherit;font-size:13px;font-weight:600;color:var(--ink);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.cr-clear{border:0;background:none;padding:0;font:inherit;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer}
+.cr-clear:hover{text-decoration:underline;text-underline-offset:3px}
 .cr-fold{display:flex;align-items:center;gap:10px;width:100%;min-height:var(--row-h-roomy,48px);padding:10px 0;border:0;border-top:1px solid var(--line);background:none;font:inherit;font-size:14px;font-weight:600;color:var(--ink-2);text-align:left;cursor:pointer}
 .cr-fold:hover{color:var(--ink)}
 .cr-fold small{font-weight:400;color:var(--muted);font-size:13px}
@@ -185,7 +221,6 @@ const CSS = `
 .cr-row.click{cursor:pointer}
 .cr-row.click:focus-visible{outline:2px solid var(--ink-2);outline-offset:2px;border-radius:8px}
 .cr-row.click:hover{background:var(--row-hover);border-radius:10px;box-shadow:-10px 0 0 var(--row-hover),10px 0 0 var(--row-hover)}
-.cr-row.click:hover .cr-what b{text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
 .cr-lead{display:flex;align-items:center}
 .cr-lead:empty{display:none}
 .cr-what{min-width:0;display:block}
@@ -202,7 +237,20 @@ const CSS = `
 .cr-go:empty{min-width:var(--go,0)}
 .cr-gonote{font-size:13px;color:var(--muted);white-space:nowrap}
 .cr-head{min-height:32px;padding:0;border-top:0}
-.cr-head .cr-what,.cr-head .cr-cell{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.cr-head .cr-what,.cr-head .cr-cell{font-size:var(--fs-colhead,11.5px);font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted)}
+.cr-sort{display:inline-flex;align-items:center;gap:5px;border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer}
+.cr-sort i{font-style:normal;font-size:10.5px;color:var(--faint)}
+.cr-sort:hover,.cr-sort.on{color:var(--ink)}
+.cr-sort.on i{color:var(--ink)}
+.cr-box{display:grid;gap:12px;align-content:start}
+.cr-box-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}
+.cr-box-h .note{font-size:var(--fs-small,12.5px);color:var(--muted)}
+.cr-box-h .act{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cr-box>.cr-list>.cr-head+.cr-row,.cr-box>.cr-list>.cr-row:first-child{border-top:1px solid var(--line)}
+.cr-box .cr-tools{padding-bottom:0}
+.cr-box .cr-month{box-shadow:inset 0 0 0 1px var(--line);border-radius:var(--r-tbl,12px)}
+.cr-box .cr-legend{padding-top:0}
+.cr-box .cr-nav h2{font-size:var(--fs-section,17px);min-width:150px}
 .cr-head+.cr-row{border-top:1px solid var(--line)}
 .cr-go .lx-btn{height:36px;white-space:nowrap}
 .cr-none{padding:18px 0;border-top:1px solid var(--line);font-size:13.5px;color:var(--muted)}
@@ -210,9 +258,9 @@ const CSS = `
 .cr-brand i{width:10px;height:10px;border-radius:3px;background:var(--dot);flex:none}
 .cr-legend{display:flex;gap:18px;flex-wrap:wrap;padding-top:14px}
 
-.cr-month{display:grid;border-radius:18px;box-shadow:var(--sh-1);background:#fff;overflow:hidden;min-width:0}
+.cr-month{display:grid;border-radius:var(--r-card,16px);box-shadow:var(--sh-1);background:#fff;overflow:hidden;min-width:0}
 .cr-dow{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-bottom:1px solid var(--line)}
-.cr-dow span{padding:10px 12px;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.cr-dow span{padding:10px 12px;font-size:var(--fs-colhead,11.5px);font-weight:600;color:var(--muted)}
 .cr-week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-template-rows:34px repeat(var(--lanes,4),26px);row-gap:3px;min-height:72px;padding-bottom:8px;border-top:1px solid var(--line);position:relative}
 .cr-dow+.cr-week{border-top:0}
 .cr-day{grid-row:1 / -1;padding:8px 10px;border-left:1px solid var(--line);min-width:0}
@@ -313,6 +361,8 @@ const CSS = `
 .cr-people{display:flex;align-items:center;gap:12px;min-width:0}
 .cr-foot{font-size:12.5px;color:var(--muted);line-height:1.5;max-width:90ch}
 
+@media (max-width:1320px){.cr-cell.hide-lg{display:none}}
+@media (min-width:760px) and (max-width:1040px){.cr-cell.hide-tab{display:none}}
 @media (max-width:1040px){
   .cr-cells{gap:16px}
   .cr-cell.hide-md{display:none}
@@ -332,7 +382,7 @@ const CSS = `
   .cr-go{grid-column:1/-1;justify-content:stretch;flex-wrap:wrap}
   .cr-go .lx-btn{flex:1;height:44px}
   .cr-month{border-radius:16px}
-  .cr-dow span{padding:8px 0;text-align:center;font-size:9.5px;letter-spacing:.04em}
+  .cr-dow span{padding:8px 0;text-align:center;font-size:11px}
   .cr-week{grid-template-rows:30px repeat(var(--lanes,4),8px);row-gap:3px;min-height:56px;padding-bottom:6px}
   .cr-day{padding:5px 0;text-align:center}
   .cr-day b{font-size:12px;min-width:22px;height:22px}
@@ -343,6 +393,8 @@ const CSS = `
   .cr-bar.mail{background:transparent;box-shadow:inset 0 0 0 1.5px var(--icon)}
   .cr-more{font-size:0;padding:0;justify-self:center;width:4px;height:4px;border-radius:50%;background:var(--muted)}
   .cr-tools .cr-search,.cr-tools .cr-select{flex:1 1 100%;max-width:none}
+  .cr-tools .cr-phonesort{display:flex;flex:1 1 100%}
+  .cr-tools:not(:has(> :not(.cr-phonesort))){display:flex}
   .cr-nav{width:100%}
   .cr-nav h2{flex:1;min-width:0;font-size:18px}
   .cr-kv{grid-template-columns:110px minmax(0,1fr)}

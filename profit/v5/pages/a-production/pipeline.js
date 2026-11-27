@@ -4,7 +4,7 @@
    A card opens its sheet, where the team moves, assigns and approves it (see production/_sheet.js). Data: GET /api/production?act=all on the account-health worker (see _ap.js). */
 
 import { APP_NAME } from '../../config.js';
-import { h, hero, kpi, kpis, em, card, table, statusDot, empty, skeleton } from '../../kit.js';
+import { h, kpi, tiles, em, card, table, statusDot, empty, skeleton, sourceLine } from '../../kit.js';
 import { SAMPLE } from '../../data.js';
 import { refresh } from '../../router.js';
 import { canWrite } from '../production/_act.js';
@@ -69,22 +69,21 @@ export default {
     const work = cards.filter(c => ['brief', 'making', 'review'].includes(c.board));
     const goingLive = cards.filter(c => (c.board === 'ready' || c.board === 'scheduled') && c.launch_on && c.launch_on >= wk[0] && c.launch_on <= wk[1]);
     const worst = late[0];
-    const IN_WORK = { name: 'In work', definition: 'Cards in Brief, Making or Review: not approved yet.' };
-    const LATE = { name: 'Late', definition: 'Past its date and not approved yet.' };
+    ctx.askWindow = 'Now';
+    ctx.askContext = `Production, every brand: ${work.length} cards in work (brief, making, review) across ${plural(rows.filter(r => r.work).length, 'brand')}, ${late.length} late, ${client.length} waiting on clients, ${goingLive.length} going live this week.` + (worst ? ` Most late: ${worst.title || 'a card'}, ${plural(lateBy(worst, today), 'day')}.` : '');
     put(el,
       pageTop([
         { title: 'What it is for', text: 'Every brand\'s ad cards in one place: how many sit in each stage, what is late and what waits on the client. Most late first.' },
         { title: 'What you can do here', text: (canWrite(ctx) ? 'A brand opens its board; a card opens its sheet, where you can move it, assign it and approve it.' : 'A brand opens its board; a card opens its sheet.') + ' Tap a column header to sort.' },
         { title: 'The words', text: 'In work: Brief, Making and Review together. Late: past its date and not approved yet. The bar shows where a brand\'s cards are; hover a part for its count.' },
       ]),
-      hero({ line: true },
-        kpis([
-          kpi({ label: defLabel('In work', IN_WORK), value: String(work.length), sub: plural(rows.filter(r => r.work).length, 'brand') }),
-          kpi({ label: defLabel('Late', LATE), value: String(late.length), sub: late.length ? statusDot('bad', 'oldest ' + plural(lateBy(worst, today), 'day')) : statusDot('good', 'nothing overdue') }),
-          kpi({ label: 'Waiting on clients', value: String(client.length), sub: client.length ? statusDot('warn', plural(new Set(client.map(c => c.act_id)).size, 'brand')) : 'none' }),
-          kpi({ label: 'Going live this week', value: String(goingLive.length), sub: `${day(wk[0])} to ${day(wk[1])}` }),
-        ], { cols: 4 })),
-      card({ title: 'Every brand', note: 'most late first', flush: true,
+      tiles([
+          kpi({ label: 'In work', value: String(work.length), sub: 'Brief, making, review · ' + plural(rows.filter(r => r.work).length, 'brand'), window: 'Now', source: 'Production boards' }),
+          kpi({ label: 'Late', value: String(late.length), sub: late.length ? statusDot('bad', 'Oldest ' + plural(lateBy(worst, today), 'day')) : statusDot('good', 'Nothing overdue'), window: 'Now', source: 'Production boards' }),
+          kpi({ label: 'Waiting on clients', value: String(client.length), sub: client.length ? statusDot('warn', plural(new Set(client.map(c => c.act_id)).size, 'brand')) : 'None', window: 'Now', source: 'Production boards' }),
+          kpi({ label: 'Going live this week', value: String(goingLive.length), sub: 'Loaded with a start date', window: `${day(wk[0])} to ${day(wk[1])}`, source: 'Production boards' }),
+        ], { cols: 4 }),
+      card({ title: 'Every brand', note: sourceLine('Now', 'most late first, tap a brand for its board'), flush: true,
         action: h('div', { class: 'ap-key' }, STAGES.map(st => h('span', null, h('i', { class: 's-' + st.id }), st.label))) },
         table({
           rows, roomy: true,
@@ -96,8 +95,8 @@ export default {
             { key: 'making', label: 'Making', num: true, sortable: true, class: 'hide-md', render: r => n(r.making) },
             { key: 'review', label: 'Review', num: true, sortable: true, class: 'hide-sm', render: r => h('span', null, n(r.review), r.client ? h('small', { class: 'ap-old' }, ', ' + r.client + ' with client') : null) },
             { key: 'ready', label: 'Ready', num: true, sortable: true, class: 'hide-md', render: r => n(r.ready) },
-            { key: 'work', label: defLabel('In work', IN_WORK), num: true, sortable: true, render: r => n(r.work) },
-            { key: 'late', label: defLabel('Late', LATE), num: true, sortable: true, render: r => r.late ? h('span', null, h('span', { class: 'ap-late' }, r.late + ' late'), r.oldest ? h('small', { class: 'ap-old' }, ', oldest ' + plural(r.oldest, 'day')) : null) : n(0) },
+            { key: 'work', label: 'In work', num: true, sortable: true, render: r => n(r.work) },
+            { key: 'late', label: 'Late', num: true, sortable: true, render: r => r.late ? h('span', null, h('span', { class: 'ap-late' }, r.late + ' late'), r.oldest ? h('small', { class: 'ap-old' }, ', oldest ' + plural(r.oldest, 'day')) : null) : n(0) },
             { key: 'next', label: 'Next date', sortable: true, value: r => (r.next ? r.next.d : null), class: 'hide-sm', render: r => r.next ? (r.next.live ? 'Live ' : 'Due ') + day(r.next.d) : 'none' },
           ],
         })),

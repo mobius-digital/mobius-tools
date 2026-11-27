@@ -42,133 +42,155 @@
    "date": "2026-11-01",
    "sales": 3612,
    "spend": 1108,
-   "before_ads": 1950
+   "before_ads": 1950,
+   "orders": 42
   },
   {
    "date": "2026-11-02",
    "sales": 2762,
    "spend": 1036,
-   "before_ads": 1491
+   "before_ads": 1491,
+   "orders": 30
   },
   {
    "date": "2026-11-03",
    "sales": 2904,
    "spend": 1150,
-   "before_ads": 1568
+   "before_ads": 1568,
+   "orders": 32
   },
   {
    "date": "2026-11-04",
    "sales": 3080,
    "spend": 1132,
-   "before_ads": 1663
+   "before_ads": 1663,
+   "orders": 32
   },
   {
    "date": "2026-11-05",
    "sales": 4199,
    "spend": 1221,
-   "before_ads": 2267
+   "before_ads": 2267,
+   "orders": 45
   },
   {
    "date": "2026-11-06",
    "sales": 3095,
    "spend": 1007,
-   "before_ads": 1671
+   "before_ads": 1671,
+   "orders": 33
   },
   {
    "date": "2026-11-07",
    "sales": 4020,
    "spend": 1059,
-   "before_ads": 2171
+   "before_ads": 2171,
+   "orders": 42
   },
   {
    "date": "2026-11-08",
    "sales": 3546,
    "spend": 1079,
-   "before_ads": 1915
+   "before_ads": 1915,
+   "orders": 41
   },
   {
    "date": "2026-11-09",
    "sales": 3568,
    "spend": 1084,
-   "before_ads": 1927
+   "before_ads": 1927,
+   "orders": 41
   },
   {
    "date": "2026-11-10",
    "sales": 3413,
    "spend": 1221,
-   "before_ads": 1843
+   "before_ads": 1843,
+   "orders": 39
   },
   {
    "date": "2026-11-11",
    "sales": 2598,
    "spend": 1072,
-   "before_ads": 1403
+   "before_ads": 1403,
+   "orders": 27
   },
   {
    "date": "2026-11-12",
    "sales": 2538,
    "spend": 991,
-   "before_ads": 1371
+   "before_ads": 1371,
+   "orders": 28
   },
   {
    "date": "2026-11-13",
    "sales": 3675,
    "spend": 1220,
-   "before_ads": 1985
+   "before_ads": 1985,
+   "orders": 42
   },
   {
    "date": "2026-11-14",
    "sales": 4690,
    "spend": 1143,
-   "before_ads": 2533
+   "before_ads": 2533,
+   "orders": 50
   },
   {
    "date": "2026-11-15",
    "sales": 3097,
    "spend": 1250,
-   "before_ads": 1672
+   "before_ads": 1672,
+   "orders": 32
   },
   {
    "date": "2026-11-16",
    "sales": 2435,
    "spend": 1267,
-   "before_ads": 1315
+   "before_ads": 1315,
+   "orders": 27
   },
   {
    "date": "2026-11-17",
    "sales": 1782,
    "spend": 1150,
-   "before_ads": 962
+   "before_ads": 962,
+   "orders": 20
   },
   {
    "date": "2026-11-18",
    "sales": 2627,
    "spend": 1150,
-   "before_ads": 1419
+   "before_ads": 1419,
+   "orders": 27
   },
   {
    "date": "2026-11-19",
    "sales": 1663,
    "spend": 999,
-   "before_ads": 898
+   "before_ads": 898,
+   "orders": 18
   },
   {
    "date": "2026-11-20",
    "sales": 1395,
    "spend": 1008,
-   "before_ads": 753
+   "before_ads": 753,
+   "orders": 16
   },
   {
    "date": "2026-11-21",
    "sales": 1092,
    "spend": 541,
-   "before_ads": 590
+   "before_ads": 590,
+   "orders": 12
   },
   {
    "date": "2026-11-22",
    "sales": 1638,
    "spend": 814,
-   "before_ads": 885
+   "before_ads": 885,
+   "orders": 17
   }
  ]
 }

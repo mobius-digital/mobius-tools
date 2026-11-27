@@ -16,6 +16,7 @@ const dateOf = iso => { const t = Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(String(i
 
 addStyles('lx-as-css', `
 .as{display:grid;gap:var(--sp-6);max-width:760px}
+.as-help{display:flex;justify-content:flex-end}
 .as-one{display:grid;gap:14px;justify-items:start;margin-top:12px}
 .as-one dl{display:grid;grid-template-columns:90px minmax(0,1fr);gap:6px 12px;margin:0;font-size:13.5px;width:100%}
 .as-one dt{color:var(--muted)}.as-one dd{margin:0;overflow-wrap:anywhere;color:var(--ink-2)}
@@ -28,7 +29,7 @@ let editing = false;
 function draw(el, d, ctx) {
   if (!ctx.brand) return put(el, empty({ title: 'Pick a brand', text: 'Assets belong to one brand.' }));
   const A = d && d.url ? d : null;
-  const help = h('div', null, pageHelp({ body: [{ title: 'What it is for', text: 'The one link to where this brand\'s photos and videos live: Google Drive, Dropbox, Air, Frame or any link. Anyone on the brand, client or team, can open or change it.' },
+  const help = h('div', { class: 'as-help' }, pageHelp({ body: [{ title: 'What it is for', text: 'The one link to where this brand\'s photos and videos live: Google Drive, Dropbox, Air, Frame or any link. Anyone on the brand, client or team, can open or change it.' },
     { title: 'Your files stay yours', text: APP_NAME + ' does not copy, read or store the files. The button opens your folder.' }] }));
   const copy = async () => { try { await navigator.clipboard.writeText(A.url); toast('Link copied.'); } catch { toast('The link: ' + A.url, { ms: 9000 }); } };
   if (A && !editing) {

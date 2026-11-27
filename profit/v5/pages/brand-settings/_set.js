@@ -340,8 +340,9 @@ const CSS = `
 .lx-st-say .lx-st-days,.lx-st-say .lx-st-sel,.lx-st-say .lx-toggle{vertical-align:middle;margin:0 3px}
 .lx-st-fold>summary{display:flex;align-items:center;gap:12px;padding:18px 28px;cursor:pointer;list-style:none;flex-wrap:wrap}
 .lx-st-fold>summary::-webkit-details-marker{display:none}
-.lx-st-fold>summary h3{font-size:var(--fs-h3);font-weight:600;letter-spacing:-.015em}
-.lx-st-fold>summary .note{font-size:13px;color:var(--muted)}
+.lx-st-fold>summary h3{font-size:var(--fs-card,14px);font-weight:600;letter-spacing:-.01em}
+.lx-st-fold>summary:hover{background:var(--row-hover)}
+.lx-st-fold>summary .note{font-size:var(--fs-small,12.5px);color:var(--muted)}
 .lx-st-fold>summary .more{font-size:13px;font-weight:500;color:var(--ink-2)}
 .lx-st-fold[open]>summary .more{font-size:0}
 .lx-st-fold[open]>summary .more::after{content:"Hide";font-size:13px}
@@ -359,7 +360,7 @@ const CSS = `
 .lx-st-con .nm small{display:block;font-size:12.5px;font-weight:400;color:var(--muted)}
 .lx-st-con .note{font-size:12.5px;line-height:1.45;color:var(--muted);min-width:0;overflow-wrap:anywhere}
 .lx-st-con .use{font-size:12.5px;color:var(--ink-2);text-align:left;font-variant-numeric:tabular-nums;min-width:0;overflow-wrap:anywhere}
-.lx-st-con.head{padding-top:10px;padding-bottom:10px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.lx-st-con.head{padding-top:10px;padding-bottom:10px;font-size:var(--fs-colhead,11.5px);font-weight:600;color:var(--muted)}
 .lx-st-con.head+.lx-st-con{border-top:1px solid var(--line)}
 .lx-st-con details{grid-column:1/-1;font-size:12.5px;color:var(--ink-2)}
 .lx-st-con details summary{cursor:pointer;color:var(--ink);font-weight:500;width:max-content}

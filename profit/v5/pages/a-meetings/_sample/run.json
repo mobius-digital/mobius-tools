@@ -66,9 +66,9 @@
     },
     {
      "label": "Google",
-     "big": "2.41x",
-     "tone": "warn",
-     "status": "Close"
+     "big": "2.20x",
+     "tone": "bad",
+     "status": "Under goal"
     }
    ],
    "pipeline": {
@@ -398,8 +398,8 @@
     }
    ],
    "pipeline": null,
-   "id": "brand_harbor_candle",
-   "name": "Harbor Candle Co",
+   "id": "brand_harbor_and_pine",
+   "name": "Harbor & Pine",
    "owner": "Riley",
    "sales": 10398,
    "sales_prior": 6174,
@@ -433,8 +433,8 @@
     }
    ],
    "pipeline": null,
-   "id": "brand_summit_hockey",
-   "name": "Summit Hockey",
+   "id": "brand_summit_sticks",
+   "name": "Summit Sticks",
    "owner": "Riley",
    "sales": 3993,
    "sales_prior": 1966,
@@ -445,7 +445,7 @@
   },
   {
    "currency": "USD",
-   "connected": true,
+   "connected": false,
    "current": true,
    "has_report": true,
    "week": {
@@ -461,35 +461,13 @@
    "asks": [],
    "channels": [],
    "pipeline": null,
-   "id": "brand_cedar_pets",
-   "name": "Cedar Pets",
+   "id": "brand_copper_kettle_pets",
+   "name": "Copper Kettle Pets",
    "owner": null,
-   "sales": 745,
-   "sales_prior": 907,
-   "spend": 1815,
-   "spend_prior": 2357,
-   "mer": 0.41,
-   "goal_mer": null
-  },
-  {
-   "currency": "USD",
-   "connected": false,
-   "current": false,
-   "has_report": false,
-   "week": null,
-   "verdict": null,
-   "happened": [],
-   "decisions": [],
-   "promises": [],
-   "asks": [],
-   "channels": [],
-   "pipeline": null,
-   "id": "brand_oak_and_iron",
-   "name": "Oak and Iron",
    "sales": null,
    "sales_prior": null,
-   "spend": null,
-   "spend_prior": null,
+   "spend": 610,
+   "spend_prior": 820,
    "mer": null,
    "goal_mer": null
   }

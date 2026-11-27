@@ -10,9 +10,9 @@
      /api/overview?days=7&cmp=none&series=0      the cost check for the brand */
 
 import { put, tipShow, tipHide, tipRow } from '../../kit.js';
-import { askWhy, helpBar, dl } from '../home/_biz.js';
-import { h, money, num, pct, card, hero, em, kpi, kpis, takeaway, button, statusDot, legend, lineChart, empty } from '../../kit.js';
-import { ok, dayLabel, b, soft, brandFacts, hasSource, pickBrand, noSource, noDays, styles } from './_m.js';
+import { askWhy, helpBar, dl, rangeWords } from '../home/_biz.js';
+import { h, money, num, pct, card, em, takeaway, button, statusDot, legend, lineChart, empty, sourceLine } from '../../kit.js';
+import { ok, dayLabel, span, b, soft, brandFacts, hasSource, pickBrand, noSource, noDays, styles, tileRow, tipRows, pageStamp, TW } from './_m.js';
 
 /* ---------- live data ---------- */
 async function load(ctx) {
@@ -40,7 +40,7 @@ async function load(ctx) {
     /* the names of the fixed costs are the team's; a client gets the total */
     fixed: held || !(fx.total > 0) ? null : { total: fx.total, items: ctx.isClient ? [] : (fx.items || []).map(it => ({ name: it.name, amount: it.amount })) },
     plan_profit: w.preset === 'month' && p && ok(p.cm) && !held ? p.cm : null,
-    days: rows.map(r => ({ date: r.date, sales: r.sales ?? null, spend: r.spend ?? null, before_ads: held ? null : r.gross_profit ?? null })),
+    days: rows.map(r => ({ date: r.date, sales: r.sales ?? null, spend: r.spend ?? null, orders: r.orders ?? null, before_ads: held ? null : r.gross_profit ?? null })),
   };
 }
 
@@ -50,21 +50,22 @@ function heroBlock(data, ctx) {
   let list;
   if (data.withheld) {
     list = [
-      { label: 'Sales', value: money(t.sales), spark: days.map(d => d.sales) },
-      { label: 'Ad spend', value: money(t.spend), sub: of(t.spend), spark: days.map(d => d.spend) },
-      { label: dl('Profit after ads', 'profit_after_ads'), value: 'held back', sub: data.withheld_why === 'check' ? 'the cost numbers need a check first' : 'no product costs to read yet' },
+      { label: 'Sales', value: money(t.sales), unit: 'money', spark: days.map(d => d.sales) },
+      { label: 'Ad spend', value: money(t.spend), unit: 'money', sub: of(t.spend), spark: days.map(d => d.spend), source: 'All ad platforms' },
+      { label: dl('Profit after ads', 'profit_after_ads'), value: 'held back', sub: data.withheld_why === 'check' ? 'the cost numbers need a check first' : 'no product costs to read yet', source: TW + ' costs' },
     ];
   } else {
     const plan = data.plan_profit, gap = ok(plan) && ok(t.profit) ? t.profit - plan : null;
     list = [
       { label: dl('Profit after ads', 'profit_after_ads'), value: money(t.profit), sub: gap != null ? statusDot(gap >= 0 ? 'good' : 'warn', money(Math.abs(gap)) + (gap >= 0 ? ' ahead of plan' : ' behind plan')) : of(t.profit),
-        small: gap != null ? of(t.profit) : null, spark: days.map(d => (ok(d.before_ads) && ok(d.spend) ? Math.max(0, d.before_ads - d.spend) : null)), lead: true },
-      { label: dl('Left before ads', 'left_before_ads'), value: money(t.before_ads), sub: of(t.before_ads), spark: days.map(d => d.before_ads) },
-      { label: dl('Ad spend', 'ad_spend'), value: money(t.spend), sub: of(t.spend), spark: days.map(d => d.spend), href: ctx.href('platforms', 'side-by-side') },
-      t.orders > 0 && ok(t.profit) ? { label: 'Profit an order', value: money(t.profit / t.orders, { cents: true }), sub: [num(t.orders) + ' ', dl('orders', 'orders')] } : null,
+        small: gap != null ? of(t.profit) : null, unit: 'money', spark: days.map(d => (ok(d.before_ads) && ok(d.spend) ? d.before_ads - d.spend : null)) },
+      { label: dl('Left before ads', 'left_before_ads'), value: money(t.before_ads), unit: 'money', sub: of(t.before_ads), spark: days.map(d => d.before_ads) },
+      { label: 'Ad spend', value: money(t.spend), unit: 'money', sub: of(t.spend), spark: days.map(d => d.spend), href: ctx.href('platforms', 'side-by-side'), source: 'All ad platforms' },
+      t.orders > 0 && ok(t.profit) ? { label: 'Profit an order', value: money(t.profit / t.orders, { cents: true }), sub: num(t.orders) + ' orders',
+        spark: days.some(d => d.orders > 0) ? days.map(d => (d.orders > 0 && ok(d.before_ads) && ok(d.spend) ? (d.before_ads - d.spend) / d.orders : null)) : null, sparkFormat: v => money(v, { cents: true }) } : null,
     ].filter(Boolean);
   }
-  return hero({}, kpis(list.map(k => kpi({ ...k, size: 'lg' })), { cols: list.length }));
+  return tileRow(list, { window: rangeWords(ctx, data.range), source: TW + ' costs', labels: days.map(d => dayLabel(d.date)) });
 }
 
 /* One sentence, only for what the tiles do not show: which single cost is the biggest, and whether it beats the ads. */
@@ -81,7 +82,7 @@ function sentence(data) {
 function chartCard(data) {
   const days = data.days || [];
   const head = h('div', { class: 'lx-chart-h' },
-    h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, 'Does each day cover its ads?')), h('p', null, 'what a day keeps before ads, against that day\'s ad spend. The gap is the profit.')),
+    h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, 'Does each day cover its ads?')), h('p', null, 'What a day keeps before ads, against that day\'s ad spend. The gap is the profit · ' + TW + ' costs')),
     legend([{ name: 'Left before ads', lead: true }, { name: 'Ad spend' }]));
   const enough = days.filter(d => ok(d.before_ads)).length > 1;
   if (!enough) return card({ class: 'mo-chart' }, head, empty({ title: 'Not enough days yet', text: 'The chart draws once there are two days of numbers.' }));
@@ -90,10 +91,11 @@ function chartCard(data) {
     h('div', { class: 'mo-row', style: { marginBottom: '10px' } }, statusDot(short ? 'warn' : 'good', short ? `${short} of ${days.length} days did not cover their ads` : 'every day covered its ads')),
     lineChart({
       series: [{ name: 'Left before ads', values: days.map(d => d.before_ads), lead: true }, { name: 'Ad spend', values: days.map(d => d.spend) }],
-      labels: days.map(d => dayLabel(d.date)), endFormat: v => money(Math.round(v)), height: 360,
+      labels: days.map(d => dayLabel(d.date)), endFormat: v => money(Math.round(v)), format: v => money(v, { compact: true }), height: 360,
+      windowLabel: 'Daily, ' + span(days[0].date, days[days.length - 1].date),
       label: 'What each day keeps before ads, against its ad spend',
-      hover: i => { const d = days[i]; return [b(dayLabel(d.date)), h('span', null, 'Left before ads ', b(money(d.before_ads))), h('span', null, 'Ad spend ', b(money(d.spend))),
-        ok(d.before_ads) && ok(d.spend) ? h('span', null, 'Profit ', b(money(d.before_ads - d.spend))) : null]; },
+      hover: i => { const d = days[i]; return tipRows(dayLabel(d.date), [['Left before ads', money(d.before_ads), 'lead'], ['Ad spend', money(d.spend), 'slate'],
+        ok(d.before_ads) && ok(d.spend) ? ['Profit after ads', money(d.before_ads - d.spend)] : null]); },
     }));
 }
 
@@ -127,6 +129,7 @@ function dollarsCard(data, ctx) {
   }
   const clamp = v => Math.max(0, Math.min(1, v));
   return card({ title: 'Where every dollar of sales went', note: data.flat_margin != null && !ctx.isClient ? `costs before ads are a flat ${pct(1 - data.flat_margin)} of sales` : null, flush: true },
+    h('div', { class: 'mo-src' }, sourceLine(rangeWords(ctx, data.range), TW + ' sales and costs, spend from the ad platforms')),
     h('div', { class: 'mo-wf' },
       h('div', { class: 'hd', 'aria-hidden': 'true' }, h('span', { class: 'n' }, 'Cost'), h('span'), h('span', { class: 'a' }, 'Amount'), h('span', { class: 'p' }, '% of sales')),
       rows.map(r => {
@@ -160,6 +163,7 @@ const WORDS = { month: 'this month?', '7d': 'in the last 7 days?', '30d': 'in th
 export default {
   title: ctx => ['What is left after every cost ', em(WORDS[ctx.range.preset] || WORDS.month)],
   eyebrow: 'This month',
+  stamp: false,                     /* Home's stamp with a refresh button sits in the help bar */
 
   load,
 
@@ -169,13 +173,15 @@ export default {
     if (!data) return put(el, noDays());
     if (!data.source) return put(el, noSource(ctx, 'what is left after product, delivery and ads'));
     if (!(data.days || []).length) return put(el, noDays());
-    const say = sentence(data);
+    const say = sentence(data), t = data.totals;
     tipHide();
+    ctx.askWindow = rangeWords(ctx, data.range);
+    ctx.askContext = `${ctx.brand.name} profit, ${ctx.askWindow}: sales ${money(t.sales)}, ad spend ${money(t.spend)}` + (data.withheld ? ', profit held back until the costs are checked.' : `, left before ads ${money(t.before_ads)}, profit after ads ${money(t.profit)}${data.fixed ? ', fixed costs ' + money(data.fixed.total) : ''}.`);
     put(el, h('div', { class: 'mo' }, [
       helpBar([
         { title: 'What it is for', text: 'What is left of the sales after every cost: product, delivery, handling, payment fees, ads, then the fixed costs.' },
         { title: 'How it is counted', text: 'Sales are store sales less tax (Triple Whale). Left before ads is sales less product, delivery, handling and payment fees. Profit after ads takes all ad spend off that. Fixed costs come off after that. Hover a bar for its amount and where the cost comes from.' },
-      ]),
+      ], pageStamp(ctx)),
       heroBlock(data, ctx),
       say ? takeaway(say, { action: ctx.isClient ? null : askWhy(ctx, 'What is left after every cost') }) : null,
       data.withheld ? heldCard(data, ctx) : chartCard(data),

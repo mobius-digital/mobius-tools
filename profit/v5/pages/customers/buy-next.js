@@ -8,7 +8,8 @@
 
 import { put } from '../../kit.js';
 import { askWhy, helpBar } from '../home/_biz.js';
-import { h, num, pct, card, hero, em, kpi, kpis, takeaway, button, table, empty, segmented, addStyles } from '../../kit.js';
+import { h, num, pct, card, em, takeaway, button, table, empty, segmented, addStyles } from '../../kit.js';
+import { tileRow, pageStamp, TW } from '../month/_m.js';
 import { flow, fxStyles, exampleChip, bar, head } from '../funnel/_flow.js';
 
 const ok = n => n != null && isFinite(n);
@@ -43,7 +44,7 @@ function fromFixture(f) {
       { label: 'Ordered a second time', value: ok(back) ? pct(back, { digits: 1 }) : null, sub: `${num(f.came_back)} of ${num(f.customers)} customers`, share: back },
       { label: 'Belt, then another belt', value: f.came_back > 0 ? pct(f.belt_belt / f.came_back) : null, sub: `${num(f.belt_belt)} of ${num(f.came_back)} second orders`, share: f.came_back > 0 ? f.belt_belt / f.came_back : null },
       { label: 'Same color again', value: f.top_back > 0 ? pct(f.same_colour / f.top_back) : null, sub: `${num(f.same_colour)} of ${num(f.top_back)}, top six belts`, share: f.top_back > 0 ? f.same_colour / f.top_back : null },
-      f.top_addon && { label: 'Top add-on', value: num(f.top_addon.customers), sub: `${f.top_addon.of} bought a ${String(f.top_addon.name).toLowerCase()} next` },
+      f.top_addon && { label: 'Top add-on', value: f.top_addon.name, sub: `${num(f.top_addon.customers)} ${f.top_addon.of} bought one next` },
     ].filter(Boolean),
     by_category: f.by_category, by_product: f.by_product, pick: f.pick || [], gap_days: f.gap_days,
     say: f.came_back > 0 ? { back: f.came_back, same: f.belt_belt, addon: f.top_addon } : null,
@@ -62,8 +63,8 @@ function shape(r, f) {
     tiles: [
       { label: 'Ordered a second time', value: ok(j.repeat_rate_ever) ? pct(j.repeat_rate_ever, { digits: 1 }) : null, sub: `of ${num(j.certain_customers)} customers`, share: j.repeat_rate_ever },
       { label: 'Days to the second order', value: ok(j.days_to_second) ? num(j.days_to_second) : null, sub: 'the middle repeat buyer' },
-      first[0] && { label: 'Top first product', value: num(first[0].customers), sub: `first orders were ${first[0].name}` },
-      nextTop && { label: 'Top second order product', value: num(nextTop.customers), sub: `second orders were ${nextTop.name}` },
+      first[0] && { label: 'Top first product', value: first[0].name, sub: `${num(first[0].customers)} first orders` },
+      nextTop && { label: 'Top second order product', value: nextTop.name, sub: `${num(nextTop.customers)} second orders` },
     ].filter(Boolean),
     by_category: ex.by_category, by_product: ex.by_product, gap_days: null, say: null,
     pick: first.slice(0, 6).map(x => {
@@ -74,11 +75,11 @@ function shape(r, f) {
 }
 
 /* ---------- parts ---------- */
+const winOf = d => (d.since ? 'First orders from ' + since(d.since) : 'Every first order');
+
 function figures(d) {
-  const el = kpis(d.tiles.map(t => kpi({ label: t.label, value: t.value || 'no data', size: t.word ? null : 'lg',
-    sub: [t.sub, ok(t.share) ? bar(t.share) : null] })), { cols: 4 });
-  el.classList.add('bn-kpis');
-  return el;
+  return tileRow(d.tiles.map(t => ({ label: t.label, value: t.value || 'no data', sub: [t.sub, ok(t.share) ? bar(t.share) : null] })),
+    { cols: 4, window: winOf(d), source: TW + ' orders' });
 }
 
 function flowCard(d, ctx) {
@@ -91,8 +92,9 @@ function flowCard(d, ctx) {
   const paint = () => {
     const f = view === 'product' ? d.by_product : d.by_category;
     put(c, 
-      head('What do customers buy next?', view === 'product' ? 'the top belts by name, the rest grouped; hover a band to follow it' : 'first, second and third orders by category; hover a band to follow it',
+      head('What do customers buy next?', view === 'product' ? 'The top belts by name, the rest grouped. Hover or tap a band to follow it.' : 'First, second and third orders by category. Hover or tap a band to follow it.',
         ex ? exampleChip() : null, views.length > 1 ? segmented(views, view, id => { view = id; ctx.saveSetting('customers.buyNextBy', id); paint(); }) : null),
+      h('div', { class: 'fx-src' }, winOf(d) + ' · ' + TW + ' orders'),
       h('div', { style: { marginTop: '10px' } }, flow({ columns: f.columns || [], links: f.links || [], lead: f.lead, unit: 'customers', height: 640, phoneHeight: 600,
         label: 'What customers bought on their first, second and third orders', empty: 'Not enough repeat customers to draw this yet' })),
       d.say && view === 'category' ? h('div', { style: { marginTop: '20px' } }, takeaway(['Most who come back buy another belt. Offer a ', b('new color'), ' next, with the ' + (d.say.addon ? d.say.addon.name.toLowerCase() : 'add-on') + ' beside it.'],
@@ -124,7 +126,7 @@ function pickCard(d, ctx) {
         cols: [
           { key: 'name', label: 'Next order', class: 'name', render: n => n.name },
           { key: 'bar', label: '', class: 'fx-barcell hide-sm', render: n => (n.rest ? '' : bar(n.customers / max, !n.same)) },
-          { key: 'customers', label: 'Customers', num: true, width: 96, render: n => num(n.customers) },
+          { key: 'customers', label: 'Customers', num: true, width: 96, sortable: true, render: n => num(n.customers) },
           base ? { key: 'share', label: 'Share', num: true, width: 70, render: n => pct(n.customers / base) } : null,
         ].filter(Boolean),
         rows,
@@ -134,12 +136,14 @@ function pickCard(d, ctx) {
   paint();
   return card({ flush: true },
     head('Pick a product', 'what the people who started with it bought on their next order'),
+    h('div', { class: 'fx-src' }, winOf(d) + ' · ' + TW + ' orders'),
     strip, body);
 }
 
 export default {
   title: ['After the first order, ', em('what do they buy next?')],
   eyebrow: 'Customers',
+  stamp: false,                     /* Home's stamp with a refresh button sits in the help bar */
   ranges: false,
 
   async sample(ctx) { return fromFixture(await ctx.fixture('buy-next.json')); },
@@ -166,12 +170,14 @@ export default {
       }));
       return;
     }
+    ctx.askWindow = d.since ? 'First orders from ' + since(d.since) : 'Every first order';
+    ctx.askContext = `${ctx.brand.name}, what customers buy next: ` + d.tiles.map(t => `${t.label} ${t.value || 'no data'} (${t.sub})`).join('; ') + '.';
     put(el, ...[
       helpBar([
         { title: 'What it is for', text: 'After the first order, what do customers buy next? The flow follows first, second and third orders; pick a product to see what came after it.' },
-        { title: 'Where the numbers come from', text: `The store's orders, customers whose first order was ${d.since ? 'from ' + since(d.since) + ' on' : 'in the order history'}. Paths of one or two people are not drawn.` + (ok(d.gap_days) ? ` The typical gap between orders is ${num(d.gap_days)} days.` : '') + ' Hover or tap a band for its count and share.' },
-      ]),
-      hero({ line: true }, figures(d)),
+        { title: 'Where the numbers come from', text: `Triple Whale orders, customers whose first order was ${d.since ? 'from ' + since(d.since) + ' on' : 'in the order history'}. Paths of one or two people are not drawn.` + (ok(d.gap_days) ? ` The typical gap between orders is ${num(d.gap_days)} days.` : '') + ' Hover or tap a band for its count and share.' },
+      ], pageStamp(ctx)),
+      figures(d),
       flowCard(d, ctx),
       pickCard(d, ctx),
     ].filter(Boolean));

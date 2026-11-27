@@ -24,11 +24,12 @@
    Writes: see _send.js. Sample mode simulates every write and reads the fixtures. */
 
 import { put } from '../../kit.js';
-import { h, addStyles, hero, kpis, kpi, statusDot, button, segmented, em, empty, sheet } from '../../kit.js';
+import { h, addStyles, statusDot, button, segmented, em, empty, sheet } from '../../kit.js';
 import { fixture } from '../../data.js';
 import { span, short, dayOf, between, addDays, todayYmd, row, list, brandTag, colorOf, dateOf, css, helpBar, searchBox, selectBox, filterNote } from '../calendar/_cr.js';
 import { actions, noChannel, sampleChannels, readStatusOf, readApproved, readBrief, slackText, whereOf, sendSheet, editSheet, openReports, readHolds, holdOf, holdLine } from './_send.js';
 import { canWrite } from '../production/_act.js';
+import { adm, countTiles } from '../a-settings/_look.js';
 import { body as reportBody, reportStyles, slim } from '../reports/index.js';
 import { platformRows, amazonOf, bestAds, marginOf, linesOf } from '../reports/_report.js';
 
@@ -122,13 +123,16 @@ function draw(el, d, ctx) {
   const old = waiting.filter(i => between(String(i.drafted_at || today).slice(0, 10), today) >= 1);
   const briefs = waiting.filter(i => i.kind === 'brief'), reports = waiting.filter(i => i.kind === 'report');
 
-  const head = hero({ line: true }, kpis([
-    kpi({ label: 'Waiting to send', value: String(waiting.length), size: 'lg',
-      sub: waiting.length ? statusDot(old.length ? 'bad' : 'warn', old.length ? old.length + ' drafted before today' : 'all drafted today') : 'nothing waiting' }),
-    kpi({ label: 'Daily updates waiting', value: String(briefs.length), sub: briefs.length ? 'to read and send' : 'all sent' }),
-    kpi({ label: 'Reports waiting', value: String(reports.length), sub: reports.length ? 'weekly and monthly' : 'all sent' }),
-    kpi({ label: 'Sent today', value: String(sentToday.length), sub: sentToday.length ? 'to clients' : 'none yet' }),
-  ], { cols: 4 }));
+  /* the counts as batch 1 tiles: each says what it covers and where it comes from */
+  const head = countTiles([
+    { label: 'Waiting to send', value: String(waiting.length),
+      sub: waiting.length ? statusDot(old.length ? 'bad' : 'warn', old.length ? old.length + ' drafted before today' : 'all drafted today') : 'nothing waiting',
+      window: 'Right now', source: 'Briefs and reports' },
+    { label: 'Daily updates waiting', value: String(briefs.length), sub: briefs.length ? 'read, then Send' : 'all sent', window: 'Last ' + KEEP_WAITING + ' days', source: 'Daily briefs' },
+    { label: 'Reports waiting', value: String(reports.length), sub: reports.length ? 'weekly and monthly' : 'all sent', window: 'Last ' + KEEP_WAITING + ' days', source: 'Reports' },
+    { label: 'Sent today', value: String(sentToday.length), sub: sentToday.length ? 'to clients' : 'none yet', window: 'Today', source: 'Send log' },
+  ], { cols: 4 });
+  ctx.askContext = `To send: ${waiting.length} client messages wait (${briefs.length} daily updates, ${reports.length} reports), ${old.length} drafted before today, ${sentToday.length} sent today.`;
 
   /* the filter row: built once, only the list redraws */
   const brands = new Map();
@@ -207,11 +211,11 @@ function draw(el, d, ctx) {
       view.show === 'waiting' && view.older && older.length ? list(older.map(rowOf), null, { go: GO }) : null);
   }
   paint();
-  put(el, helpBar([
+  put(el, adm(helpBar([
     { title: 'What it is for', text: 'Every daily update and weekly or monthly report drafted for a client. Read it, then Send, Edit or Do not send. Open any row to see exactly what the client gets, or got.' },
     { title: 'How long items stay listed', text: `Waiting: drafts from the last ${KEEP_WAITING} days. Older drafts fold into one line at the bottom. Sent: the last ${KEEP_SENT} days, with Show older for the rest. Nothing is ever deleted.` },
     { title: 'The statuses', text: 'Waiting: drafted, not sent. Needs how we read it: a report goes out only after its read is approved on the brand\'s Reports page. Did not go out: the send failed, or the brand has no client channel and it was posted in the team channel only.' },
-  ]), head, h('section', { class: 'cr-sect' }, h('div', { class: 'cr-bar-top', style: { paddingBottom: '10px' } }, status), tools, listBox));
+  ]), head, h('section', { class: 'cr-sect' }, h('div', { class: 'cr-bar-top', style: { paddingBottom: '10px' } }, status), tools, listBox)));
 }
 
 const TS_CSS = `.ts-view{display:grid;gap:20px}

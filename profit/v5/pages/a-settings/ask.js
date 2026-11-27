@@ -6,10 +6,11 @@
    The ideas bot switch and the client allowance have no server home yet: kept on this device. */
 
 import { put } from '../../kit.js';
-import { h, em, empty, card, kpis, kpi, lineChart, money, num } from '../../kit.js';
+import { h, em, empty, card, lineChart, money, num } from '../../kit.js';
 import { AI_NAME, APP_NAME } from '../../config.js';
 import { css, stage, saveBar, group, row, fold, setHelp, seg, area, onOff, numBox } from '../brand-settings/_set.js';
 import { defLabel } from '../../defs.js';
+import { countTiles } from './_look.js';
 
 function draw(el, data, ctx) {
   css();
@@ -23,10 +24,11 @@ function draw(el, data, ctx) {
   const S = stage(ctx, { live: { 'ai.model': data.model, 'ai.instructions': data.instructions, 'ai.brief': data.brief }, savers, held: ['ai.brief'],
     names: { 'ai.model': 'Depth', 'ai.instructions': 'Standing instructions', 'ai.brief': 'About your agency' } });
   const u = data.usage || {}, days = u.by_day || [];
+  const span = days.length ? new Date(days[0].day + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' to ' + new Date(days[days.length - 1].day + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Last 30 days';
   const labels = days.map(d => new Date(d.day + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
   const chart = days.length > 1 ? card({ class: 'lx-ai-chart' },
-    h('div', { class: 'lx-chart-h' }, h('div', null, h('h3', { class: 'lx-ai-ct' }, 'Questions answered, by day'), h('p', null, 'Last 30 days, asked in Slack and in the app'))),
-    lineChart({ series: [{ name: 'Answers', values: days.map(d => d.answers), lead: true }], labels, format: v => num(v), height: 260, phoneHeight: 220,
+    h('div', { class: 'lx-chart-h' }, h('div', null, h('h3', { class: 'lx-ai-ct' }, 'Questions answered, by day'), h('p', null, 'Asked in Slack and in the app'))),
+    lineChart({ windowLabel: 'Daily, ' + span, series: [{ name: 'Answers', values: days.map(d => d.answers), lead: true }], labels, format: v => num(v), height: 260, phoneHeight: 220,
       hover: i => [h('span', null, labels[i]), h('span', null, 'answers ', h('b', null, num(days[i].answers))), h('span', null, 'cost ', h('b', null, money(days[i].cost, { cents: true })))], label: 'Questions answered by day' })) : null;
 
   put(el, h('div', { class: 'lx-st' },
@@ -37,11 +39,11 @@ function draw(el, data, ctx) {
         ['Attribution', 'Triple Whale, last platform click', 'Every sale and ROAS it quotes.'],
         ['It acts', 'Only after a person taps Apply', 'Anything that changes an account is a proposal first.'],
       ] }) }),
-    h('section', { class: 'lx-hero line' }, kpis([
-      kpi({ label: 'Answers, 30 days', value: num(u.answers) }),
-      kpi({ label: 'Cost, 30 days', value: money(u.cost, { cents: false }), small: u.answers ? money(u.cost / u.answers, { cents: true }) + ' each' : null }),
-      kpi({ label: 'Average wait, 30 days', value: u.avg_seconds != null ? num(u.avg_seconds, 0) + 's' : 'no data' }),
-    ], { cols: 3 })),
+    countTiles([
+      { label: 'Answers', value: num(u.answers), sub: 'in Slack and in the app', window: span, source: 'Answer log' },
+      { label: 'Cost', value: money(u.cost, { cents: false }), sub: u.answers ? money(u.cost / u.answers, { cents: true }) + ' each' : null, window: span, source: 'AI bill' },
+      { label: 'Average wait', value: u.avg_seconds != null ? num(u.avg_seconds, 0) + 's' : 'No data', sub: 'from question to answer', window: span, source: 'Answer log' },
+    ], { cols: 3 }),
     chart,
     group('How it thinks', null,
       row(defLabel('Depth', { title: 'Depth', body: 'How much ' + AI_NAME + ' reads before it answers. Quick: one short read, the cheapest. Smart: the default, reads the numbers it needs. Deep: reads more and checks itself, several times the cost of Smart and slower.' }),
@@ -60,6 +62,7 @@ export default {
   title: ['How does ', em(AI_NAME), ' work for us?'],
   eyebrow: 'Agency settings',
   ranges: false,
+  stamp: false,                  /* a form or a conversation, not numbers: no "updated" stamp in the head */
   async load(ctx) {
     const soft = p => p.catch(e => { if (e && e.name === 'AbortError') throw e; return null; });
     const [st, fd, u] = await Promise.all([
@@ -76,4 +79,4 @@ export default {
 };
 
 import { addStyles } from '../../kit.js';
-addStyles('lx-ai-css', `.lx-ai-ct{font-size:var(--fs-h3);font-weight:600;letter-spacing:-.015em}.lx-ai-chart{position:relative}`);
+addStyles('lx-ai-css', `.lx-ai-ct{font-size:var(--fs-card,14px);font-weight:600;letter-spacing:-.01em}.lx-ai-chart{position:relative}`);

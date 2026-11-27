@@ -4,7 +4,8 @@
    Data: GET /api/inspo?act=<brand id> on the profit worker -> { items: [{ id, kind, url, image, title, site, note, by, at }] }. */
 
 import { APP_NAME } from '../../config.js';
-import { h, hero, kpi, kpis, em, num, button, skeleton, empty, relativeTime } from '../../kit.js';
+import { h, kpi, tiles, em, num, button, skeleton, empty, relativeTime } from '../../kit.js';
+import { secHead } from '../what-works/_ww.js';
 import { SAMPLE } from '../../data.js';
 import { put, css, oldLocus, plural, daysFrom } from '../production/_ui.js';
 import { lbCss, chips, search, openItem, picture, assetsButton, withAssets, pageTop, teamTag } from './_lib.js';
@@ -47,17 +48,19 @@ export default {
     };
     draw();
     const old = oldLocus(ctx, { label: 'Save one in old ' + APP_NAME });
+    ctx.askWindow = 'All time';
+    ctx.askContext = `Library, Reference ads: ${plural(items.length, 'saved ad')} for this brand as inspiration, ${week} saved in the last 7 days, by ${plural(people.length, 'person', 'people')}.`;
     put(el,
       pageTop([
         { title: 'What it is for', text: 'Every ad the team or the client saved for this brand as inspiration, with the note on why. Newest first; tap one to see it large and open the saved link.' },
         { title: 'How things get here', text: 'Saved with Save to ' + APP_NAME + ': paste the link in the Ask bar, share it from your phone, or use the bookmark button. A link keeps the page\'s own title and picture from the day it was saved.' },
       ], old ? teamTag() : null, old),
-      hero({ line: true },
-        kpis([
-          kpi({ label: 'Saved for this brand', value: num(items.length), sub: plural(items.filter(x => x.kind === 'image').length, 'picture') + ', the rest links' }),
-          kpi({ label: 'Saved this week', value: num(week), sub: 'last 7 days' }),
-          kpi({ label: 'People saving', value: num(people.length), sub: people.slice(0, 3).join(', ') }),
-        ], { cols: 3 })),
+      tiles([
+          kpi({ label: 'Saved for this brand', value: num(items.length), sub: plural(items.filter(x => x.kind === 'image').length, 'picture') + ', the rest links', window: 'All time', source: 'Save to ' + APP_NAME }),
+          kpi({ label: 'Saved this week', value: num(week), sub: 'New references', window: 'Last 7 days', source: 'Save to ' + APP_NAME }),
+          kpi({ label: 'People saving', value: num(people.length), sub: people.slice(0, 3).join(', '), window: 'All time', source: 'Save to ' + APP_NAME }),
+        ], { cols: 3 }),
+      secHead('Every saved ad', 'Newest first · tap one to see it large and open the link'),
       h('div', { class: 'lb-tools' }, search('Search the titles and notes', '', v => { q = v; draw(); }), h('span', { class: 'lx-sp' }), assetsButton(ctx, data && data.assets_link)),
       pick, grid);
   },

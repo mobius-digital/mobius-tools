@@ -5,8 +5,8 @@
 
 import { APP_NAME } from '../../config.js';
 import { put } from '../../kit.js';
-import { h, card, kpi, kpis, hero, takeaway, segmented, em, money, num, x, skeleton, empty, platformChip } from '../../kit.js';
-import { css, gate, noAds, loadAds, sampleAds, art, meter, roll, findingButton, thin, thinWords, p1, dl, helpBar } from './_ww.js';
+import { h, card, kpi, takeaway, segmented, em, money, num, x, skeleton, empty, platformChip, sourceLine } from '../../kit.js';
+import { css, gate, noAds, loadAds, sampleAds, art, meter, roll, findingButton, thin, thinWords, p1, dl, helpBar, winOf, tileRow, adThumb } from './_ww.js';
 
 const ST = { field: 'body', open: new Set() };
 const clean = t => String(t || '').replace(/\s+/g, ' ').trim();
@@ -64,12 +64,12 @@ function row(r, i, d, ctx, maxCtr) {
   return h('div', { class: 'ww-cp' },
     h('span', { class: 'i' }, String(i + 1)),
     h('div', { class: 'tx' }, text,
-      h('div', { class: 'ww-thumbs', style: { marginTop: '10px' } }, r.top.slice(0, 4).map(a => h('div', null, art(a)))),
+      h('div', { class: 'ww-thumbs', style: { marginTop: '10px' } }, r.top.slice(0, 4).map(a => adThumb(ctx, d, a, null))),
       h('small', null, `Used in ${num(r.list.length)} ${r.list.length === 1 ? 'ad' : 'ads'}`)),
-    h('div', { class: 'n c1' }, h('b', null, p1(r.ctr)), meter(r.ctr, null, { max: maxCtr })),
-    h('div', { class: 'n' }, h('b', { class: !sales || dim ? 'dim' : '' }, sales ? x(r.roas) : 'no data'), sales ? meter(r.roas, d.goal_roas, { max: Math.max(d.goal_roas || 0, r.roas || 0) * 1.2 || 1, dim, goalTitle: d.goal_roas ? 'Goal ' + x(d.goal_roas) : null }) : null,
+    h('div', { class: 'n c1' }, h('span', { class: 'k' }, 'Click rate'), h('b', null, p1(r.ctr)), meter(r.ctr, null, { max: maxCtr })),
+    h('div', { class: 'n' }, h('span', { class: 'k' }, 'ROAS'), h('b', { class: !sales || dim ? 'dim' : '' }, sales ? x(r.roas) : 'no data'), sales ? meter(r.roas, d.goal_roas, { max: Math.max(d.goal_roas || 0, r.roas || 0) * 1.2 || 1, dim, goalTitle: d.goal_roas ? 'Goal ' + x(d.goal_roas) : null }) : null,
       sales ? h('small', null, dim ? thinWords(r.orders) : `Based on ${num(r.orders)} orders`) : null),
-    h('div', { class: 'n s' }, h('b', null, money(r.spend))),
+    h('div', { class: 'n s' }, h('span', { class: 'k' }, 'Spend'), h('b', null, money(Math.round(r.spend || 0)))),
     h('div', { class: 'b' }, findingButton(ctx, () => ({
       say: ['These words earn ', h('b', null, p1(r.ctr)), ' click rate' + (sales && !dim ? ' and ' + x(r.roas) + ' ROAS.' : '.')], measure: 'click rate',
       proof: r.top.slice(0, 3).map(a => ({ value: a.ctr || 0, text: p1(a.ctr), name: a.name.slice(0, 16), sub: a.kind === 'video' ? 'video' : 'still' })),
@@ -89,15 +89,18 @@ function view(d, ctx) {
     const maxCtr = Math.max(...rows.map(r => r.ctr || 0)) * 1.15 || 0.01;
     const best = rows.filter(r => r.impr >= 1000 && r.ctr != null).sort((a, b) => b.ctr - a.ctr)[0];
     const word = ST.field === 'body' ? 'primary text' : 'headline';
+    ctx.askWindow = winOf(ctx) || null;
+    ctx.askContext = `What works, Copy, ${winOf(ctx) || 'these dates'}: ${num(rows.length)} ${word}s across ${num(all.ads)} Meta ads. Normal click rate ${p1(all.ctr)}`
+      + (best ? `, best ${p1(best.ctr)} on "${best.text.slice(0, 80)}"` : '') + '. Clicks are Meta; ROAS is Triple Whale, last click.';
     put(body, ...[
-      hero({ line: true }, kpis([
-        kpi({ label: ST.field === 'body' ? 'Primary texts used' : 'Headlines used', value: num(rows.length), sub: `across ${num(all.ads)} ads` }),
-        kpi({ label: dl('Normal click rate', 'click_rate'), value: p1(all.ctr), sub: 'every ad with words read' }),
-        kpi({ label: dl('Best click rate', 'click_rate'), value: best ? p1(best.ctr) : 'no data', sub: best ? '"' + best.text.slice(0, 40) + (best.text.length > 40 ? '..."' : '"') : null }),
-      ], { cols: 3 })),
+      tileRow([
+        kpi({ label: ST.field === 'body' ? 'Primary texts used' : 'Headlines used', value: num(rows.length), sub: `Across ${num(all.ads)} ads`, window: winOf(ctx), source: 'Meta' }),
+        kpi({ label: dl('Normal click rate', 'click_rate'), value: p1(all.ctr), sub: 'Every ad with words read', window: winOf(ctx), source: 'Meta' }),
+        kpi({ label: dl('Best click rate', 'click_rate'), value: best ? p1(best.ctr) : h('small', null, 'No data'), sub: best ? h('span', { class: 'ww-ell', title: best.text }, '"' + best.text + '"') : null, window: winOf(ctx), source: 'Meta' }),
+      ], 3),
       best && d.has_sales && !thin(best.orders) ? takeaway(['Those clicks buy too: the best ', word, ' returns ', h('b', null, x(best.roas)), '.']) : null,
-      card({ class: 'ww-cd', title: `Every ${word}, most spend first`, note: 'The picture matters more than the words, so read this as hints to test.', flush: true },
-        h('div', { class: 'ww-cp ww-cp-h' }, h('span', { class: 'i' }, '#'), h('span', null, ST.field === 'body' ? 'Primary text' : 'Headline'), dl('Click rate', 'click_rate', { class: 'c1' }), dl('ROAS', 'roas'), h('span', { class: 's' }, 'Spend'), h('span')),
+      card({ class: 'ww-cd', title: `Every ${word}, most spend first`, note: sourceLine(winOf(ctx), 'clicks Meta, ROAS Triple Whale, last click'), flush: true },
+        h('div', { class: 'ww-cp ww-cp-h' }, h('span', { class: 'i' }, '#'), h('span', null, ST.field === 'body' ? 'Primary text' : 'Headline'), h('span', { class: 'c1' }, dl('Click rate', 'click_rate')), h('span', null, dl('ROAS', 'roas')), h('span', { class: 's' }, 'Spend'), h('span')),
         h('div', { class: 'ww-cps' }, rows.slice(0, 20).map((r, i) => row(r, i, d, ctx, maxCtr)))),
       testCard(rows, d, ctx)].filter(Boolean));
   };
@@ -113,22 +116,28 @@ function view(d, ctx) {
 }
 
 const CSS = `.ww-cps{display:grid}
-.ww-cp{display:grid;grid-template-columns:28px minmax(0,1fr) 150px 170px 80px auto;gap:18px;align-items:start;padding:18px 28px;border-top:1px solid var(--line)}
+.ww-cp{display:grid;grid-template-columns:28px minmax(0,1fr) 150px 170px 90px 112px;gap:18px;align-items:start;padding:18px 28px;border-top:1px solid var(--line)}
 .ww-cp:first-child{border-top:0}
 .ww-cp .i{font-size:13px;color:var(--faint);padding-top:2px;font-variant-numeric:tabular-nums}
 .ww-cp .tx small{display:block;margin-top:6px;font-size:12px;color:var(--muted)}
-.ww-cp .n{display:grid;gap:5px;min-width:0}
-.ww-cp .n .k{font-size:10.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
-.ww-cp-h{padding-top:10px;padding-bottom:10px;font-size:12px;font-weight:600;color:var(--muted)}
+.ww-cp .n{display:grid;gap:5px;min-width:0;align-content:start}
+.ww-cp .n .k{display:none;font-size:var(--fs-colhead,11.5px);font-weight:500;color:var(--muted)}
+.ww-cp .s{text-align:right}
+.ww-cp .b{justify-self:end}
+.ww-ell{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ww-cp .ww-thumbs>*{width:48px}
+.ww-cp-h{padding-top:10px;padding-bottom:10px;font-size:var(--fs-colhead,11.5px);font-weight:600;color:var(--muted);align-items:end}
+.ww-cps .ww-cp:first-child{border-top:1px solid var(--line)}
 .ww-cp-n{margin-top:10px;font-size:12.5px;color:var(--muted)}
 .ww-how{margin-top:14px;font-size:13px;color:var(--ink-2)}.ww-how summary{cursor:pointer;font-weight:600}.ww-how ol{margin:8px 0 0;padding-left:18px;display:grid;gap:6px}
 .ww-test .need small{margin-bottom:2px!important}.ww-test .need b{margin-bottom:10px}
 .ww-cp .n b{font-size:var(--num-s);font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 .ww-cp .n b.dim{color:var(--faint);font-weight:500}
 .ww-cp .n small{font-size:12px;color:var(--muted)}
-.ww-cp .s b{font-size:15px}
-@media (max-width:1040px){.ww-cp-h{display:none}.ww-cp{grid-template-columns:22px minmax(0,1fr) 1fr;padding:16px 20px}.ww-cp .tx{grid-column:2/-1}.ww-cp .n{grid-column:auto}.ww-cp .c1{grid-column:2}.ww-cp .s{display:none}.ww-cp .b{grid-column:2/-1}}
-@media (max-width:759px){.ww-cp{padding:16px 18px;gap:12px}.ww-cp .b .lx-btn{width:100%}}`;
+@media (max-width:1040px){.ww-cp-h{display:none}.ww-cps .ww-cp:first-child{border-top:0}
+  .ww-cp{grid-template-columns:22px repeat(3,minmax(0,1fr));gap:12px 16px;padding:16px 20px}.ww-cp .tx{grid-column:2/-1}
+  .ww-cp .c1{grid-column:2}.ww-cp .n .k{display:block}.ww-cp .s{text-align:left}.ww-cp .b{grid-column:2/-1;justify-self:start}}
+@media (max-width:759px){.ww-cp{padding:16px 18px;gap:12px}.ww-cp .b{justify-self:stretch}.ww-cp .b .lx-btn{width:100%}}`;
 
 export default {
   title: ['Which words ', em('earn the click?')],

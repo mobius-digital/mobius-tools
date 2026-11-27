@@ -14,9 +14,8 @@ import { OLD_LOCUS } from '../../config.js';
 import { put } from '../../kit.js';
 import { h, em, empty, card, table, avatar, statusDot, button, sheet, toast } from '../../kit.js';
 import { css, stage, saveBar, group, row, fold, setHelp, pick, onOff, exampleChip } from '../brand-settings/_set.js';
-import { defLabel } from '../../defs.js';
 
-const ACCESS_DEF = { title: 'Access', body: 'Owner: every brand and every money page; the only one who invites and removes. Team: signs in with the agency email and opens the brands given (or every brand when none are picked). Viewer: reads only, changes nothing. Invited, off the domain: a guest with another email, who only ever opens the brands picked for them.' };
+const ACCESS_HELP = 'Owner: every brand and every money page; the only one who invites and removes. Team: signs in with the agency email and opens the brands given (or every brand when none are picked). Viewer: reads only, changes nothing. Invited, off the domain: a guest with another email, who only ever opens the brands picked for them.';
 
 const JOBS = [{ id: '', label: 'Not set' }, { id: 'owner', label: 'Owner' }, { id: 'strategist', label: 'Creative strategist' }, { id: 'buyer', label: 'Media buyer' },
   { id: 'editor', label: 'Editor' }, { id: 'designer', label: 'Designer' }, { id: 'google', label: 'Google' }, { id: 'amazon', label: 'Amazon' }, { id: 'email', label: 'Email and SMS' }];
@@ -133,7 +132,7 @@ function draw(el, data, ctx, reload) {
   const cols = [
     { key: 'name', label: 'Person', sortable: true, value: nameOf, render: p => h('span', { class: 'lx-st-who' }, avatar({ ...p, name: nameOf(p) }, { size: 34 }), h('span', null, h('b', null, nameOf(p)), h('small', null, p.email))) },
     ctx.sample ? { key: 'job', label: 'Job', render: p => pick(S, k(p, 'job'), p.job || '', JOBS, { label: 'Job for ' + nameOf(p), width: 180 }) } : null,
-    { key: 'access', label: defLabel('Access', ACCESS_DEF), class: 'hide-sm', render: p => p.removed ? statusDot('off', 'Removed') : h('span', null, ACCESS[p.access] || 'Team', p.guest ? h('small', { class: 'lx-tm-sub' }, 'invited, off the domain') : null) },
+    { key: 'access', label: 'Access', class: 'hide-sm', render: p => p.removed ? statusDot('off', 'Removed') : h('span', null, ACCESS[p.access] || 'Team', p.guest ? h('small', { class: 'lx-tm-sub' }, 'invited, off the domain') : null) },
     { key: 'brands', label: 'Brands', class: 'hide-md', render: p => h('button', { type: 'button', class: 'lx-tm-bn', title: 'See which brands', onclick: () => brandsSheet(ctx, p) }, p.access === 'owner' || !p.brands || !p.brands.length ? 'All ' + (nBrands || '') : p.brands.length + ' of ' + (nBrands || p.brands.length), h('span', { 'aria-hidden': 'true' }, ' ›')) },
     { key: 'slack', label: 'Slack', class: 'hide-md', render: p => p.slack == null ? h('span', { class: 'lx-foot' }, 'Not checked') : p.slack ? statusDot('good', 'Linked') : statusDot('off', 'Not linked') },
     canRemove ? { key: 'do', label: '', num: true, render: p => {
@@ -149,6 +148,7 @@ function draw(el, data, ctx, reload) {
   put(el, h('div', { class: 'lx-st' },
     saveBar(S, ctx, { help: setHelp({
       about: 'One roster: every person on the team, what they can open, and whether their Slack is linked. Only the owner invites and removes.',
+      sections: [{ title: 'Access', text: ACCESS_HELP }],
       fixed: [
         ['Team email domain', data.domain ? '@' + data.domain : 'Not read yet', 'Anyone signed in with it is on the team. Others are invited one by one, with the brands they may see.'],
         ['Owner', data.owner_name || 'The agency owner', 'Sees every brand and every money page. Only the owner invites and removes.'],
@@ -169,6 +169,7 @@ const page = {
   title: ['Who is on ', em('the team?')],
   eyebrow: 'Agency settings',
   ranges: false,
+  stamp: false,                  /* a form or a conversation, not numbers: no "updated" stamp in the head */
   async load(ctx) {
     const soft = p => p.catch(e => { if (e && e.name === 'AbortError') throw e; return null; });
     const [t, sj] = await Promise.all([

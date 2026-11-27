@@ -20,7 +20,7 @@ function draw(el, data, ctx) {
       { title: 'What it is for', text: 'Every tool the agency uses: the connections made once for the agency, which every brand rides on, and the ones each client gives access to, counted across brands.' },
       { title: 'Nothing changes here', text: 'Nothing on this page changes a connection. A row that is not connected says how to connect or fix it. Open a brand for its own list.' },
     ] })),
-    conHero(agency, 'agency connections working'),
+    conHero(agency, 'agency connections', data.as_of),
     card({ title: 'Made once for the agency', note: 'Every brand rides on these', flush: true, class: 'lx-st-card' },
       h('div', { class: 'lx-st-rows' }, conHead(), agency.slice().sort((a, b) => RANK[a.state] - RANK[b.state]).map(a => conRow(a, a.used_by || '')))),
     tools.length ? card({ title: 'Made per brand', note: 'Each client gives access to their own', flush: true, class: 'lx-st-card' },

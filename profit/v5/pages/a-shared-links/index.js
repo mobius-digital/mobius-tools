@@ -9,19 +9,16 @@
    Sample mode never calls a route: Turn off flips the row on this page only and says so. */
 
 import { put } from '../../kit.js';
-import { h, hero, kpis, kpi, statusDot, button, segmented, em, empty, num, sheet, toast, addStyles } from '../../kit.js';
-import { defined } from '../../defs.js';
+import { h, statusDot, button, segmented, em, empty, num, sheet, toast, addStyles } from '../../kit.js';
 import { css, short, dayOf, between, todayYmd, row, list, brandTag, colorOf, copyBtn, helpBar, searchBox, selectBox, filterNote, goNote } from '../calendar/_cr.js';
 import { canWrite } from '../production/_act.js';
+import { adm, countTiles } from '../a-settings/_look.js';
 
 const view = { show: 'live', q: '', type: '', only: '' };
 const who = e => { const l = String(e || '').split('@')[0]; return l ? l.charAt(0).toUpperCase() + l.slice(1).replace(/[._-].*$/, '') : ''; };
 const SNAP = new URL('../s.html?t=', location.href).href;
 const SAMPLE_NOTE = 'Sample: nothing was changed';
 
-/* the two kinds of link, defined where the row names them */
-const DEF_SNAPSHOT = { name: 'Snapshot', definition: 'A frozen copy of one page or one card from the day it was made. The numbers never update. Anyone with the link can open it without signing in.' };
-const DEF_PAGE = { name: 'Client page', definition: 'A one-off page built for a client, like a plan or a walk-through. Anyone with the link can open it without signing in.' };
 const typeName = l => l.type === 'page' ? 'Client page' : l.kind === 'card' ? 'Snapshot of a card' : 'Snapshot of a page';
 
 /** Turn one link off: a confirm, then the one route for its kind. */
@@ -62,22 +59,15 @@ function draw(el, d, ctx) {
   const named = (list, none) => list.length === 0 ? none : list.length === 1 ? list[0].title || 'Untitled' : (list[0].title || 'Untitled') + ' and ' + (list.length - 1) + ' more';
   const pickOnly = id => { view.only = view.only === id ? '' : id; view.show = 'live'; redraw(); };
 
-  const head = hero({ line: true }, kpis([
-    kpi({ label: 'Live links', value: String(live.length), size: 'lg', sub: live.filter(l => l.type === 'page').length + ' client pages, ' + live.filter(l => l.type === 'snap').length + ' snapshots' }),
-    kpi({ label: 'Opened in the last 7 days', value: String(week.length), sub: num(week.reduce((t, l) => t + (+l.views || 0), 0)) + ' opens in all' }),
-    kpi({ label: 'Stop working this week', value: String(soon.length), sub: soon.length ? named(soon) + ', ends ' + short(String(soon[0].expires_at).slice(0, 10)) : 'none' }),
-    kpi({ label: 'Never opened', value: String(never.length), sub: named(never, 'every live link was opened') }),
-  ], { cols: 4 }));
-  /* the two tiles that name links filter the list to them */
-  const tiles = head.querySelectorAll('.lx-kpi');
-  [[2, 'soon', soon], [3, 'never', never]].forEach(([i, id, set]) => {
-    const t = tiles[i]; if (!t || !set.length) return;
-    t.classList.add('sl-tile'); if (view.only === id) t.classList.add('on');
-    t.setAttribute('role', 'button'); t.setAttribute('tabindex', '0');
-    t.title = view.only === id ? 'Show every link again' : 'Show only these links';
-    t.addEventListener('click', () => pickOnly(id));
-    t.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickOnly(id); } });
-  });
+  /* the two tiles that name links filter the list to them (tap again to show every link) */
+  const pickable = (id, set) => set.length ? { onclick: () => pickOnly(id), on: view.only === id, title: view.only === id ? 'Show every link again' : 'Show only these links' } : {};
+  const head = countTiles([
+    { label: 'Live links', value: String(live.length), sub: live.filter(l => l.type === 'page').length + ' client pages, ' + live.filter(l => l.type === 'snap').length + ' snapshots', window: 'Right now', source: 'Shared links' },
+    { label: 'Opened in the last 7 days', value: String(week.length), sub: num(week.reduce((t, l) => t + (+l.views || 0), 0)) + ' opens in all', window: 'Last 7 days', source: 'Link opens' },
+    { label: 'Stop working this week', value: String(soon.length), sub: soon.length ? named(soon) + ', ends ' + short(String(soon[0].expires_at).slice(0, 10)) : 'none', window: 'Next 7 days', source: 'End dates', ...pickable('soon', soon) },
+    { label: 'Never opened', value: String(never.length), sub: named(never, 'every live link was opened'), window: 'Since made', source: 'Link opens', ...pickable('never', never) },
+  ], { cols: 4 });
+  ctx.askContext = `Shared links: ${live.length} live (${soon.length} end this week, ${never.length} never opened), ${week.length} opened in the last 7 days.`;
 
   const listBox = h('div'), noteBox = h('span');
   const clear = () => { Object.assign(view, { q: '', type: '', only: '' }); redraw(); };
@@ -104,7 +94,7 @@ function draw(el, d, ctx) {
       const ends = l.expires_at ? between(today, String(l.expires_at).slice(0, 10)) : null;
       return row({
         title: l.title || 'Untitled',
-        sub: [defined(h('span', null, typeName(l)), l.type === 'page' ? DEF_PAGE : DEF_SNAPSHOT), ', made ' + dayOf(l.created_at) + (l.created_by ? ' by ' + who(l.created_by) : '')],
+        sub: [typeName(l) + ', made ' + dayOf(l.created_at) + (l.created_by ? ' by ' + who(l.created_by) : '')],
         cells: [
           { w: 150, label: 'Brand', node: l.brands && l.brands.length > 1 ? h('span', { class: 'cr-brand' }, l.brands.length + ' brands') : brandTag(l.brand || '', l.color) },
           { w: 84, class: 'hide-sm', label: 'Opened', node: num(l.views || 0) + (l.views === 1 ? ' time' : ' times') },
@@ -120,20 +110,18 @@ function draw(el, d, ctx) {
       { head: [{ label: 'Brand', w: 150 }, { label: 'Opened', w: 84, class: 'hide-sm' }, { label: 'Status', w: 140 }], first: 'Link', go: write ? 300 : 210 }));
   }
   paint();
-  put(el, helpBar([
+  put(el, adm(helpBar([
     { title: 'What a shared link is', text: 'A public page anyone with the link can open without signing in. Every one made from an Export menu or pushed for a client is listed here, with who made it and how often it was opened.' },
     { title: 'Snapshots and client pages', text: 'A snapshot is a frozen copy of one page or card from the day it was made; its numbers never update. A client page is a one-off page built for a client, like a plan or a walk-through.' },
     { title: 'Turning a link off', text: 'Turn off ends a link for everyone at once: anyone who opens it sees a "link ended" page. It cannot be undone here; make a new link to share it again. Only the team can turn links off.' },
-  ]), head, h('section', { class: 'cr-sect' }, tools, listBox));
+  ]), head, h('section', { class: 'cr-sect' }, tools, listBox)));
 }
 
 const SL_CSS = `.sl-confirm{display:grid;gap:16px}
 .sl-confirm p{margin:0;font-size:14.5px;line-height:1.5;color:var(--ink)}
 .sl-acts{display:flex;gap:10px;flex-wrap:wrap}
 .sl-err{margin:0;padding:10px 12px;border-radius:10px;background:var(--bad-bg);color:var(--bad);font-size:14px}
-.sl-tile{cursor:pointer;border-radius:12px}
-.sl-tile:hover{background:var(--row-hover)}
-.sl-tile.on{box-shadow:inset 0 0 0 1.5px var(--ink)}`;
+`;
 
 export default {
   title: ['Which links are ', em('out in the world?')],

@@ -17,13 +17,15 @@ const CSS = `
 .az-more{font-weight:400;color:var(--muted)}
 .az-flag-s{display:none}
 .az-lead{display:flex;gap:22px;align-items:center}
+.az-ret{display:grid;gap:var(--gap-3,12px);min-width:0}
+.az-ret .lx-sec h2{margin:0}
 .az-lead .lx-hero-num{font-size:var(--num-xl);padding-bottom:10px;flex:none}
 .az-lead b{display:block;font-size:24px;font-weight:600;letter-spacing:-.03em;line-height:1.2}
-.az-split{display:flex;gap:3px;height:56px}
-.az-split.thin{height:20px}
-.az-split>i{display:block;border-radius:6px;min-width:4px;flex:var(--f,1)}
-.az-split>i:first-child{border-radius:14px 6px 6px 14px}
-.az-split>i:last-child{border-radius:6px 14px 14px 6px}
+.az-split{display:flex;gap:3px;height:28px}
+.az-split.thin{height:12px}
+.az-split>i{display:block;border-radius:4px;min-width:4px;flex:var(--f,1)}
+.az-split>i:first-child{border-radius:8px 4px 4px 8px}
+.az-split>i:last-child{border-radius:4px 8px 8px 4px}
 .az-split.thin>i:first-child{border-radius:10px 4px 4px 10px}
 .az-split.thin>i:last-child{border-radius:4px 10px 10px 4px}
 .az-keys{display:flex;gap:3px;margin-top:14px}
@@ -36,6 +38,12 @@ const CSS = `
 .az-ends{display:flex;gap:28px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .az-ends b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
 .az-ends span:last-child{margin-left:auto}
+.az-ends .az-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:1px;background:var(--c)}
+.az-say{margin:0 0 14px;font-size:var(--fs-body,14px);color:var(--ink-2);line-height:1.5}
+.az-say b{font-size:var(--num-m);font-weight:600;color:var(--ink);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.az-splitc .az-ends{margin-top:12px}
+.az-splitc .az-ends span:last-child{margin-left:0}
+.az-sectitle span{min-width:0}
 .az-two{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:stretch}
 .az-two .lx-sec{min-height:76px}
 .az-term{display:inline-flex;align-items:center;gap:12px}
@@ -80,9 +88,9 @@ const CSS = `
 .az-chance{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--muted)}
 .az-chance .lx-gauge{flex:1}
 .az-chance b{color:var(--ink);font-variant-numeric:tabular-nums}
-.az-box{display:grid;place-items:center;text-align:center;gap:6px;padding:26px 20px;border-radius:14px;background:var(--band);color:var(--muted);font-size:13px}
+.az-box{display:grid;place-items:center;text-align:center;gap:6px;padding:26px 20px;border-radius:var(--r-tbl,12px);background:var(--band);color:var(--muted);font-size:13px}
 .az-box b{color:var(--ink-2);font-weight:600;font-size:13.5px;display:flex;align-items:center;gap:8px}
-.az-ask{border-radius:22px;padding:16px 18px 16px 20px}
+.az-ask{border-radius:var(--r-card,16px);padding:16px 18px 16px 20px}
 .az-ask>svg{color:var(--ink-2)}
 @media (max-width:1040px){
   .az-two{grid-template-columns:1fr}
@@ -97,13 +105,13 @@ const CSS = `
   .az-lead{flex-direction:column;align-items:flex-start;gap:12px}
   .az-lead .lx-hero-num{font-size:var(--num-xl)}
   .az-lead b{font-size:19px}
-  .az-split{height:40px}
+  .az-split{height:22px}
   .az-keys{flex-direction:column;gap:10px}
   .az-key.first{flex:none}
   .az-key.mid{margin-right:0}
   .az-ends span:last-child{margin-left:0}
   .az-two .lx-sec{min-height:0;flex-wrap:wrap}
-  .az-two .lx-sec .act{margin-left:0;width:100%}
+  .az-two .lx-sec .act{margin-left:0;width:100%;order:4}
   .az-two .lx-sec .act .lx-btn{width:100%;height:44px}
   .az-two .lx-table th,.az-two .lx-table td{padding:0 8px}
   .az-sectitle{flex-wrap:wrap;gap:4px 12px}
@@ -117,6 +125,8 @@ export function css() {
 
 /* ---------- numbers ---------- */
 const ok = n => n != null && isFinite(n);
+/** The source line for any figure Amazon Ads counts itself. */
+export const AZ = "Amazon Ads' own count";
 /** Whole dollars: "$1,684". */
 export const usd = n => money(ok(n) ? Math.round(n) : null);
 /** ROAS for Amazon ads, one decimal: "4.2x". */
@@ -173,14 +183,17 @@ export function needsLogin(ctx, data, { title, what }) {
     dollar scale, so the gap between the two is the story. Drawn by the kit's one chart. */
 export function weekChart(weeks) {
   const b = v => h('b', null, v);
+  /* on a phone the spend figures on the columns and the sales figures on the line run into each other: the columns keep only the hover */
+  const narrow = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 480px)').matches;
   return lineChart({
     series: [
-      { type: 'bar', tone: 'slate', name: 'Ad spend', values: weeks.map(w => w.spend), labels: v => usd(v) },
+      { type: 'bar', tone: 'slate', name: 'Ad spend', values: weeks.map(w => w.spend), labels: narrow ? false : v => usd(v) },
       { name: 'Sales', lead: true, points: true, values: weeks.map(w => w.sales), labels: v => usd(v) },
     ],
     labels: weeks.map(w => w.label),
     notes: weeks.map((w, i) => (w.note ? { index: i, text: w.note } : null)).filter(Boolean),
-    format: v => money(v, { compact: true }), height: 348, phoneHeight: 310,
+    format: v => money(v, { compact: true }), height: 348, phoneHeight: 310, name: 'Amazon',
+    windowLabel: 'Weekly' + (weeks.length ? ', ' + weeks[0].label + ' to ' + weeks[weeks.length - 1].label : ''),
     label: 'Amazon sales and ad spend by week' + (weeks.length ? ', ' + weeks[0].label + ' to ' + weeks[weeks.length - 1].label : ''),
     hover: i => [b('Week of ' + weeks[i].label), h('span', null, 'Sales ', b(usd(weeks[i].sales))), h('span', null, 'Ad spend ', b(usd(weeks[i].spend)))],
   });

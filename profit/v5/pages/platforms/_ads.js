@@ -3,7 +3,7 @@
    this page?" button, the amber warning line that replaces the old gray footers, and the level chip
    (Campaign / Ad set / Ad). No routes, no writes. */
 
-import { h, statusDot, addStyles } from '../../kit.js';
+import { h, statusDot, addStyles, sourceLine } from '../../kit.js';
 import { defined, defLabel, infoButton, pageHelp, glossaryFor } from '../../defs.js';
 import { RANGES } from '../../data.js';
 
@@ -99,6 +99,7 @@ const CSS = `
 .ads-chip{height:30px;padding:0 12px;border:0;border-radius:999px;background:var(--bg-sunk);color:var(--ink-2);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap}
 .ads-chip:hover{background:var(--line-strong)}
 .ads-chip.on{background:var(--ink);color:var(--bg)}
+.ads-whose{font-size:var(--fs-small,12.5px);color:var(--muted)}
 .ads-lvl{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;background:var(--bg-sunk);color:var(--muted);font-size:11px;font-weight:600;white-space:nowrap;flex:none}
 `;
 function css() { addStyles('ads-shared', CSS); }
@@ -121,6 +122,13 @@ export function polishSuggestions(el, d, { platform = 'meta', days = 7 } = {}) {
     if (/^Money behind them/.test(l.textContent)) { l.replaceChildren(def(`At stake, last ${days} days`, 'at_stake')); if (s) s.textContent = platform === 'google' ? 'spend on the campaigns and searches named' : 'spend on the ads and ad sets named'; }
     if (/^To turn off or trim/.test(l.textContent) && s) s.textContent = platform === 'google' ? 'searches to block and campaigns to cut' : 'calls that take spend away';
   }
+  /* whose count the ROAS in each row is: Google rows are judged on Google's own count today, Meta rows on Triple Whale */
+  const whose = platform === 'google' ? "Google's own count" : 'Triple Whale';
+  el.querySelectorAll('.ag-sg-r .t').forEach(t => {
+    if (t.querySelector('.ads-whose') || !/ROAS|\d\.?\d*x/.test(t.textContent)) return;
+    t.append(h('span', { class: 'ads-whose' }, 'ROAS: ' + whose));
+  });
+  heroToTiles(el, `Last ${days} days`, whose + ', Locus ad rules');
   const asOf = d && d.as_of ? Date.parse(d.as_of) : NaN;
   if (isFinite(asOf)) {
     const daysOld = Math.floor((Date.now() - asOf) / 864e5);
@@ -129,5 +137,23 @@ export function polishSuggestions(el, d, { platform = 'meta', days = 7 } = {}) {
       const first = el.querySelector('.ag') || el; first.prepend(warn);
     }
   }
+}
+/** heroToTiles(el, window, source) : a hero band of figures drawn by a shared renderer in another area's file
+    (a-today/_ag.js figures) becomes the batch 1 tile row: each figure a card at the tile size, with the window and
+    source line under it. Only the first band is changed; nothing is re-read. */
+export function heroToTiles(el, win, source) {
+  const band = el.querySelector('section.lx-hero');
+  const row = band && band.querySelector(':scope > .lx-kpis');
+  if (!row) return;
+  const n = row.children.length;
+  row.className = 'lx-tiles' + (n === 4 ? ' c4' : n === 2 ? ' c2' : '');
+  row.removeAttribute('style');
+  for (const k of row.children) {
+    k.classList.remove('lg');
+    const big = k.querySelector('.lx-hero-num');
+    if (big) { const v = h('span', { class: 'v' }, big.textContent); (big.parentElement.classList.contains('lx-kpi') ? big : big.parentElement).replaceWith(v); }
+    if (!k.querySelector('.lx-srcline')) k.append(sourceLine(win, source));
+  }
+  band.replaceWith(row);
 }
 export { pageHelp };

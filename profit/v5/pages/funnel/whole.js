@@ -9,8 +9,12 @@
 
 import { put } from '../../kit.js';
 import { askWhy, helpBar, dl, rangeWords } from '../home/_biz.js';
-import { h, num, pct, money, card, hero, em, kpi, kpis, takeaway, button, table, empty } from '../../kit.js';
-import { fxStyles, steps, exampleChip, bar, head, pathDots, channelName } from './_flow.js';
+import { h, num, pct, money, card, em, takeaway, button, table, empty } from '../../kit.js';
+import { tileRow, pageStamp, VISITS_THAT_BUY, TW, GA } from '../month/_m.js';
+import { fxStyles, steps, exampleChip, bar, head, hint, pathDots, channelName } from './_flow.js';
+
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const shortDay = d => MON[+String(d).slice(5, 7) - 1] + ' ' + +String(d).slice(8, 10);
 
 const ok = n => n != null && isFinite(n);
 const q = ctx => `act=${encodeURIComponent(ctx.brand.id)}&from=${ctx.range.from}&to=${ctx.range.to}`;
@@ -25,6 +29,7 @@ function shape(paid, site, cust, sample) {
   const back = at90 && ok(at90.repeat_rate) ? at90.repeat_rate : null;
   const clicks = paid && paid.brands && paid.brands[0] && paid.brands[0].paid ? paid.brands[0].paid.clicks : null;
   const days = g ? (site.days || []) : [];
+  const curve = j ? (j.curve || []).filter(c => c.days >= 30 && ok(c.repeat_rate)) : [];
   return {
     connected: !!(orders || (g && g.sessions > 0)),
     site_linked: !!g,
@@ -38,23 +43,26 @@ function shape(paid, site, cust, sample) {
       second: ok(orders) && ok(back) ? Math.round(orders * back) : null,
     },
     aov: hd ? hd.aov : null, back_90: back, multi_orders: null, touch_orders: null,
-    sparks: { buy_rate: days.map(d => d.sessions > 0 ? 100 * (d.purchases || 0) / d.sessions : null), orders: days.map(d => d.purchases), multi: [], back: j ? (j.curve || []).map(c => (c.repeat_rate || 0) * 100) : [] },
+    sparks: { dates: days.map(d => d.date), buy_rate: days.map(d => d.sessions > 0 ? 100 * (d.purchases || 0) / d.sessions : null), orders: days.map(d => d.purchases), multi: [], back: curve.map(c => c.repeat_rate * 100), back_days: curve.map(c => c.days) },
     paths: sample.paths, single: sample.single, sample_multi: sample.multi_orders, sample_orders: sample.touch_orders,
   };
 }
 
-function figures(d) {
-  const st = d.steps, rate = ok(st.orders) && st.visits > 0 ? st.orders / st.visits : null;
+function figures(d, ctx) {
+  const st = d.steps, rate = ok(st.orders) && st.visits > 0 ? st.orders / st.visits : null, sp = d.sparks || {};
+  /* the daily sparks run over the page's dates; Came back is the share back by each day after the first order,
+     so its spark is named by those days (its value is the day 90 point on it) */
+  const labels = (sp.dates || []).length ? sp.dates.map(shortDay) : null;
+  const backDays = sp.back_days || [];
   const list = [
-    { label: dl('Visits that buy', 'conversion_rate'), value: ok(rate) ? pct(rate, { digits: 1 }) : 'no data', sub: ok(rate) ? `${num(st.orders)} of ${num(st.visits)} visits` : 'needs the website connected', spark: d.sparks.buy_rate },
-    { label: dl('Orders', 'orders'), value: ok(st.orders) ? num(st.orders) : 'no data', sub: ok(d.aov) ? money(d.aov, { cents: true }) + ' average order' : null, spark: d.sparks.orders },
+    { label: dl('Visits that buy', VISITS_THAT_BUY), value: ok(rate) ? pct(rate, { digits: 1 }) : 'no data', sub: ok(rate) ? `${num(st.orders)} of ${num(st.visits)} visits` : 'needs the website connected', spark: sp.buy_rate, sparkFormat: v => v.toFixed(1) + '%', source: GA + ' visits, ' + TW + ' orders' },
+    { label: 'Orders', value: ok(st.orders) ? num(st.orders) : 'no data', sub: ok(d.aov) ? money(d.aov, { cents: true }) + ' average order' : null, spark: sp.orders, sparkFormat: v => num(v) },
     { label: 'Two or more touches', value: ok(d.multi_orders) && d.touch_orders > 0 ? pct(d.multi_orders / d.touch_orders) : 'no data',
-      sub: ok(d.multi_orders) ? `${num(d.multi_orders)} of ${num(d.touch_orders)} orders` : 'not counted yet', spark: d.sparks.multi },
-    { label: 'Came back', value: ok(d.back_90) ? pct(d.back_90, { digits: 1 }) : 'no data', sub: ok(d.back_90) ? 'within 90 days' : null, spark: d.sparks.back },
+      sub: ok(d.multi_orders) ? `${num(d.multi_orders)} of ${num(d.touch_orders)} orders` : 'not counted yet', spark: sp.multi, sparkFormat: v => Math.round(v) + '%', source: TW + ' click paths' },
+    { label: 'Came back', value: ok(d.back_90) ? pct(d.back_90, { digits: 1 }) : 'no data', sub: ok(d.back_90) ? 'within 90 days of the first order' : null,
+      spark: backDays.length === (sp.back || []).length ? sp.back : null, sparkLabels: backDays.map(v => 'Day ' + v), window: 'Customers followed from the first order', sparkFormat: v => v.toFixed(1) + '%' },
   ];
-  const el = kpis(list.map(k => kpi({ ...k, size: 'lg', spark: (k.spark || []).filter(ok) })), { cols: 4 });
-  el.classList.add('fx-kpis');
-  return el;
+  return tileRow(list, { cols: 4, window: rangeWords(ctx, d.range), source: TW, labels });
 }
 
 function stepList(d) {
@@ -65,7 +73,7 @@ function stepList(d) {
     { key: 'visits', label: 'Site visits', src: 'Google Analytics', value: st.visits, sub: ok(of(st.visits, st.clicks)) && st.visits <= st.clicks ? pct(of(st.visits, st.clicks)) + ' arrive' : 'every channel' },
     { key: 'carts', label: 'Added to cart', src: 'Google Analytics', value: st.carts, r: of(st.carts, st.visits), sub: ok(of(st.carts, st.visits)) ? pct(of(st.carts, st.visits), { digits: 1 }) + ' of visits' : '' },
     { key: 'checkouts', label: 'Reached checkout', src: 'Google Analytics', value: st.checkouts, r: of(st.checkouts, st.carts), sub: ok(of(st.checkouts, st.carts)) ? pct(of(st.checkouts, st.carts)) + ' of carts' : '' },
-    { key: 'orders', label: 'Orders', src: 'Triple Whale and Shopify', value: st.orders, r: of(st.orders, st.checkouts), sub: ok(of(st.orders, st.checkouts)) ? pct(of(st.orders, st.checkouts)) + ' of checkouts' : '' },
+    { key: 'orders', label: 'Orders', src: 'Triple Whale orders', value: st.orders, r: of(st.orders, st.checkouts), sub: ok(of(st.orders, st.checkouts)) ? pct(of(st.orders, st.checkouts)) + ' of checkouts' : '' },
     { key: 'second', label: 'Second order', src: 'Customers back within 90 days', value: st.second, sub: ok(d.back_90) ? pct(d.back_90, { digits: 1 }) + ' come back' : '' },
   ].filter(x => ok(x.value));
   const judged = raw.filter(x => ok(x.r));
@@ -82,7 +90,8 @@ function dropCard(d, ctx) {
     { action: ctx.isClient ? null : askWhy(ctx, 'Where do people drop off') }) : null;
   const missing = !d.site_linked && d.site_linked !== undefined;
   return card({ class: 'fx-pad' },
-    head('Where do people drop off?', 'from the ad click to the second order, every channel together. Each bar is the share of the step before it; hover a bar for its count.'),
+    head('Step by step, ' + rangeWords(ctx, d.range), ['From the ad click to the second order, every channel together. Each bar is the share of the step before it.', hint(' Hover a bar for its count.')]),
+    h('div', { class: 'fx-src' }, rangeWords(ctx, d.range) + ' · clicks from the ad platforms, visits to checkout ' + GA + ', orders ' + TW),
     h('div', { class: 'fx-big' }, h('span', { class: 'fx-bigtxt' }, big)),
     steps(list, { height: 300, relative: true }),
     missing ? h('p', { class: 'fx-under' }, ctx.isClient ? 'Website steps show once the website is connected.' : 'Visits, carts and checkouts show once Google Analytics is linked in Brand settings.') : null,
@@ -97,16 +106,16 @@ function pathCard(d, ctx) {
   const max = rows[0].orders;
   const one = Object.entries(d.single || {}).filter(e => e[1] > 0 && e[0] !== 'other' && e[0] !== 'organic').sort((a, b) => b[1] - a[1]).slice(0, 4);
   return card({ flush: true },
-    head('What do people touch before buying?', 'every channel, clicks only', ex ? exampleChip() : null, h('a', { class: 'lx-btn ghost', href: ctx.href('funnel', 'path') }, 'See it as a flow')),
+    head('What do people touch before buying?', 'Every channel, clicks only · ' + TW + ' click paths', ex ? exampleChip() : null, h('a', { class: 'lx-btn ghost', href: ctx.href('funnel', 'path') }, 'See it as a flow')),
     ok(multi) ? h('div', { class: 'fx-big', style: { padding: '0 28px' } }, h('span', { class: 'fx-bigtxt' }, `${num(multi)} of ${num(all)}`), h('span', null, 'orders took two or more touches')) : null,
     table({
       roomy: true,
       cols: [
         { key: 'path', label: 'Path', class: 'name', render: r => pathDots(r.path) },
-        { key: 'orders', label: 'Orders', num: true, width: 90, render: r => num(r.orders) },
+        { key: 'orders', label: 'Orders', num: true, width: 90, sortable: true, render: r => num(r.orders) },
         { key: 'bar', label: '', class: 'fx-barcell hide-sm', render: r => bar(r.orders / max) },
       ],
-      rows,
+      rows, sort: { key: 'orders', dir: 'desc' },
     }),
     one.length ? h('div', { class: 'fx-note' }, 'One touch only: ', one.map(([id, v], i) => [i ? ', ' : '', channelName(id) + ' ', h('b', null, num(v))]), ' orders') : null);
 }
@@ -114,6 +123,7 @@ function pathCard(d, ctx) {
 export default {
   title: ['Where do people ', em('drop off?')],
   eyebrow: 'Full funnel',
+  stamp: false,                     /* the page draws Home's stamp with a refresh button in its help bar */
 
   async load(ctx) {
     if (!ctx.brand) return { connected: false };
@@ -139,12 +149,15 @@ export default {
       }));
       return;
     }
-    const top = hero({ line: true }, figures(d));
+    const top = figures(d, ctx);
+    const st = d.steps;
+    ctx.askWindow = rangeWords(ctx, d.range);
+    ctx.askContext = `${ctx.brand.name} whole funnel, ${ctx.askWindow}: ` + [['ad clicks', st.clicks], ['site visits', st.visits], ['added to cart', st.carts], ['reached checkout', st.checkouts], ['orders', st.orders], ['second orders in 90 days', st.second]].filter(p => ok(p[1])).map(p => num(p[1]) + ' ' + p[0]).join(', ') + '.';
     put(el, ...[
       helpBar([
         { title: 'What it is for', text: 'Where people drop off between the ad click and the second order, every channel together.' },
         { title: 'Where the numbers come from', text: 'Ad platforms for clicks, Google Analytics for visits, carts and checkouts, Triple Whale and Shopify for orders. Second order is the share of customers back within 90 days.' },
-      ], h('span', { class: 'bz-chip' }, rangeWords(ctx, d.range))),
+      ], h('span', { class: 'bz-chip' }, rangeWords(ctx, d.range)), pageStamp(ctx)),
       top,
       dropCard(d, ctx),
       pathCard(d, ctx),

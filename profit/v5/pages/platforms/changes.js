@@ -13,11 +13,11 @@
    Meta > Changes made and Google > Changes made reuse the row and the sheet from here (dayCards, openChange). */
 
 import { put } from '../../kit.js';
-import { h, em, card, segmented, platformChip, empty, sheet, button, skeleton, num, addStyles } from '../../kit.js';
+import { h, em, card, segmented, platformChip, empty, sheet, button, skeleton, num, addStyles, kpi, tiles } from '../../kit.js';
 import { APP_NAME } from '../../config.js';
 import { PLATFORM_NAME } from '../../icons.js';
 import { style } from '../a-today/_more.js';
-import { figures, quiet, longDay } from '../a-today/_ag.js';
+import { quiet, longDay } from '../a-today/_ag.js';
 import { canUndo, undoSheet, undoneSet, writeOf } from '../meta/_write.js';
 import { def, info, headRow, warnLine, rangeChips, clock, levelChip } from './_ads.js';
 
@@ -38,11 +38,18 @@ button.pc-row:hover .t>b{text-decoration:underline;text-decoration-color:var(--l
 .pc-row .m small{display:block}
 .pc-row .m .pc-undone{color:var(--bad);font-weight:600}
 .pc-undo{min-height:44px;justify-content:center}
+/* Meta > Changes shares this CSS: its second filter row (All / Budgets / Turned off ...) scrolls inside its own row on a phone */
+.mc-kinds{min-width:0;max-width:100%}
 @media (max-width:759px){
+  .mc-kinds .lx-seg,.mc-bar .lx-seg{max-width:100%;overflow-x:auto}
+  .mc-kinds .lx-seg button{white-space:nowrap}
   .pc-bar .sp{display:none}
   .pc-bar .lx-seg{max-width:100%;overflow-x:auto}
   .pc-bar .lx-seg button{white-space:nowrap}
   .pc-kv>div{grid-template-columns:86px minmax(0,1fr)}
+  .pc-row.ag-sg-r{grid-template-columns:minmax(0,1fr)}
+  .pc-row .m{grid-column:1/-1;text-align:left;white-space:normal}
+  .pc-row .m small{display:inline;margin-right:8px}
 }`;
 
 /* ---------- words ---------- */
@@ -165,19 +172,21 @@ function render(el, d, ctx) {
 
   const n = g => rows.filter(r => groupOf(r.cat) === g).length;
   const plats = ['meta', 'google', 'tiktok'].filter(p => rows.some(r => r.platform === p));
-  const hero = figures([
-    { label: (d.client_view ? 'Changes made for you, ' : 'Changes, ') + (d.window ? d.window.label : ''), value: num(rows.length), lead: true, sub: plats.map(p => `${platName(p)} ${rows.filter(r => r.platform === p).length}`).join(', ') },
-    { label: 'Budgets moved', value: num(n('budget')) },
-    { label: 'Turned off or on', value: num(n('onoff')) },
-    { label: 'New ads and sets', value: num(n('new')) },
-  ].map(k => ({ sub: '', ...k })));
+  /* kit tiles, each with its window and source (no longer rewritten from another area's band) */
+  const W = d.window ? d.window.label : null, SRC = d.client_view ? 'changes we made' : plats.map(platName).join(' and ') + ' change history';
+  const hero = tiles([
+    kpi({ label: d.client_view ? 'Changes made for you' : 'Changes', value: num(rows.length), window: W, source: SRC, sub: plats.map(p => `${platName(p)} ${rows.filter(r => r.platform === p).length}`).join(', ') }),
+    kpi({ label: 'Budgets moved', value: num(n('budget')), window: W, source: SRC }),
+    kpi({ label: 'Turned off or on', value: num(n('onoff')), window: W, source: SRC }),
+    kpi({ label: 'New ads and sets', value: num(n('new')), window: W, source: SRC }),
+  ], { cols: 4 });
 
   let plat = ctx.settingNow('platforms.changes.platform', 'all'), kind = 'all';
   if (plat !== 'all' && !plats.includes(plat)) plat = 'all';
   const list = h('div', { class: 'ag', style: { gap: '20px' } });
   const draw = () => put(list, ...dayCards(rows.filter(r => (plat === 'all' || r.platform === plat) && (kind === 'all' || groupOf(r.cat) === kind)), d, ctx, draw));
   draw();
-  const bar = h('div', { class: 'pc-bar' }, h('h3', null, `Every change, ${d.window ? d.window.label + ', ' : ''}newest first`), h('span', { class: 'sp' }),
+  const bar = h('div', { class: 'pc-bar' }, h('h3', null, 'Every change, newest first'), h('span', { class: 'sp' }),
     plats.length > 1 ? segmented([{ id: 'all', label: 'All platforms' }, ...plats.map(p => ({ id: p, label: platName(p) }))], plat, id => { plat = id; ctx.saveSetting('platforms.changes.platform', id); draw(); }) : null,
     segmented([{ id: 'all', label: 'All' }, { id: 'budget', label: 'Budgets' }, { id: 'onoff', label: 'Off and on' }, { id: 'new', label: 'New' }], 'all', id => { kind = id; draw(); }));
 
@@ -185,13 +194,13 @@ function render(el, d, ctx) {
     : [{ title: 'What it is for', text: `One list of what changed on Meta, Google and TikTok, newest first, and why. Tap a change for the whole of it; a Meta change made in ${APP_NAME} in the last 24 hours can be undone from there.` },
       { title: 'What is listed', text: `Changes made in Meta and Google Ads, plus changes made in TikTok through ${APP_NAME}.${d.other ? ` ${num(d.other)} small edits (renames, each platform's own housekeeping) are left out.` : ''} Changes made inside TikTok Ads Manager do not come through yet.` },
       ...(d.notes || []).map(t => ({ title: 'Note', text: t }))];
-  put(el, h('div', { class: 'ag' }, headRow({ help, left: rangeChips(ctx) }),
+  put(el, h('div', { class: 'ag' }, headRow({ help }),
     !d.client_view && d.google_read === false ? warnLine('Google Ads is not connected for this brand, or its change history did not answer.') : null,
     hero, h('div', { class: 'ag', style: { gap: '16px' } }, bar, list)));
 }
 
 export default {
-  title: ['What changed in the ad accounts, ', em('and why?')],
+  title: 'Changes on every platform',
   eyebrow: 'All platforms',
   load,
   skeleton(el) { put(el, h('div', { class: 'lx-skel-grid' }, skeleton('kpi', 4)), skeleton('row', 8)); },

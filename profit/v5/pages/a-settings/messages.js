@@ -120,6 +120,7 @@ export default {
   title: ['What does ', em(APP_NAME + ' send, and why?')],
   eyebrow: 'Agency settings',
   ranges: false,
+  stamp: false,                  /* a form or a conversation, not numbers: no "updated" stamp in the head */
   async load(ctx) {
     if (ctx.role !== 'owner') return { denied: true };
     try { return await ctx.api('/api/messages/catalog', { worker: 'ah', signal: ctx.signal }); }

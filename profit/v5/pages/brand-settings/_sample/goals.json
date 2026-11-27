@@ -1,6 +1,6 @@
 {
  "month": "November",
- "mtd": { "sales": 63429, "spend": 23702, "dates": "Nov 1 to 23" },
+ "mtd": { "sales": 63429, "spend": 23702, "dates": "Nov 1 to 22" },
  "inputs": { "keep_pct": 67, "fixed_costs": 4200, "sales_goal": 77000, "left_cents": 34, "stance": "profit" },
  "facts": { "order_size": 142, "first_order": 121, "repeat_90": 0.081, "returning_share": 0.2, "store_mer_90": 2.74, "product": 31, "postage": 9, "fees": 7 },
  "in_use": { "target_roas": 3.0, "target_cpa": 40, "goal_meta": 2.0, "goal_google": 3.1, "goal_tiktok": null },

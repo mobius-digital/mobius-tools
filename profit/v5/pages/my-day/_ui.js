@@ -67,6 +67,7 @@ const CSS = `
 .lx-md-row .due{font-size:13.5px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap}
 .lx-md-row .due.late{color:var(--bad)}
 .lx-md-row .go{display:flex;justify-content:flex-end}
+.lx-md-k{flex:none;display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:var(--r-chip,6px);background:var(--bg-sunk);color:var(--ink-2);font-size:12px;font-weight:600;white-space:nowrap}
 .lx-md-row .go .lx-btn{height:36px;white-space:nowrap;max-width:100%}
 .lx-md-none{padding:18px 0;border-top:1px solid var(--line);font-size:13.5px;color:var(--muted)}
 .lx-md-band{padding:22px 22px 10px}
@@ -140,11 +141,13 @@ const CSS = `
   .lx-md-acts{width:100%}
   .lx-md-acts .lx-btn{flex:1;height:42px}
   .lx-md-main{gap:26px}
-  .lx-md-row{grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;min-height:0;padding:14px 0}
+  .lx-md-row{grid-template-columns:minmax(0,1fr) auto auto;gap:6px 12px;min-height:0;padding:14px 0;align-items:center}
   .lx-md-row .what{grid-column:1/-1}
   .lx-md-row .due{text-align:right}
-  .lx-md-row .go{grid-column:1/-1;margin-top:6px}
-  .lx-md-row .go .lx-btn{width:100%;height:44px}
+  /* a secondary button sits at the right end of the brand and due line, its own width; the first row's main button stays full width */
+  .lx-md-row .go .lx-btn{width:auto;height:36px}
+  .lx-md-row .go.main,.lx-md-row .go.lx-md-go2{grid-column:1/-1;margin-top:6px}
+  .lx-md-row .go.main .lx-btn{width:100%;height:44px}
   .lx-md-band{padding:18px 18px 8px;border-radius:22px}
   .lx-md-doneb{padding:0 4px}
   .lx-pf-side{justify-items:stretch;width:100%}

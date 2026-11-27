@@ -2,7 +2,7 @@
    hourly route exists the real page shows the campaigns that spent in the window and says so. */
 
 import { put } from '../../kit.js';
-import { h, card, kpi, kpis, barChart, money, num, empty } from '../../kit.js';
+import { h, card, kpi, kpis, tiles, barChart, money, num, empty } from '../../kit.js';
 import { TT_TITLES, styles, loadTikTok, sampleTikTok, gate, campaignsCard, strip, ttHead } from './_tt.js';
 import { def } from '../platforms/_ads.js';
 
@@ -17,14 +17,14 @@ export function view(d, ctx) {
   }
   return [
     head,
-    h('section', { class: 'lx-hero line' }, kpis([
-      kpi({ label: def('Spent today', 'spent_today'), value: money(L.spend), size: 'lg', sub: L.normal != null ? h('span', null, def('a usual day', 'usual_day'), ' by now ' + money(L.normal)) : null }),
-      kpi({ label: def('Budget today', 'budget_a_day'), value: money(L.budget), size: 'lg', sub: L.budget ? Math.round(100 * L.spend / L.budget) + '% used' : null }),
-      kpi({ label: 'Videos running', value: num(L.videos_live), size: 'lg', sub: L.campaigns_live != null ? 'in ' + L.campaigns_live + (L.campaigns_live === 1 ? ' campaign' : ' campaigns') : null }),
-      kpi({ label: def('CPM today', 'cpm'), value: money(L.cpm, { cents: true }), size: 'lg', sub: L.cpm_normal != null ? h('span', null, def('a usual day', 'usual_day'), ' ' + money(L.cpm_normal, { cents: true })) : null }),
-    ], { cols: 4 })),
-    card({ title: 'Spend by hour, today', note: L.as_of ? 'up to ' + L.as_of : null },
-      barChart({ values: L.hours.map(r => r.spend), labels: L.hours.map(r => r.label), dim: i => i >= L.hours_done, format: v => money(v), height: 300, label: 'TikTok spend by hour today' })),
+    tiles([
+      kpi({ label: 'Spent today', value: money(L.spend), window: 'Today so far', source: 'TikTok Ads', sub: L.normal != null ? h('span', null, def('a usual day', 'usual_day'), ' by now ' + money(L.normal)) : null }),
+      kpi({ label: 'Budget today', value: money(L.budget), window: 'Today', source: 'TikTok Ads', sub: L.budget ? Math.round(100 * L.spend / L.budget) + '% used' : null }),
+      kpi({ label: 'Videos running', value: num(L.videos_live), window: 'Right now', source: 'TikTok Ads', sub: L.campaigns_live != null ? 'in ' + L.campaigns_live + (L.campaigns_live === 1 ? ' campaign' : ' campaigns') : null }),
+      kpi({ label: def('CPM today', 'cpm'), value: money(L.cpm, { cents: true }), window: 'Today so far', source: 'TikTok Ads', sub: L.cpm_normal != null ? h('span', null, def('a usual day', 'usual_day'), ' ' + money(L.cpm_normal, { cents: true })) : null }),
+    ], { cols: 4 }),
+    card({ title: 'Spend by hour', note: [L.as_of ? 'Up to ' + L.as_of : null, 'TikTok Ads'].filter(Boolean).join(' · ') },
+      barChart({ values: L.hours.map(r => r.spend), labels: L.hours.map(r => r.label), dim: i => i >= L.hours_done, format: v => money(v), height: 300, windowLabel: 'Today so far, by hour', name: 'TikTok', label: 'TikTok spend by hour today' })),
     campaignsCard({ campaigns: L.campaigns }, { title: 'Running now', live: true }),
   ].filter(Boolean);
 }

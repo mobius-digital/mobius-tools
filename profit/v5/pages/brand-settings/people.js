@@ -70,6 +70,7 @@ export default {
   title: ['Who runs this brand, ', em('and who hears what?')],
   eyebrow: ctx => (ctx.brand ? ctx.brand.name + ', ' : '') + 'brand settings',
   ranges: false,
+  stamp: false,                  /* a form or a conversation, not numbers: no "updated" stamp in the head */
   async load(ctx) {
     if (!ctx.brand) return null;
     const id = ctx.brand.id, soft = p => p.catch(e => { if (e && e.name === 'AbortError') throw e; return null; });

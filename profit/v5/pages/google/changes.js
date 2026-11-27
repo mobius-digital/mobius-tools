@@ -9,7 +9,7 @@ import { put } from '../../kit.js';
 import { h, em, card, kpi, pill, statusDot, empty, num, x } from '../../kit.js';
 import { headRow, warnLine, rangeChips, def } from '../platforms/_ads.js';
 import { dayCards, changesCss } from '../platforms/changes.js';
-import { styles, gate, loadChanges, sampleGoogle, strip, shortDate } from './_g.js';
+import { styles, gate, loadChanges, sampleGoogle, strip, shortDate, figs } from './_g.js';
 
 const CAT = { budget: ['', 'Budget'], bids: ['', 'Bids'], status: ['', 'On or off'], keywords: ['', 'Keywords'], new: ['', 'New'], other: ['', 'Other'] };
 const day = at => String(at || '').slice(0, 10);
@@ -37,7 +37,7 @@ function byDay(rows) {
 }
 
 export default {
-  title: ['Who changed what, ', em('and did it work?')],
+  title: 'Changes on Google',
   eyebrow: 'Google',
   load: loadChanges,
   sample: sampleGoogle,
@@ -55,7 +55,7 @@ export default {
       { title: 'What it is for', text: 'Who changed what on the Google Ads account, newest first, and whether it worked: a budget or bid change shows the ROAS 7 days before and after when it is known. Tap a change for the whole of it.' },
       { title: 'Where it comes from', text: 'Google Ads\' own change history. ' + clampNote + ' ROAS before and after is Triple Whale, last click. Read only.' },
     ];
-    const top = headRow({ help, left: rangeChips(ctx) });
+    const top = headRow({ help });
     if (!rows.length && !other.length) {
       return put(el, top, strip({ title: 'No changes on these dates', text: 'Nobody changed the Google Ads account for ' + d.window.label + '. ' + clampNote }));
     }
@@ -63,10 +63,10 @@ export default {
     const redraw = () => {};
     put(el, ...[
       top,
-      h('div', { class: 'gg-figs three gg-chfigs' },
-        kpi({ label: 'Changes that matter, ' + d.window.label, value: num(rows.length), sub: 'budgets, bids, on or off, keywords, new' }),
-        kpi({ label: 'Budget and bid changes', value: num(money), sub: money ? 'each with its ROAS before and after, where known' : 'none on these dates' }),
-        kpi({ label: 'By', value: num(people), small: people === 1 ? 'person' : 'people', sub: small ? num(small) + ' small edits folded below' : 'no small edits' })),
+      figs([
+        kpi({ label: def('Changes that matter', 'matters'), value: num(rows.length), sub: 'budgets, bids, on or off, keywords, new', window: d.window.label, source: 'Google Ads change history' }),
+        kpi({ label: 'Budget and bid changes', value: num(money), sub: money ? 'each with its ROAS before and after, where known' : 'none on these dates', window: d.window.label, source: 'Google Ads change history' }),
+        kpi({ label: 'Made by', value: num(people), small: people === 1 ? 'person' : 'people', sub: small ? num(small) + ' small edits folded below' : 'no small edits', window: d.window.label, source: 'Google Ads change history' })], 'gg-chfigs'),
       c.clamped ? warnLine(clampNote) : null,
       c.truncated ? warnLine('Only the newest 200 changes are read.') : null,
       ...(rows.length ? dayCards(rows.map(as), { client_view: !!ctx.isClient }, ctx, redraw) : []),

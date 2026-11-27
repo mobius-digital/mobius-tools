@@ -16,7 +16,7 @@
    the other platforms show the day so far against their usual whole day. */
 
 import { put } from '../../kit.js';
-import { h, em, svgNode, card, kpi, kpis, table, gauge, lineChart, legend, statusDot, platformChip, sheet, button, empty, skeleton, money, num, x, addStyles } from '../../kit.js';
+import { h, em, svgNode, card, kpi, kpis, tiles, table, gauge, lineChart, legend, statusDot, platformChip, sheet, button, empty, skeleton, money, num, x, addStyles } from '../../kit.js';
 import { icon, PLATFORM_NAME } from '../../icons.js';
 import { def, headRow } from './_ads.js';
 
@@ -31,7 +31,7 @@ const CSS = `
 .pl-list{display:none}
 .pl-chart{padding:28px 32px 20px}
 .pl-big{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:2px 0 10px}
-.pl-big b{font-size:var(--num-xl);font-weight:600;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}
+.pl-big b{font-size:var(--num-l);font-weight:600;letter-spacing:-.03em;line-height:1.1;font-variant-numeric:tabular-nums}
 .pl-big span{color:var(--muted);font-size:13.5px}
 .pl-kv{display:grid}
 .pl-kv>div{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:12px 0;border-top:1px solid var(--line);font-size:14px}
@@ -167,7 +167,7 @@ function chartCard(d) {
   const b = v => h('b', null, v);
   return h('section', { class: 'lx-card pl-chart' },
     h('div', { class: 'lx-chart-h' },
-      h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, sales ? 'Are sales on pace today?' : 'Is today\'s Meta spend on pace?')), h('p', null, sales ? 'store sales so far today, hour by hour' : 'Meta spend so far today, hour by hour')),
+      h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, sales ? 'Sales so far today, hour by hour' : 'Meta spend so far today, hour by hour')), h('p', null, sales ? 'Store sales, Triple Whale' : 'Meta spend, Meta')),
       legend([{ name: 'Today', lead: true }, usual && { name: c.usual_name, dashed: true }])),
     h('div', { class: 'pl-big' }, h('b', null, usd(ok(c.total) ? c.total : today[today.length - 1], cur)), h('span', null, sales ? 'in sales so far today' : 'spent so far today'),
       ok(c.pace) ? statusDot(c.pace >= 1 ? 'good' : c.pace >= 0.8 ? 'warn' : 'bad', `${Math.round(Math.abs(c.pace - 1) * 100)}% ${c.pace >= 1 ? 'ahead of' : 'behind'} ${c.usual_name.toLowerCase()} by now`) : null),
@@ -175,7 +175,7 @@ function chartCard(d) {
       series: [{ name: 'Today', lead: true, values: today.concat(Array(Math.max(0, 25 - today.length)).fill(null)), end: v => usd(v, cur) },
         usual && { name: c.usual_name, dashed: true, values: usual, end: v => usd(v, cur) }],
       labels: Array.from({ length: 25 }, (_, i) => hourWord(i)), ticks: [0, 3, 6, 9, 12, 15, 18, 21, 24], now: today.length - 1,
-      format: v => money(v, { cur, compact: true }), height: 360, empty: sales ? 'No sales yet today' : 'No spend yet today',
+      format: v => money(v, { cur, compact: true }), height: 360, empty: sales ? 'No sales yet today' : 'No spend yet today', windowLabel: 'By hour, today', name: sales ? 'Sales' : 'Spend',
       label: `${what} today by hour against ${c.usual_name.toLowerCase()}. ${usd(today[today.length - 1], cur)} so far.`,
       hover: i => [b(hourWord(i)), ok(today[i]) ? h('span', null, 'Today ', b(usd(today[i], cur))) : null, usual && ok(usual[i]) ? h('span', null, c.usual_name + ' ', b(usd(usual[i], cur))) : null],
     }));
@@ -191,12 +191,15 @@ function render(el, d, ctx) {
   const usualAll = d.platforms.every(p => ok(p.usual_day)) && d.platforms.length ? d.platforms.reduce((t, p) => t + p.usual_day, 0) : null;
   const noSales = () => quiet(!d.sales_source ? 'No sales source connected' : d.sales_pending ? 'not in yet' : 'none credited yet');
 
-  const top = h('section', { class: 'lx-hero line' }, kpis([
-    kpi({ label: def('Ad spend today', 'spent_today'), value: ok(s.spend) ? usd(s.spend, cur) : 'not read', size: 'lg', lead: true, sub: ok(usualAll) ? `a usual whole day is ${usd(usualAll, cur)}` : 'all platforms' + by }),
-    kpi({ label: def('Store sales today', 'sales'), value: ok(s.sales) ? usd(s.sales, cur) : 'no data', size: ok(s.sales) ? 'lg' : null, sub: ok(s.sales) ? 'every sale, ads or not' : 'No sales source connected' }),
-    kpi({ label: def('MER today', 'mer'), value: ok(s.mer) ? x(s.mer) : 'no data', size: ok(s.mer) ? 'lg' : null, sub: ok(s.mer) ? 'store sales over all ad spend' : ok(s.sales) ? 'no ad spend yet today' : '' }),
-    kpi({ label: def('Orders today', 'orders'), value: ok(s.orders) ? num(s.orders) : 'no data', size: ok(s.orders) ? 'lg' : null, sub: ok(s.orders) && s.orders > 0 && ok(s.sales) ? usd(s.sales / s.orders, cur) + ' each' : '' }),
-  ], { cols: 4 }));
+  const T = 'Today' + by, TW = 'Triple Whale';
+  const top = tiles([
+    kpi({ label: 'Ad spend today', value: ok(s.spend) ? usd(s.spend, cur) : 'not read', window: T, source: 'each platform', sub: ok(usualAll) ? `a usual whole day is ${usd(usualAll, cur)}` : 'all platforms' + by }),
+    kpi({ label: 'Store sales today', value: ok(s.sales) ? usd(s.sales, cur) : 'no data', window: T, source: ok(s.sales) ? TW : null, sub: ok(s.sales) ? 'every sale, ads or not' : 'No sales source connected' }),
+    kpi({ label: def('MER today', 'mer'), value: ok(s.mer) ? x(s.mer) : 'no data', window: T, source: ok(s.mer) ? TW : null, sub: ok(s.mer) ? 'store sales over all ad spend' : ok(s.sales) ? 'no ad spend yet today' : '' }),
+    kpi({ label: 'Orders today', value: ok(s.orders) ? num(s.orders) : 'no data', window: T, source: ok(s.orders) ? TW : null, sub: ok(s.orders) && s.orders > 0 && ok(s.sales) ? usd(s.sales / s.orders, cur) + ' each' : '' }),
+  ], { cols: 4 });
+  ctx.askWindow = T;
+  ctx.askContext = `Live today for ${ctx.brand.name || 'this brand'}${by}: ad spend ${usd(s.spend, cur)}, store sales ${ok(s.sales) ? usd(s.sales, cur) : 'not read'} (Triple Whale), MER ${ok(s.mer) ? x(s.mer) : 'not read'}. ` + d.platforms.map(p => `${platName(p.id)} spent ${usd(p.spend, cur)}`).join(', ') + '.';
 
   const rows = [...d.platforms].sort((a, b) => (b.spend || 0) - (a.spend || 0)).map(p => ({ ...p, name: platName(p.id) }));
   const total = { total: true, name: 'Whole store', spend: s.spend, usual_day: usualAll, sales: s.sales, roas: s.mer };
@@ -222,7 +225,7 @@ function render(el, d, ctx) {
     h('div', { class: 'pl-item-h' }, r.total ? h('b', null, r.name) : platformChip(r.id, { chip: true }), r.total ? null : paceWord(r, cur), r.total ? null : h('span', { class: 'pl-open' }, svgNode(icon('chevron')))),
     h('div', { class: 'pl-figs' }, fig('Spend so far', cSpend(r)), fig(r.total ? 'Store sales' : 'Sales', cSales(r)), fig(r.total ? 'MER' : 'ROAS', ok(r.roas) ? x(r.roas) : cRoas(r))),
     ok(r.spend) && ok(r.usual_day) ? useBar(r, cur) : null);
-  const platforms = rows.length ? card({ title: 'Platform by platform, today', note: d.sales_source ? 'sales are Triple Whale' : 'No sales source connected', flush: true },
+  const platforms = rows.length ? card({ title: 'Platform by platform, today', note: 'Today' + by + ' · ' + (d.sales_source ? 'spend each platform, sales and ROAS Triple Whale, last click' : 'spend each platform, no sales source connected'), flush: true },
     h('div', { class: 'pl-wide' }, wide), h('div', { class: 'pl-list' }, rows.map(item), item(total)))
     : card({ title: 'Platform by platform, today' }, h('p', { class: 'pl-q' }, 'No ad platform has spent today or in the last 7 days.'));
 
@@ -234,7 +237,7 @@ function render(el, d, ctx) {
 }
 
 export default {
-  title: ['What is every platform doing ', em('right now?')],
+  title: 'Live now on every platform',
   eyebrow: 'All platforms',
   ranges: false,
   asOf: d => d && d.as_of,

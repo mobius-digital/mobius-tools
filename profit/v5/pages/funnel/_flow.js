@@ -15,21 +15,23 @@ const CSS = `
 .fx-chip{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:999px;background:var(--warn-bg);color:var(--warn);font-size:11.5px;font-weight:600;white-space:nowrap}
 .fx-head{display:flex;align-items:flex-start;gap:12px 20px;flex-wrap:wrap;margin-bottom:6px}
 .fx-head>div:first-child{flex:1 1 260px;min-width:0}
-.fx-head h3{font-size:var(--fs-h3);font-weight:600;letter-spacing:-.015em}
+.fx-head h3{font-size:var(--fs-card,14px);font-weight:600;letter-spacing:-.005em}
 .fx-head p{color:var(--muted);font-size:13px;margin-top:2px}
 .fx-head .tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.fx-src{display:block;font-size:12px;color:var(--faint);line-height:1.4;margin:0 0 8px}
+.lx-card.flush>.fx-src{padding:0 28px}
 .fx-big{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:6px 0 14px}
 .fx-big>span:last-child{color:var(--muted);font-size:13.5px}
 .fx-flow{position:relative;width:100%;min-width:0}
 .fx-flow svg{display:block;width:100%;overflow:visible;touch-action:pan-y}
 .fx-flow .cols{display:block;position:relative;height:46px}
 .fx-flow .cols div{position:absolute;top:0;white-space:nowrap}
-.fx-flow .cols b{display:block;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.fx-flow .cols b{display:block;font-size:var(--fs-colhead,11.5px);font-weight:600;color:var(--muted)}
 .fx-flow .cols span{display:block;font-size:13.5px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
 .fx-flow .cols .r{text-align:right}
 .fx-flow .lk{fill:rgba(28,20,10,.075);cursor:pointer;outline:none;transition:fill .12s,opacity .12s}
 .fx-flow .lk.lead{fill:url(#lx-line) var(--brand);opacity:.42}
-.fx-flow .nd{fill:var(--ink);cursor:pointer;transition:opacity .12s}
+.fx-flow .nd{fill:var(--slate);cursor:pointer;transition:opacity .12s}
 .fx-flow .nd.soft{fill:var(--icon)}
 .fx-flow .nd.ghost{fill:var(--line-strong)}
 .fx-flow text{font-family:var(--sans);font-size:12.5px;fill:var(--ink);font-variant-numeric:tabular-nums;pointer-events:none;transition:opacity .12s}
@@ -43,7 +45,7 @@ const CSS = `
 .fx-flow.hot text.nl,.fx-flow.hot text.ll{opacity:.35}
 .fx-flow.hot text.on{opacity:1}
 .fx-flow .lk:focus-visible{stroke:var(--ink);stroke-width:1.5px}
-.fx-tip{position:absolute;z-index:3;min-width:170px;max-width:260px;padding:10px 12px;border-radius:10px;background:var(--tip-bg);box-shadow:var(--tip-sh);font-size:12.5px;color:var(--tip-muted);pointer-events:none}
+.fx-tip{position:absolute;z-index:3;min-width:170px;max-width:260px;padding:10px 12px;border-radius:var(--r-btn,10px);background:var(--tip-bg);box-shadow:var(--tip-sh);font-size:12.5px;color:var(--tip-muted);pointer-events:none}
 .fx-tip b{display:block;color:var(--tip-fg);font-weight:600;margin-bottom:3px}
 .fx-tip span{display:block}
 .fx-tip em{font-style:normal;color:var(--tip-fg);font-weight:600;font-variant-numeric:tabular-nums}
@@ -54,8 +56,8 @@ const CSS = `
 .fx-bar.soft::after{background:var(--icon)}
 .fx-steps{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:0 22px;align-items:end}
 .fx-steps .col{display:flex;flex-direction:column;justify-content:flex-end;height:var(--h);position:relative;border-bottom:1px solid var(--line-strong)}
-.fx-steps .col i{display:block;width:44%;min-width:44px;max-width:84px;min-height:3px;height:var(--v);border-radius:5px 5px 0 0;background:var(--ink)}
-.fx-steps .col.dim i{background:var(--icon)}
+.fx-steps .col i{display:block;width:44%;min-width:44px;max-width:84px;min-height:3px;height:var(--v);border-radius:var(--r-chip,6px) var(--r-chip,6px) 0 0;background:var(--brand)}
+.fx-steps .col.dim i{background:var(--slate)}
 .fx-steps .col i{cursor:default}
 .fx-steps .col .lbl{position:absolute;left:0;bottom:calc(var(--v) + 6px);font-size:12px;font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
 .fx-steps .col .flag~.lbl{bottom:calc(var(--v) + 30px)}
@@ -64,7 +66,7 @@ const CSS = `
 .fx-key i{display:inline-block;width:18px;height:8px;border-radius:999px;background:var(--brand);opacity:.6}
 .fx-steps .col .flag{position:absolute;left:0;bottom:calc(var(--v) + 10px);white-space:nowrap}
 .fx-steps .cap{padding-top:12px;min-width:0}
-.fx-steps .cap b{display:block;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fx-steps .cap b{display:block;font-size:var(--fs-colhead,11.5px);font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fx-steps .cap strong{display:block;font-size:22px;font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1.25}
 .fx-steps .cap span{display:block;font-size:12.5px;color:var(--muted)}
 .fx-steps .cap span.worst{color:var(--bad);font-weight:600}
@@ -76,6 +78,8 @@ const CSS = `
 .fx-rows .row .fx-bar{grid-column:1/-1;height:8px;margin:4px 0}
 .fx-rows .row span{grid-column:1/-1;font-size:12.5px;color:var(--muted)}
 .fx-rows .row span.worst{color:var(--bad);font-weight:600}
+.fx-rows .fx-bar::after{background:var(--brand)}
+.fx-rows .fx-bar.soft::after{background:var(--slate)}
 .fx-path{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
 .fx-path .then{color:var(--faint);font-size:12px}
 .fx-dot{display:inline-flex;align-items:center;gap:7px;font-weight:500;white-space:nowrap}
@@ -90,12 +94,14 @@ const CSS = `
 @media (max-width:759px){
   .lx-card.fx-pad{padding:18px}
   .lx-card.flush>.fx-head{padding:16px 18px 6px}
+  .lx-card.flush>.fx-src{padding:0 18px}
   .fx-steps{display:none}
+  .fx-hint{display:none}
   .fx-rows{display:block}
   .fx-kpis .lx-kpi.lg .v{font-size:var(--num-l)}
   .fx-flow text{font-size:11.5px}
   .fx-flow .cols span{font-size:12.5px}
-  .fx-flow .cols b{font-size:9.5px;letter-spacing:.05em}
+  .fx-flow .cols b{font-size:11px}
   .fx-note{padding:12px 18px 16px}
   .lx-table td.fx-barcell{width:26%;min-width:56px}
   .lx-card.flush .lx-table th:first-child,.lx-card.flush .lx-table td:first-child{padding-left:18px}
@@ -110,6 +116,9 @@ export const exampleChip = kitExampleChip; /* one version, in the kit */
 export function bar(share, soft) {
   return h('span', { class: 'fx-bar' + (soft ? ' soft' : ''), style: { '--v': Math.max(0, Math.min(100, 100 * (share || 0))).toFixed(1) + '%' } });
 }
+
+/** The hover hint inside a card's quiet line, left out on a phone, where the steps are rows with no hover. */
+export const hint = text => h('span', { class: 'fx-hint' }, text);
 
 /** A card heading with a question, a quiet line, and tools on the right. */
 export function head(title, sub, ...tools) {

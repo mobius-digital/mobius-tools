@@ -5,12 +5,19 @@
 
 import { APP_NAME } from '../../config.js';
 import { put } from '../../kit.js';
-import { h, hero, kpis, kpi, statusDot, button, em, empty, money, x, addStyles } from '../../kit.js';
+import { h, tiles, kpi, statusDot, button, em, empty, money, x, addStyles, sourceLine } from '../../kit.js';
 import { defLabel } from '../../defs.js';
 import { fixture } from '../../data.js';
-import { css, span, away, between, short, todayYmd, heading, row, list, dateOf, exampleChip, helpBar } from '../calendar/_cr.js';
+import { css, span, away, between, short, todayYmd, row, list, box, dateOf, exampleChip, helpBar } from '../calendar/_cr.js';
 
-const OF_CSS = `.cr-offer.of-head{padding:0 0 8px;border-top:0;min-height:0;font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+const OF_CSS = `.cr-offer.of-head{padding:0 0 8px;border-top:0;min-height:0;font-size:var(--fs-colhead,11.5px);font-weight:600;color:var(--muted)}
+.of-lead{display:grid;gap:6px;min-width:0}
+.of-lead .deal{font-size:var(--num-l,26px);font-weight:600;letter-spacing:-.03em;line-height:1.2;overflow-wrap:anywhere}
+.of-lead .deal.none{color:var(--muted)}
+.of-lead .meta{display:flex;gap:8px 16px;flex-wrap:wrap;align-items:center;font-size:var(--fs-small,12.5px);color:var(--muted)}
+.of-lead .detail{font-size:var(--fs-body,14px);color:var(--ink-2);line-height:1.5;max-width:80ch}
+.cr-box .cr-offer:first-of-type{border-top:0}
+.cr-offer .res .lx-srcline{flex-basis:100%;margin-top:-4px}
 .cr-offer .res{gap:8px 22px}
 .cr-offer .res span{display:inline-flex;gap:6px;align-items:baseline}
 @media (max-width:759px){.cr-offer.of-head{display:none}}`;
@@ -25,10 +32,13 @@ function results(p, ctx, today) {
   if (!r || !r.days) return null;
   if (!(r.sales > 0)) return h('div', { class: 'res' }, r.spend > 0 ? ['Ad spend ', h('b', null, money(r.spend)), ctx.isClient ? '. Sales are not connected yet.' : '. No sales source is connected, so there is no sales figure.'] : 'No sales read for these days yet.');
   const over = (p.end || p.start) < today;
+  /* plain words stay plain (no definition mark on Sales); the window and source say where the figures come from */
   return h('div', { class: 'res' },
-    h('span', null, defLabel((over ? 'Sales' : 'Sales so far') + ' (' + span(r.from, r.to) + ')', 'sales'), h('b', null, money(r.sales))),
-    r.goal ? h('span', null, defLabel('Sales goal', 'sales_goal'), h('b', null, money(r.goal))) : null,
-    r.mer != null ? h('span', null, defLabel('Store MER', 'mer'), h('b', null, x(r.mer))) : null);
+    h('span', null, over ? 'Sales' : 'Sales so far', h('b', null, money(r.sales))),
+    r.goal ? h('span', null, 'Goal', h('b', null, money(r.goal))) : null,
+    r.mer != null ? h('span', null, defLabel('Store MER', 'mer'), h('b', null, x(r.mer))) : null,
+    r.spend > 0 ? h('span', null, 'Ad spend', h('b', null, money(r.spend))) : null,
+    sourceLine(span(r.from, r.to), 'Triple Whale'));
 }
 
 function draw(el, d, ctx) {
@@ -43,24 +53,26 @@ function draw(el, d, ctx) {
   phases.sort((p, q) => (p.start || '9999').localeCompare(q.start || '9999'));
   const bf = phases.find(p => p.key === 'bf') || phases.find(p => (p.end || p.start) >= today) || phases[0];
   const locked = phases.filter(p => p.status === 'locked').length;
+  /* a locked offer that has ended shows "Ran" in the list: the tile says so too, so the two agree */
+  const ran = phases.filter(p => p.status === 'locked' && (p.end || p.start || '9999') < today).length;
   const missing = phases.filter(p => p.status === 'missing' && (p.end || p.start || '9999') >= today);
   const st = p => STATUS[p.status] || STATUS.missing;
   const bfDay = d.bf || null;
 
-  const head = hero({ line: true }, h('div', { class: 'cr-herogrid' },
-    h('div', { class: 'cr-heroline' },
-      h('span', { class: 'lab' }, bf.name),
-      h('span', { class: 'big' }, bf.offer || 'Not written yet'),
-      h('span', { class: 'of' }, bf.start ? span(bf.start, bf.end) + ', ' + (bf.start <= today && (bf.end || bf.start) >= today ? 'on now' : 'starts ' + away(today, bf.start)) : 'no dates yet'),
-      h('span', null, statusDot(st(bf)[0], st(bf)[1]))),
-    kpis([
-      kpi({ label: 'Offers locked', value: String(locked), small: 'of ' + phases.length, sub: locked === phases.length ? 'all of them' : null }),
-      /* Black Friday is the Friday; a sale can start before it (the lead offer's own dates say when) */
-      bfDay ? kpi({ label: 'Days until Black Friday (' + new Date(bfDay + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short' }) + ' ' + short(bfDay) + ')', value: between(today, bfDay) > 0 ? String(between(today, bfDay)) : between(today, bfDay) === 0 ? 'Today' : 'Done', sub: bf.start && bf.start < bfDay ? 'the sale starts ' + short(bf.start) : null }) : null,
-      kpi({ label: 'Still to write', value: String(missing.length), sub: missing.length ? statusDot('bad', missing[0].name) : 'nothing missing' }),
-    ].filter(Boolean), { cols: bfDay ? 3 : 2 })));
+  const bfDow = bfDay ? new Date(bfDay + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short' }) + ' ' + short(bfDay) : '';
+  const lead = box({ title: 'The offer that leads: ' + bf.name, action: statusDot(st(bf)[0], st(bf)[1]) },
+    h('div', { class: 'of-lead' },
+      h('span', { class: 'deal' + (bf.offer ? '' : ' none') }, bf.offer || 'Not written yet'),
+      h('span', { class: 'meta' }, bf.start ? span(bf.start, bf.end) + ', ' + (bf.start <= today && (bf.end || bf.start) >= today ? 'on now' : (bf.end || bf.start) < today ? 'finished' : 'starts ' + away(today, bf.start)) : 'No dates yet'),
+      bf.detail ? h('span', { class: 'detail' }, bf.detail) : null));
+  const head = tiles([
+    kpi({ label: 'Offers locked', value: String(locked), small: 'of ' + phases.length, sub: [ran ? ran + ' already ran' : null, locked === phases.length ? 'all of them agreed' : (phases.length - locked) + ' can still change'].filter(Boolean).join(', ') }),
+    /* Black Friday is the Friday; a sale can start before it (the lead offer's own dates say when) */
+    bfDay ? kpi({ label: 'Days until Black Friday', value: between(today, bfDay) > 0 ? String(between(today, bfDay)) : between(today, bfDay) === 0 ? 'Today' : 'Done', sub: bfDow + (bf.start && bf.start < bfDay ? ', the sale starts ' + short(bf.start) : '') }) : null,
+    kpi({ label: 'Still to write', value: String(missing.length), sub: missing.length ? statusDot('bad', missing.map(p => p.name).join(', ')) : 'nothing missing' }),
+  ].filter(Boolean), { cols: bfDay ? 3 : 2 });
 
-  const offers = h('section', { class: 'cr-sect' }, heading('The offers, in order', phases.length, d.example ? exampleChip() : null),
+  const offers = box({ title: 'The offers, in order', n: phases.length, note: d.example ? exampleChip() : 'Sales under an offer that has started' },
     h('div', { class: 'cr-offer of-head', 'aria-hidden': 'true' }, h('span'), h('span', null, 'Offer'), h('span', { class: 'wh' }, 'Dates'), h('span', { class: 'st' }, 'Status')),
     phases.map((p, i) => h('div', { class: 'cr-offer' + (p === bf ? ' lead' : '') },
       h('span', { class: 'n' }, i + 1),
@@ -76,21 +88,22 @@ function draw(el, d, ctx) {
   /* what the dates ask of the team (team only) */
   const open = ctx.isClient ? [] : (a.tasks || []).filter(t => !t.done && t.due).sort((p, q) => p.due.localeCompare(q.due));
   const late = open.filter(t => t.due < today).length;
-  const due = open.length ? h('section', { class: 'cr-sect' }, heading('Due next', open.length, late ? statusDot('bad', late + ' late') : null),
+  const due = open.length ? box({ title: 'Due next', n: open.length, note: late ? statusDot('bad', late + ' late') : 'Steps that fall out of the dates' },
     list(open.slice(0, 8).map(t => row({
       lead: dateOf(t.due, today), title: t.name, sub: t.phase || '', late: false,
       cells: [{ w: 150, label: 'Owner', node: t.owner || '' }, { w: 120, class: 'strong', label: 'Due', node: t.due < today ? statusDot('bad', between(t.due, today) + (between(t.due, today) === 1 ? ' day late' : ' days late')) : away(today, t.due) }],
     })), null, { head: [{ label: 'Owner', w: 150 }, { label: 'Due', w: 120 }], first: 'Task' })) : null;
 
   const know = KNOW.map(([k, label]) => a.answers && a.answers[k] ? [h('dt', null, label), h('dd', null, a.answers[k])] : null).filter(Boolean);
-  const dates = know.length ? h('section', { class: 'cr-sect' }, heading('Dates to know'), h('dl', { class: 'cr-kv', style: { borderTop: '1px solid var(--line)', paddingTop: '16px' } }, know)) : null;
+  const dates = know.length ? box({ title: 'Dates to know' }, h('dl', { class: 'cr-kv' }, know)) : null;
 
   put(el, helpBar([
     { title: 'What it is for', text: 'What the brand is selling and when, in order, with the Black Friday offer first.' },
     { title: 'Locked, draft and not written', text: 'Locked means the offer is agreed with the client and is what the ads and emails say. A draft can still change. Not written yet means nobody has put the offer in.' },
     { title: 'Results', text: 'Once an offer has started, its sales for those days and the store MER show under it, against the sales goal when one was set.' },
-  ]), head, offers, due, dates,
+  ]), lead, head, offers, due, dates,
     !ctx.isClient && ctx.legacy ? h('div', null, button('Write or lock an offer in old ' + APP_NAME, { href: ctx.legacy, icon: 'arrow' })) : null);
+  ctx.askContext = 'Season offers for ' + (a.name || (ctx.brand && ctx.brand.name) || 'this brand') + ': ' + phases.length + ' offers, ' + locked + ' locked, ' + missing.length + ' still to write. Leading offer: ' + bf.name + ', ' + (bf.offer || 'not written') + (bf.start ? ', ' + span(bf.start, bf.end) : '') + '.';
 }
 
 /* Sample mode: Northlake Golf has its own file; any other brand's offers are read off the sample calendar. */

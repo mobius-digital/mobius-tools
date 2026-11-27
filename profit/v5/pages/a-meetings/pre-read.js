@@ -3,7 +3,7 @@
    promises, then everything else folded away. Live data is what the team meeting screen loads. */
 
 import { put } from '../../kit.js';
-import { h, hero, em, kpi, sparkline, delta, statusDot, legend, button, avatar, empty, skeleton } from '../../kit.js';
+import { h, em, kpi, tiles, delta, statusDot, legend, button, avatar, empty, skeleton } from '../../kit.js';
 import { defLabel, pageHelp } from '../../defs.js';
 import { follow } from '../_parts.js';
 import { css, loadMeeting, meetingOf, SENT_LABEL, rangeText, lightOf, trafficLight, tick, sentence, merChart, foldRow, detailTable, MEETING_START, ok, money, x } from './_meet.js';
@@ -14,8 +14,6 @@ try { ui.brand = sessionStorage.getItem('lx5.preread.brand'); } catch {}
 const slug = id => String(id).replace(/^brand_/, '').replace(/_/g, '-');
 const change = (now, was) => ok(now) && ok(was) && was > 0 ? (now - was) / was : null;
 
-/* a sparkline with the week in its tooltip ("Week of Nov 9: $21,472") */
-const spark = (weeks, key, format, goal) => sparkline(weeks.map(w => w[key]), { fill: true, goal, labels: weeks.map(w => 'Week of ' + (w.label || '')), format, name: key === 'mer' ? 'Store MER' : key === 'spend' ? 'Ad spend' : 'Sales' });
 
 function draw(el, data, ctx) {
   css();
@@ -39,32 +37,35 @@ function draw(el, data, ctx) {
   const verdict = b.verdict ? sentence(b.verdict) : null;
 
   const dS = change(b.sales, b.sales_prior), dP = change(b.spend, b.spend_prior);
-  const three = b.connected ? h('div', { class: 'mt-three' },
-    kpi({ label: defLabel('Sales', 'sales'), value: money(b.sales, { cur }),
-      delta: ok(dS) ? delta(dS, { bad: dS < 0 }) : null, sub: ok(b.sales_prior) ? `from ${money(b.sales_prior, { cur })} the week before` : null }),
-    kpi({ label: defLabel('Ad spend', 'ad_spend'), value: ok(b.spend) ? money(b.spend, { cur }) : 'no data',
-      delta: ok(dP) ? delta(dP, { plain: true }) : null, sub: ok(b.spend_prior) ? `from ${money(b.spend_prior, { cur })} the week before` : null }),
-    h('div', { class: 'lx-kpi' }, h('span', { class: 'l' }, defLabel('Store MER', 'mer')),
-      h('span', null, h('span', { class: 'lx-hero-num' }, ok(b.mer) ? x(b.mer) : 'no data')),
-      h('span', { class: 's' }, ok(b.goal_mer) ? statusDot(light ? light.tone : 'off', 'goal ' + x(b.goal_mer)) : statusDot('off', 'No goal set'))))
-    : h('div', { class: 'mt-three' }, h('div', { class: 'lx-kpi' }, h('span', { class: 'l' }, 'Sales'),
-      h('span', { class: 'none' }, b.has_report === false ? 'No weekly report yet' : 'No sales source connected')));
-  if (b.connected && b.weeks && b.weeks.length > 1) {
-    const k = three.children, wk = b.weeks, cap = () => h('span', { class: 'mt-spcap' }, 'last ' + wk.length + ' weeks');
-    k[0].append(spark(wk, 'sales', v => money(v, { cur })), cap());
-    k[1].append(spark(wk, 'spend', v => money(v, { cur })), cap());
-    k[2].append(spark(wk, 'mer', v => x(v), b.goal_mer), cap());
-  }
+  /* the three numbers as batch 1 tiles: label, value, change, window and source, the weekly sparkline with its scale */
+  const wk = (b.weeks || []).length > 1 ? b.weeks : null;
+  const win = rangeText(week.from, week.to);
+  const sl = wk ? wk.map(w => 'Week of ' + (w.label || '')) : null;
+  const three = b.connected ? tiles([
+    kpi({ label: 'Sales', value: money(b.sales, { cur }), window: win, source: 'Triple Whale',
+      delta: ok(dS) ? delta(dS, { bad: dS < 0 }) : null, sub: ok(b.sales_prior) ? `from ${money(b.sales_prior, { cur })} the week before` : null,
+      spark: wk && wk.map(w => w.sales), sparkLabels: sl, sparkFormat: v => money(v, { cur }) }),
+    kpi({ label: 'Ad spend', value: ok(b.spend) ? money(b.spend, { cur }) : 'no data', window: win, source: 'All ad platforms',
+      delta: ok(dP) ? delta(dP, { plain: true }) : null, sub: ok(b.spend_prior) ? `from ${money(b.spend_prior, { cur })} the week before` : null,
+      spark: wk && wk.map(w => w.spend), sparkLabels: sl, sparkFormat: v => money(v, { cur }) }),
+    kpi({ label: defLabel('Store MER', 'mer'), value: ok(b.mer) ? x(b.mer) : 'no data', window: win, source: 'Triple Whale',
+      sub: ok(b.goal_mer) ? statusDot(light ? light.tone : 'off', 'goal ' + x(b.goal_mer)) : statusDot('off', 'No goal set'),
+      spark: wk && wk.map(w => w.mer), sparkLabels: sl, sparkFormat: v => x(v) }),
+  ], { cols: 3 })
+    : h('section', { class: 'lx-card' }, h('span', { class: 'lx-card-t' }, 'Sales'),
+      h('p', { class: 'mt-quiet' }, b.has_report === false ? 'No weekly report yet' : 'No sales source connected'));
 
   /* the title names the brand picked on this page, so it is set here and drawn by the shell */
   ctx.setTitle([b.name + ', ', em(rangeText(week.from, week.to))], { eyebrow: 'Pre-read for Monday' });
-  const head = hero({});
-  head.classList.add('line', 'mt-hero');
-  head.append(h('div', { class: 'mt-hero-top' }, h('div', null, verdict ? h('p', { class: 'mt-verdict' }, verdict) : null), h('span', { class: 'lx-sp' }), b.connected ? trafficLight(light) : ''), three);
+  /* the verdict in its own card, the status on the right; the three tiles under it */
+  const head = h('div', { class: 'mt-heads' },
+    h('section', { class: 'lx-card mt-vcard' }, h('div', { class: 'mt-hero-top' }, h('div', null, verdict ? h('p', { class: 'mt-verdict' }, verdict) : h('p', { class: 'mt-verdict quiet' }, 'Last week for ' + b.name + ', ' + win + '.')), h('span', { class: 'lx-sp' }), b.connected ? trafficLight(light) : '')),
+    three);
+  ctx.askContext = 'Monday pre-read for ' + b.name + ', ' + win + ': sales ' + (ok(b.sales) ? money(b.sales, { cur }) : 'no data') + ', ad spend ' + (ok(b.spend) ? money(b.spend, { cur }) : 'no data') + ', Store MER ' + (ok(b.mer) ? x(b.mer) : 'no data') + (ok(b.goal_mer) ? ' against a ' + x(b.goal_mer) + ' goal' : '') + ' (Triple Whale).' + (b.decision ? ' Decision: ' + b.decision.text : '');
 
   const parts = [h('div', { class: 'mt-helpbar' }, pageHelp({ body: [
     { title: 'What it is for', text: 'One page per brand to read before the Monday team meeting: last week\'s numbers, MER by week, the one decision and last week\'s promises. Everything else is folded.' },
-    { title: 'The numbers', text: 'Last week, Monday to Sunday, final. Sales are every store order; Store MER is all sales divided by all ad spend. The status pill compares Store MER with the brand\'s goal: On goal at or over it, Close within 10% under, Off goal more than 10% under.' },
+    { title: 'The numbers', text: 'Last week, Monday to Sunday, final. Sales are every store order (Triple Whale); Store MER is all sales divided by all ad spend. The Meta and Google rows are Triple Whale last click ROAS, compared with the store goal. The status pill compares Store MER with the brand\'s goal: On goal at or over it, Close within 10% under, Under goal more than 10% under.' },
     { title: 'When it is sent', text: SENT_LABEL + '. Decisions are made in Run the meeting, not here.' },
   ] })), picker, head];
 
@@ -72,7 +73,7 @@ function draw(el, data, ctx) {
   if (b.connected) {
     const n = (b.weeks || []).filter(w => ok(w.mer)).length;
     parts.push(h('section', { class: 'lx-card mt-panel' },
-      h('div', { class: 'mt-h' }, h('h3', null, 'MER by week'), h('span', null, n > 1 ? `whole store, last ${n} weeks` : 'whole store'),
+      h('div', { class: 'mt-h' }, h('h3', null, 'Store MER by week'), h('span', null, n > 1 ? `whole store, last ${n} weeks` : 'whole store'),
         legend([{ name: 'MER', lead: true }, ...(ok(b.goal_mer) ? [{ name: 'Goal ' + x(b.goal_mer), dashed: true }] : [])])),
       merChart(b.weeks, b.goal_mer)));
   }
@@ -97,7 +98,7 @@ function draw(el, data, ctx) {
   /* last week's promises */
   if (b.promises && b.promises.length) {
     const done = b.promises.filter(p => p.done).length;
-    parts.push(h('section', { class: 'mt-open' },
+    parts.push(h('section', { class: 'lx-card mt-card' },
       h('div', { class: 'mt-h' }, h('h3', null, "Last week's promises"), h('span', null, `${done} of ${b.promises.length} done`)),
       h('div', null, b.promises.map(p => h('div', { class: 'mt-prom' }, avatar({ name: p.owner, photo: p.owner_photo }, { size: 40 }),
         h('span', { class: 'what' }, p.text), h('span', { class: 'who' }, [p.owner, p.due && 'due ' + p.due].filter(Boolean).join(', ')), tick(!!p.done))))));
@@ -109,7 +110,7 @@ function draw(el, data, ctx) {
   /* everything else, folded */
   if (b.rows && b.rows.length) {
     parts.push(h('section', { class: 'mt-open', style: { gap: '14px' } },
-      h('div', { class: 'mt-h' }, h('h3', null, 'Everything else'), h('span', null, 'open a row only if you need it')),
+      h('div', { class: 'mt-h' }, h('h3', null, 'Everything else'), h('span', null, win + ' · Triple Whale unless a row says otherwise. Open a row only if you need it.')),
       h('div', { class: 'lx-card flush' }, b.rows.map(r => {
         const key = b.id + '|' + r.id;
         return foldRow({ ...r, id: slug(b.id) + '-' + r.id, open: ui.open.has(key), onToggle: on => { on ? ui.open.add(key) : ui.open.delete(key); },

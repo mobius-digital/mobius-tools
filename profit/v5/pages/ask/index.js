@@ -203,10 +203,11 @@ const CSS = `
 .lx-qa-ct{font-size:14.5px;font-weight:600;letter-spacing:-.01em}
 .lx-qa-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-top:14px;border-top:1px solid var(--line)}
 .lx-qa-foot .src{font-size:12.5px;color:var(--muted)}
-.lx-qa-open{font-size:13px;font-weight:600;color:var(--ink)}
+.lx-qa-open{font-size:13px;font-weight:600;color:var(--ink);text-decoration:none}
+.lx-qa-open:hover{text-decoration:underline;text-underline-offset:3px}
 .lx-qa-recent>button{width:100%;border:0;border-top:1px solid var(--line);background:transparent;cursor:pointer;padding:13px 28px;text-align:left;font-size:14px;color:var(--ink)}
 .lx-qa-recent>button:first-child{border-top:0}
-.lx-qa-recent>button:hover{background:var(--surface-2)}
+.lx-qa-recent>button:hover{background:var(--row-hover)}
 .lx-qa-recent .t{flex:1;min-width:0;overflow-wrap:anywhere}
 .lx-qa-recent .who,.lx-qa-recent .when{flex:none;font-size:12.5px;color:var(--muted);white-space:nowrap}
 .lx-qa-recent .again{flex:none;font-size:12.5px;font-weight:600;color:var(--ink-2);white-space:nowrap}
@@ -237,6 +238,7 @@ export default {
   title: ['Ask ', em(AI_NAME)],
   eyebrow: ctx => (ctx.brand ? ctx.brand.name : 'Every brand'),
   ranges: false,
+  stamp: false,                  /* a form or a conversation, not numbers: no "updated" stamp in the head */
   async load(ctx) {
     const brandId = ctx.brand ? ctx.brand.id : null, name = ctx.brand ? ctx.brand.name : null;
     const u = await ctx.api('/api/ask/usage?days=30', { worker: 'ah', signal: ctx.signal }).catch(e => { if (e && e.name === 'AbortError') throw e; return null; });

@@ -5,8 +5,10 @@
    plain note until a client route exists. */
 
 import { put } from '../../kit.js';
-import { h, hero, kpis, kpi, statusDot, button, em, empty, num, relativeTime } from '../../kit.js';
-import { css, dayOf, heading, row, list, copyBtn, goNote, helpBar } from '../calendar/_cr.js';
+import { h, tiles, kpi, statusDot, button, em, empty, num, relativeTime } from '../../kit.js';
+import { css, dayOf, row, list, box, sortRows, flipSort, copyBtn, goNote, helpBar } from '../calendar/_cr.js';
+
+const view = { sort: null };
 
 function draw(el, d, ctx) {
   css();
@@ -22,16 +24,18 @@ function draw(el, d, ctx) {
   const views = live.reduce((t, p) => t + (+p.views || 0), 0);
   const last = live.map(p => p.last_view).filter(Boolean).sort().pop();
 
-  const head = hero({ line: true }, h('div', { class: 'cr-fit' }, kpis([
+  /* a client sees no tile row: one lone tile would only repeat the list's own count */
+  const head = ctx.isClient ? null : tiles([
     kpi({ label: 'Live documents', value: String(live.length), size: 'lg', sub: pages.length > live.length ? (pages.length - live.length) + ' turned off' : 'all links work' }),
-    ctx.isClient ? null : kpi({ label: 'Times opened', value: num(views), sub: 'across the live links' }),
-    ctx.isClient ? null : kpi({ label: 'Last opened', value: last ? relativeTime(last) : 'never', sub: last ? dayOf(last) : 'nobody has opened one yet' }),
-  ].filter(Boolean), { cols: ctx.isClient ? 1 : 3 })));
+    kpi({ label: 'Times opened', value: num(views), sub: 'across the live links' }),
+    kpi({ label: 'Last opened', value: last ? relativeTime(last) : 'never', sub: last ? dayOf(last) : 'nobody has opened one yet' }),
+  ], { cols: 3 });
   /* "Last opened" is words: the word size, with the exact time on hover */
-  const lo = !ctx.isClient && head.querySelectorAll('.lx-kpi .v')[2];
+  const lo = head && head.querySelectorAll('.lx-kpi .v')[2];
   if (lo) { lo.classList.add('words'); if (last) lo.title = new Date(last).toLocaleString('en-US'); }
 
-  const rows = pages.map(p => row({
+  const ordered = sortRows(pages, view.sort, (p, k) => k === 'title' ? p.title : k === 'views' ? +p.views || 0 : k === 'last' ? p.last_view || '' : k === 'status' ? (p.revoked ? 1 : 0) : null);
+  const rows = ordered.map(p => row({
     title: p.title,
     sub: ['Updated ' + dayOf(p.updated_at), (p.acts || []).length > 1 ? 'Shared across ' + p.acts.length + ' brands' : null].filter(Boolean).join('. '),
     cells: [
@@ -46,8 +50,10 @@ function draw(el, d, ctx) {
   put(el, helpBar([
     { title: 'What it is for', text: ctx.isClient ? 'Pages your team made for you, like a plan or a walk-through, each on its own link.' : 'One-off pages made for this client (a growth plan, a walk-through, an analysis), each on its own public link, with how often it was opened.' },
     { title: 'The links', text: 'Anyone with a link can open it without signing in. A turned off link shows a "link ended" page. ' + (ctx.isClient ? '' : 'Turn a link off from Agency > Shared links.') },
-  ]), head, h('section', { class: 'cr-sect' }, heading('Pages for this client', pages.length),
-    list(rows, null, { head: [ctx.isClient ? null : { label: 'Opened', w: 110, class: 'hide-sm' }, ctx.isClient ? null : { label: 'Last opened', w: 110, class: 'hide-md' }, { label: 'Status', w: 110 }], first: 'Page', go })));
+  ]), head, box({ title: ctx.isClient ? 'Pages for you' : 'Pages for this client', n: pages.length, note: ctx.isClient ? null : 'Opens counted on the public link' },
+    list(rows, null, { head: [ctx.isClient ? null : { label: 'Opened', w: 110, class: 'hide-sm', sort: 'views' }, ctx.isClient ? null : { label: 'Last opened', w: 110, class: 'hide-md', sort: 'last' }, { label: 'Status', w: 110, sort: 'status' }],
+      first: 'Page', firstSort: 'title', go, sort: view.sort, onSort: k => { view.sort = flipSort(view.sort, k, k === 'title' || k === 'status' ? 'asc' : 'desc'); draw(el, d, ctx); } })));
+  ctx.askContext = 'Documents made for ' + ((ctx.brand && ctx.brand.name) || 'this client') + ': ' + live.length + ' live links' + (ctx.isClient ? '.' : ', opened ' + views + ' times in all.');
 }
 
 export default {

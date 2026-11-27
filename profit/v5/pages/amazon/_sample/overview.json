@@ -1,8 +1,8 @@
 {
  "sample_age_min": 4,
  "window": {
-  "from": "2026-10-25",
-  "to": "2026-11-23"
+  "from": "2026-11-01",
+  "to": "2026-11-22"
  },
  "kpi": {
   "sales": 13210,
@@ -140,6 +140,72 @@
    "spend": 1287,
    "ad_sales": 5530,
    "orders": 160
-  }
+  },
+  "rest": [
+   {
+    "name": "Belt buckles",
+    "type": "Products",
+    "spend": 38,
+    "ad_sales": 120,
+    "orders": 3
+   },
+   {
+    "name": "Gift sets",
+    "type": "Products",
+    "spend": 31,
+    "ad_sales": 98,
+    "orders": 3
+   },
+   {
+    "name": "Ball marker sets, keywords",
+    "type": "Products",
+    "spend": 27,
+    "ad_sales": 71,
+    "orders": 2
+   },
+   {
+    "name": "Junior belts, auto",
+    "type": "Products",
+    "spend": 22,
+    "ad_sales": 64,
+    "orders": 2
+   },
+   {
+    "name": "Belts, competitor terms",
+    "type": "Products",
+    "spend": 19,
+    "ad_sales": 52,
+    "orders": 1
+   },
+   {
+    "name": "Belt and marker bundle",
+    "type": "Brands",
+    "spend": 17,
+    "ad_sales": 44,
+    "orders": 1
+   },
+   {
+    "name": "Leather care",
+    "type": "Products",
+    "spend": 14,
+    "ad_sales": 40,
+    "orders": 1
+   },
+   {
+    "name": "Belts, category targets",
+    "type": "Products",
+    "spend": 11,
+    "ad_sales": 25,
+    "orders": 1
+   },
+   {
+    "name": "Travel belt",
+    "type": "Products",
+    "spend": 8,
+    "ad_sales": 15,
+    "orders": 0,
+    "paused": true
+   }
+  ]
  }
 }

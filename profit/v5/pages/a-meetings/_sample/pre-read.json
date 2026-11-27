@@ -22,7 +22,7 @@
    "spend": 8047,
    "spend_prior": 7245,
    "mer": 1.45,
-   "goal_mer": 3.0,
+   "goal_mer": 3,
    "weeks": [
     {
      "label": "Sep 28",
@@ -114,7 +114,7 @@
      "icon": "meta",
      "label": "Meta",
      "big": "1.12x",
-     "sub": "ROAS, goal 3.00x",
+     "sub": "ROAS, Triple Whale last click. Store goal 3.00x",
      "tone": "bad",
      "status": "Under goal",
      "go": [
@@ -173,9 +173,9 @@
      "icon": "google",
      "label": "Google",
      "big": "2.20x",
-     "sub": "ROAS, goal 3.00x",
-     "tone": "warn",
-     "status": "Close",
+     "sub": "ROAS, Triple Whale last click. Store goal 3.00x",
+     "tone": "bad",
+     "status": "Under goal",
      "go": [
       "google",
       "overview"
@@ -226,7 +226,7 @@
      "icon": "email",
      "label": "Email & SMS",
      "big": "$1,910",
-     "sub": "sales, 2 emails sent",
+     "sub": "sales, Klaviyo's own count. 2 emails sent",
      "tone": "off",
      "status": "No SMS sent",
      "go": [
@@ -257,7 +257,8 @@
         "Black Friday starts Thursday",
         "$620"
        ]
-      ]
+      ],
+      "note": "Sales are Klaviyo's own count, not Triple Whale."
      }
     },
     {
@@ -265,7 +266,7 @@
      "icon": "board",
      "label": "Creative in the pipeline",
      "big": "74 of 110",
-     "sub": "ads loaded for the next 4 dates",
+     "sub": "ads loaded for the next 4 dates, from Production",
      "tone": "bad",
      "status": "24 videos missing",
      "go": [
@@ -385,23 +386,23 @@
     "from": "2026-11-16",
     "to": "2026-11-22"
    },
-   "sales": 26840,
-   "sales_prior": 29310,
-   "spend": 14900,
-   "spend_prior": 15220,
+   "sales": 14820,
+   "sales_prior": 13950,
+   "spend": 8233,
+   "spend_prior": 10410,
    "mer": 1.8,
    "goal_mer": 2.5,
    "weeks": [
     {
      "label": "Nov 9",
-     "sales": 29310,
-     "spend": 15220,
-     "mer": 1.93
+     "sales": 13950,
+     "spend": 10410,
+     "mer": 1.34
     },
     {
      "label": "Nov 16",
-     "sales": 26840,
-     "spend": 14900,
+     "sales": 14820,
+     "spend": 8233,
      "mer": 1.8
     }
    ],
@@ -421,23 +422,23 @@
     "from": "2026-11-16",
     "to": "2026-11-22"
    },
-   "sales": 11920,
-   "sales_prior": 10140,
-   "spend": 5430,
-   "spend_prior": 5710,
+   "sales": 8017,
+   "sales_prior": 7142,
+   "spend": 3644,
+   "spend_prior": 5120,
    "mer": 2.2,
-   "goal_mer": 3.0,
+   "goal_mer": 3,
    "weeks": [
     {
      "label": "Nov 9",
-     "sales": 10140,
-     "spend": 5710,
-     "mer": 1.78
+     "sales": 7142,
+     "spend": 5120,
+     "mer": 1.39
     },
     {
      "label": "Nov 16",
-     "sales": 11920,
-     "spend": 5430,
+     "sales": 8017,
+     "spend": 3644,
      "mer": 2.2
     }
    ],
@@ -457,23 +458,23 @@
     "from": "2026-11-16",
     "to": "2026-11-22"
    },
-   "sales": 14380,
-   "sales_prior": 12260,
-   "spend": 3720,
-   "spend_prior": 3540,
+   "sales": 15672,
+   "sales_prior": 11485,
+   "spend": 4050,
+   "spend_prior": 4010,
    "mer": 3.87,
    "goal_mer": 2.5,
    "weeks": [
     {
      "label": "Nov 9",
-     "sales": 12260,
-     "spend": 3540,
-     "mer": 3.46
+     "sales": 11485,
+     "spend": 4010,
+     "mer": 2.86
     },
     {
      "label": "Nov 16",
-     "sales": 14380,
-     "spend": 3720,
+     "sales": 15672,
+     "spend": 4050,
      "mer": 3.87
     }
    ],

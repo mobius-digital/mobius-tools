@@ -7,7 +7,7 @@
 
 import { APP_NAME } from '../../config.js';
 import { put, noDash } from '../../kit.js';
-import { h, em, button, avatar, statusDot, pill, delta, sheet, toast, empty, addStyles } from '../../kit.js';
+import { h, em, button, avatar, statusDot, pill, delta, sheet, toast, empty, addStyles, tiles, kpi, sourceLine } from '../../kit.js';
 import { follow, reading } from '../_parts.js';
 import { css, loadMeeting, meetingOf, MEETING_START, rangeText, longDay, shortDay, lightOf, trafficLight, sentence, detailTable, ok, money, x } from './_meet.js';
 import { defLabel } from '../../defs.js';
@@ -114,16 +114,20 @@ function notesBox(id, hint) {
   const ta = h('textarea', { class: 'mr-notes', rows: '4', dataset: { note: id }, placeholder: hint || 'Type what was said. One line per point.', 'aria-label': 'Notes',
     oninput: e => { ui.notes[id] = e.target.value; if (!ui.notes[id]) delete ui.notes[id]; keep(); } });
   ta.value = ui.notes[id] || '';
-  return h('section', { class: 'mr-sec' }, h('div', { class: 'mt-h' }, h('h3', null, 'Notes'), h('span', null, 'Kept in this tab only. Nothing is saved or sent.')), ta);
+  return h('section', { class: 'lx-card mr-sec mr-box' }, h('div', { class: 'mt-h' }, h('h3', null, 'Notes'), h('span', null, 'Kept in this tab only. Nothing is saved or sent.')), ta);
 }
 function fig(label, value, under, { words = false } = {}) {
   return h('div', { class: 'mr-fig' }, h('span', { class: 'l' }, label), h('span', { class: 'v' + (words ? ' w' : '') }, value), under && h('span', { class: 's' }, under));
 }
+/** The count strip at the top of a step: batch 1 tiles (label, figure, the line under it). */
+const countTiles = list => { const k = list.filter(Boolean); return tiles(k.map(([label, value, sub]) => kpi({ label, value, sub })), { cols: k.length >= 3 ? 3 : 2, class: 'mr-tiles' }); };
+/** A list section in a card, like Pre-read's "Last week's promises". */
+const boxSec = (title, note, ...kids) => h('section', { class: 'lx-card mr-sec mr-box' }, h('div', { class: 'mt-h' }, h('h3', null, title), note ? h('span', null, note) : null), kids);
 function taskRow(t, brandName) {
   return h('div', { class: 'mr-task' }, t.owner ? avatar({ name: t.owner }, { size: 40 }) : h('span', { class: 'mr-nobody', role: 'img', 'aria-label': 'No owner' }),
     h('span', { class: 'what' }, t.text, brandName && h('small', null, brandName)),
     h('span', { class: 'who' }, [t.owner || 'No owner', t.due && 'due ' + shortDay(t.due)].filter(Boolean).join(', ')),
-    t.done ? statusDot('good', 'Done') : t.late ? pill('bad', 'Late') : statusDot('off', 'Open'));
+    t.done ? statusDot('good', 'Done') : t.late ? statusDot('bad', 'Late') : statusDot('off', 'Open'));
 }
 
 /** Everything about one brand: the numbers that matter, what happened, the decisions, what is open, notes.
@@ -141,9 +145,13 @@ function brandView(b, d, ctx, { notes = true } = {}) {
         fig('Sales', money(b.sales, { cur }), [ok(dS) ? delta(dS, { bad: dS < 0 }) : null, ok(b.sales_prior) ? `from ${money(b.sales_prior, { cur })}` : null]),
         ok(b.spend) ? fig('Ad spend', money(b.spend, { cur }), [ok(dP) ? delta(dP, { plain: true }) : null, ok(b.spend_prior) ? `from ${money(b.spend_prior, { cur })}` : null]) : fig('Ad spend', 'No ad spend read', null, { words: true }),
         ok(b.mer) ? fig('MER, whole store', x(b.mer), ok(b.goal_mer) ? statusDot(light ? light.tone : 'off', 'goal ' + x(b.goal_mer)) : statusDot('off', 'No goal set')) : fig('MER, whole store', 'No MER read', null, { words: true })));
-      if (b.channels && b.channels.length) parts.push(h('div', { class: 'mr-chan' }, b.channels.map(c => h('span', null, h('small', null, c.label + ' ROAS'), h('b', null, c.big), statusDot(c.tone || 'off', c.status)))));
+      const wk = b.week || d.week;
+      parts.push(h('div', { class: 'mr-src' }, sourceLine(wk ? rangeText(wk.from, wk.to) : 'Last week', 'Triple Whale'), h('span', { class: 'lx-srcline' }, 'Ad spend: all ad platforms')));
+      if (b.channels && b.channels.length) parts.push(h('div', { class: 'mr-chanbox' },
+        h('span', { class: 'mr-chanl' }, 'ROAS, Triple Whale last click' + (ok(b.goal_mer) ? '. Judged against the store goal ' + x(b.goal_mer) : '')),
+        h('div', { class: 'mr-chan' }, b.channels.map(c => h('span', null, h('small', null, c.label), h('b', null, c.big), statusDot(c.tone || 'off', c.status))))));
       const said = b.verdict ? [h('p', { class: 'mr-ask' }, sentence(b.verdict))] : (b.happened || []).length ? [h('ul', { class: 'mr-list' }, b.happened.map(t => h('li', null, t)))] : null;
-      if (said) parts.push(h('section', { class: 'mr-sec' }, h('div', { class: 'mt-h' }, h('h3', null, 'What happened'), h('span', null, b.verdict ? 'last week, whole store' : 'from the weekly report')), said));
+      if (said) parts.push(boxSec('What happened', b.verdict ? 'last week, whole store' : 'from the weekly report', said));
     }
 
     /* the decisions */
@@ -173,11 +181,9 @@ function brandView(b, d, ctx, { notes = true } = {}) {
 
     if (b.promises && b.promises.length) {
       const late = b.promises.filter(t => t.late && !t.done).length;
-      parts.push(h('section', { class: 'mr-sec' }, h('div', { class: 'mt-h' }, h('h3', null, 'Still open'), h('span', null, plural(b.promises.length, 'task') + (late ? `, ${late} late` : ''))),
-        h('div', null, b.promises.map(t => taskRow(t)))));
+      parts.push(boxSec('Still open', plural(b.promises.length, 'task') + (late ? `, ${late} late` : ''), h('div', null, b.promises.map(t => taskRow(t)))));
     }
-    if (b.asks && b.asks.length) parts.push(h('section', { class: 'mr-sec' }, h('div', { class: 'mt-h' }, h('h3', null, 'Waiting on the client'), h('span', null, plural(b.asks.length, 'thing'))),
-      h('ul', { class: 'mr-list sm' }, b.asks.map(t => h('li', null, t)))));
+    if (b.asks && b.asks.length) parts.push(boxSec('Waiting on the client', plural(b.asks.length, 'thing'), h('ul', { class: 'mr-list sm' }, b.asks.map(t => h('li', null, t)))));
     if (notes) parts.push(notesBox('b:' + b.id));
     put(box, parts);
   };
@@ -211,15 +217,15 @@ function scoreboard(d, P, ctx) {
       h('span', { class: 'st' }, none ? statusDot('off', none) : light ? trafficLight(light) : statusDot('off', 'No goal set')));
   };
   const head = h('div', { class: 'mr-sb mr-sbh', 'aria-hidden': 'true' },
-    h('span', null, 'Brand'), h('span', null, defLabel('Sales', 'sales'), ' (last week)'), h('span', null, 'vs week before'),
-    h('span', null, defLabel('Ad spend', 'ad_spend')), h('span', null, defLabel('Store MER', 'mer')), h('span', null, 'MER goal'), h('span', null, 'Status'));
+    h('span', null, 'Brand'), h('span', null, 'Sales'), h('span', null, 'vs week before'),
+    h('span', null, 'Ad spend'), h('span', null, defLabel('Store MER', 'mer')), h('span', null, 'MER goal'), h('span', null, 'Status'));
   const cur = d.brands.filter(isCurrent);
   return [
-    h('div', { class: 'mr-counts' },
-      fig('On goal', String(P.green.length), 'of ' + plural(cur.length, 'brand') + ' with a report'),
-      fig('Under goal', String(P.deep.length + P.alsoUnder.length), P.deep.length ? P.deep.map(b => b.name).join(', ') : 'none this week'),
-      P.noGoal.length + P.noReport.length ? fig('No goal or no report', String(P.noGoal.length + P.noReport.length), [...P.noGoal, ...P.noReport].map(b => b.name).join(', ')) : null),
-    h('section', { class: 'mr-sec' }, h('div', { class: 'mt-h' }, h('h3', null, 'Every brand, last week'), h('span', null, 'Whole store, Mon to Sun. Furthest under goal first. Tap a brand to open it.')),
+    countTiles([
+      ['On goal', String(P.green.length), 'of ' + plural(cur.length, 'brand') + ' with a report'],
+      ['Under goal', String(P.deep.length + P.alsoUnder.length), P.deep.length ? P.deep.map(b => b.name).join(', ') : 'none this week'],
+      P.noGoal.length + P.noReport.length ? ['No goal or no report', String(P.noGoal.length + P.noReport.length), [...P.noGoal, ...P.noReport].map(b => b.name).join(', ')] : null]),
+    h('section', { class: 'mr-sec' }, h('div', { class: 'mt-h' }, h('h3', null, 'Every brand, last week'), h('span', null, (d.week ? rangeText(d.week.from, d.week.to) + ', Mon to Sun' : 'Mon to Sun') + ' · Triple Whale. Furthest under goal first. Tap a brand to open it.')),
       h('div', { class: 'lx-card flush mr-sbs' }, head, order.map(row))),
   ];
 }
@@ -231,8 +237,8 @@ function promises(d, P) {
   if (!known) return [h('p', { class: 'mt-none' }, 'The open tasks could not be read just now. Go round the room instead.'), notesBox('promises')];
   if (!all.length) return [h('p', { class: 'mr-ask' }, 'No task is open on any brand.'), notesBox('promises')];
   return [
-    h('div', { class: 'mr-counts' }, fig('Open', String(all.length), 'across ' + plural(groups.length, 'brand')), late ? fig('Late', String(late), 'past the day they were due') : null),
-    h('section', { class: 'mr-sec' }, groups.map(b => h('div', { class: 'mr-grp' }, h('h4', null, b.name), b.promises.map(t => taskRow(t))))),
+    countTiles([['Open', String(all.length), 'across ' + plural(groups.length, 'brand')], ['Late', String(late), late ? 'past the day they were due' : 'nothing is late']]),
+    boxSec('Open tasks by brand', plural(all.length, 'task'), groups.map(b => h('div', { class: 'mr-grp' }, h('h4', null, b.name), b.promises.map(t => taskRow(t))))),
     notesBox('promises'),
   ];
 }
@@ -271,7 +277,7 @@ function pipeline(d, P, ctx) {
 
 function learned(d) {
   return [
-    d.learned && d.learned.length ? h('section', { class: 'mr-sec' }, h('div', { class: 'mt-h' }, h('h3', null, 'Added last week'), h('span', null, plural(d.learned.length, 'lesson'))),
+    d.learned && d.learned.length ? boxSec('Added last week', plural(d.learned.length, 'lesson'),
       h('ul', { class: 'mr-list' }, d.learned.map(l => h('li', null, l.text, (l.brand || l.by) && h('small', null, [l.brand, l.by].filter(Boolean).join(', ')))))) : null,
     notesBox('learned', 'What worked, what did not. Name the brand and the ad.'),
   ];
@@ -281,7 +287,7 @@ function agency(d) {
   const open = d.agency && d.agency.open;
   return [
     d.theme ? h('p', { class: 'mr-ask' }, "This week's theme: ", h('b', null, d.theme)) : null,
-    open && open.length ? h('section', { class: 'mr-sec' }, h('div', { class: 'mt-h' }, h('h3', null, 'Open for the whole agency'), h('span', null, plural(open.length, 'task'))), h('div', null, open.map(t => taskRow(t)))) : null,
+    open && open.length ? boxSec('Open for the whole agency', plural(open.length, 'task'), h('div', null, open.map(t => taskRow(t)))) : null,
     notesBox('agency'),
   ];
 }
@@ -317,8 +323,8 @@ function close(d, P, ctx, redraw) {
     catch { toast('Could not copy from this browser', { tone: 'bad' }); }
   };
   return [
-    h('div', { class: 'mr-counts' }, fig('Said yes', String(r.yes), plural(r.brands.filter(b => b.yes.length).length, 'brand')), r.no ? fig('Not now', String(r.no), 'left for another week') : null),
-    any ? h('section', { class: 'mr-sec' }, h('div', { class: 'mt-h' }, h('h3', null, 'Read it back'), h('span', null, 'what was marked on this screen')),
+    countTiles([['Said yes', String(r.yes), plural(r.brands.filter(b => b.yes.length).length, 'brand')], ['Not now', String(r.no), r.no ? 'left for another week' : 'none set aside']]),
+    any ? boxSec('Read it back', 'what was marked on this screen',
       h('div', { class: 'mr-recap' },
         r.brands.map(b => h('div', { class: 'mr-grp' }, h('h4', null, b.name),
           b.yes.map(k => h('div', { class: 'mr-line' }, pill('good', 'Yes'), h('span', null, k.text, k.owner && h('small', null, k.owner)))),
@@ -454,7 +460,7 @@ const CSS = `
 .mr-rail button.on small{color:rgba(255,255,255,.72)}
 .mr-head{display:flex;align-items:flex-end;gap:14px 28px;flex-wrap:wrap}
 .mr-head>div{display:grid;gap:8px;min-width:0}
-.mr-head h2{margin:0;font-size:var(--fs-title);font-weight:600;letter-spacing:-.045em;line-height:1.02;overflow-wrap:anywhere}
+.mr-head h2{margin:0;font-size:21px;font-weight:600;letter-spacing:-.045em;line-height:1.02;overflow-wrap:anywhere}
 .mr-head .mt-light{margin-bottom:8px}
 .mr-head .when{margin-left:auto;margin-bottom:10px;color:var(--muted);font-size:16px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .mr-ask{margin:0;max-width:940px;font-size:18px;line-height:1.4;letter-spacing:-.018em;color:var(--ink-2)}
@@ -466,13 +472,20 @@ const CSS = `
 .mr-fig .v{font-size:var(--num-l);font-weight:600;letter-spacing:-.05em;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
 .mr-fig .v.w{font-size:var(--num-m);letter-spacing:-.02em;line-height:1.25;color:var(--ink-2);white-space:normal}
 .mr-fig .s{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;font-size:15px;color:var(--muted)}
-.mr-chan{display:flex;gap:14px 44px;flex-wrap:wrap;padding-top:22px;border-top:1px solid var(--line)}
+.mr-chan{display:flex;gap:14px 44px;flex-wrap:wrap}
 .mr-chan>span{display:inline-flex;align-items:baseline;gap:12px}
 .mr-chan small{font-size:14px;color:var(--muted)}
 .mr-chan b{font-size:var(--num-l);font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 .mr-sec{display:grid;gap:14px;min-width:0}
-.mr-sec .mt-h h3{font-size:20px}
-.mr-sec .mt-h>span{font-size:14.5px}
+.mr-sec .mt-h h3{font-size:var(--fs-section,17px);font-weight:600}
+.mr-sec .mt-h>span{font-size:var(--fs-small,12.5px)}
+.mr-box{gap:10px}
+.mr-box .mr-task:first-of-type,.mr-box .mr-grp:first-of-type{border-top:0}
+.mr-box>.mt-h+.mr-grp{border-top:0;padding-top:0}
+.mr-box .mr-notes{background:var(--bg-sunk);box-shadow:none;border-radius:var(--r-tbl,12px)}
+.mr-src{display:flex;gap:4px 16px;flex-wrap:wrap;margin-top:-20px}
+.mr-chanbox{display:grid;gap:10px;padding-top:20px;border-top:1px solid var(--line)}
+.mr-chanl{font-size:var(--fs-small,12.5px);color:var(--muted)}
 .mr-list{margin:0;padding:0;list-style:none;display:grid;gap:14px;max-width:1000px}
 .mr-list li{position:relative;padding-left:26px;font-size:17px;line-height:1.42;letter-spacing:-.012em;color:var(--ink-2)}
 .mr-list li::before{content:"";position:absolute;left:4px;top:.58em;width:8px;height:8px;border-radius:50%;background:var(--ink)}
@@ -501,7 +514,7 @@ const CSS = `
 .mr-task .what{flex:1;min-width:0;font-size:18px;font-weight:500;letter-spacing:-.012em;line-height:1.35}
 .mr-task .what small{display:block;font-size:13px;font-weight:500;color:var(--muted)}
 .mr-task .who{width:190px;font-size:14px;color:var(--muted)}
-.mr-task>.lx-stat,.mr-task>.lx-pill{width:74px;flex:none}
+.mr-task>.lx-stat{flex:none;min-width:74px}
 .mr-nobody{flex:none;width:40px;height:40px;border-radius:50%;background:var(--bg-sunk);box-shadow:inset 0 0 0 1.5px var(--line-strong)}
 .mr-grp{display:grid;gap:4px;padding:18px 0;border-top:1px solid var(--line)}
 .mr-grp:first-child{border-top:0;padding-top:0}
@@ -509,9 +522,9 @@ const CSS = `
 .mr-sbs{overflow:hidden}
 .mr-sb{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(5,minmax(0,1fr)) 120px;gap:16px;align-items:center;width:100%;min-height:var(--row-h-roomy);padding:6px 24px;border:0;border-top:1px solid var(--line);background:none;text-align:left;font:inherit;color:inherit;cursor:pointer}
 .mr-sb:first-child{border-top:0}
-.mr-sb:hover,.mr-q:hover{background:var(--surface-2)}
+.mr-sb:hover,.mr-q:hover{background:var(--row-hover)}
 .mr-sb .nm{display:flex;align-items:center;gap:12px;min-width:0;font-size:16px;font-weight:600;letter-spacing:-.015em}
-.mr-sbh{min-height:32px;cursor:default;font-size:11px;font-weight:600;letter-spacing:.03em;white-space:nowrap;text-transform:uppercase;color:var(--muted)}
+.mr-sbh{min-height:32px;cursor:default;font-size:var(--fs-colhead,11.5px);font-weight:600;letter-spacing:0;white-space:nowrap;text-transform:none;color:var(--muted)}
 .mr-sbh:hover{background:none!important}
 .mr-sb .n{font-size:var(--num-s);font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
 .mr-sb .n.goal{color:var(--muted);font-weight:500}
@@ -556,7 +569,6 @@ const CSS = `
 .mr-sheet .mr-list li{font-size:16.5px}
 .mr-sheet .mr-task .who{width:auto}
 @media (max-width:1040px){
-  .mr-head h2{font-size:var(--fs-title)}
   .mr-nums,.mr-counts{gap:28px}
   .mr-fig .v{font-size:var(--num-l)}
   .mr-dec{grid-template-columns:minmax(0,1fr) auto;gap:22px}
@@ -567,13 +579,14 @@ const CSS = `
 }
 @media (max-width:759px){
   .mr{gap:26px}
-  .mr-head h2{font-size:var(--num-l)}
+  .mr-head h2{font-size:19px}
   .mr-head .when{margin-left:0;margin-bottom:0;flex:1 1 100%;font-size:14.5px}
   .mr-ask{font-size:18px}
   .mr-brand{gap:28px}
   .mr-nums,.mr-counts{grid-template-columns:1fr;gap:22px}
   .mr-fig .v{font-size:var(--num-l)}
-  .mr-chan{gap:10px 28px;padding-top:18px}
+  .mr-chan{gap:10px 28px}
+  .mr-src{margin-top:-14px}
   .mr-chan b{font-size:var(--num-m)}
   .mr-list li{font-size:17px}
   .mr-dec{grid-template-columns:1fr;gap:18px;padding:20px 18px}
@@ -586,7 +599,7 @@ const CSS = `
   .mr-task{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:2px 12px;align-items:center}
   .mr-task .what{grid-column:2;font-size:16px}
   .mr-task .who{grid-column:2;grid-row:2;width:auto}
-  .mr-task>.lx-stat,.mr-task>.lx-pill{grid-column:3;grid-row:1/3;width:auto}
+  .mr-task>.lx-stat{grid-column:3;grid-row:1/3;min-width:0}
   .mr-sb{grid-template-columns:1fr 1fr 1fr;gap:8px 12px;padding:14px 18px}
   .mr-sbh{display:none}
   .mr-sb .nm{grid-column:1/-1;font-size:16px}

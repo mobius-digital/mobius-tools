@@ -53,7 +53,7 @@ function draw(el, data, ctx) {
   head.classList.add('line', 'mt-hero');
 
   const read = a.read;
-  const cols = h('section', { class: 'mt-cols' },
+  const cols = h('section', { class: 'lx-card mt-cols' },
     h('div', { class: 'mt-col' },
       h('div', null, h('span', { class: 'lx-eyebrow' }, 'Monday 6:00am'), h('h2', null, 'Before')),
       step(1, APP_NAME + ' sends every brand pre-read', "last week's final numbers, Mon to Sun"),
@@ -75,8 +75,8 @@ function draw(el, data, ctx) {
       a.example_myday && h('div', { class: 'mt-ex' }, avatar({ name: a.example_myday.owner }, { size: 30 }), h('span', null, h('b', null, a.example_myday.text), h('small', null, a.example_myday.note)))));
 
   const any = ((data && data.brands) || []).some(b => ok(b.mer) && ok(b.goal_mer));
-  const db = h('section', { class: 'mt-open', style: { gap: '20px' } },
-    h('div', { class: 'mt-h' }, h('h3', null, "This Monday's decision brands"), h('span', null, defined(h('span', null, 'Store MER'), 'mer'), ', last week. Furthest under goal first.')),
+  const db = h('section', { class: 'lx-card mt-card', style: { gap: '16px' } },
+    h('div', { class: 'mt-h' }, h('h3', null, "This Monday's decision brands"), h('span', null, defined(h('span', null, 'Store MER'), 'mer'), ', last week (Mon to Sun) · Triple Whale. Furthest under goal first. Tap one for its pre-read.')),
     under.length ? h('div', { class: 'mt-db' }, under.map(b => h('a', { href: ctx.href('a-meetings', 'pre-read'), onclick: () => { try { sessionStorage.setItem('lx5.preread.brand', b.id); } catch {} } },
       h('span', { class: 'nm' }, b.name),
       h('span', { class: 'n' }, x(b.mer), h('small', null, 'goal ' + x(b.goal_mer))),
@@ -92,7 +92,8 @@ function draw(el, data, ctx) {
     { title: 'Decision brands', text: 'Brands whose Store MER last week was under its goal, furthest under first. The bar runs from 0 to a little past the goal; the tick is the goal. The owner named on each one speaks first.' },
     { title: 'The pre-read', text: SENT_LABEL + '.' },
   ] }));
-  put(el, h('div', { class: 'mt-page', style: { gap: '40px' } }, help, head, weekSection(weekPlans.r), cols, db,
+  ctx.askContext = 'The Monday team meeting agenda: ' + total + ' minutes, eight blocks starting ' + START + 'am. Decision brands (Store MER under goal last week, Triple Whale): ' + (under.length ? under.map(b => b.name + ' ' + x(b.mer) + ' vs ' + x(b.goal_mer)).join(', ') : 'none') + '.';
+  put(el, h('div', { class: 'mt-page' }, help, head, weekSection(weekPlans.r), cols, db,
     more ? reading(data.waiting.screen ? 'Still reading the promises and the pipeline.' : 'Still reading each brand\'s MER goal.') : null));
 }
 

@@ -5,8 +5,9 @@
    period before for the comparison. Nothing on this page is sample data in real mode. */
 
 import { put } from '../../kit.js';
-import { askWhy, helpBar, rangeWords } from '../home/_biz.js';
-import { h, num, pct, card, hero, em, kpi, kpis, takeaway, button, table, empty, delta, segmented, lineChart, legend, statusDot } from '../../kit.js';
+import { askWhy, helpBar, dl, rangeWords } from '../home/_biz.js';
+import { h, num, pct, card, em, takeaway, button, table, empty, delta, segmented, lineChart, legend, statusDot } from '../../kit.js';
+import { tileRow, tipRows, pageStamp, VISITS_THAT_BUY, GA } from '../month/_m.js';
 import { fxStyles, steps, head, bar } from './_flow.js';
 
 const ok = n => n != null && isFinite(n);
@@ -26,27 +27,27 @@ function shape(r) {
     connected: c.sessions > 0, reason: c.sessions > 0 ? null : 'empty',
     steps: { visits: c.sessions, engaged: c.engagedSessions, carts: c.addToCarts, checkouts: c.checkouts, orders: c.ecommercePurchases },
     prev: p && p.sessions > 0 ? { visits: p.sessions, carts: p.addToCarts, checkouts: p.checkouts, orders: p.ecommercePurchases } : null,
-    days: (r.days || []).map(d => ({ date: d.date, visits: d.sessions || 0, orders: d.purchases || 0 })),
+    days: (r.days || []).map(d => ({ date: d.date, visits: d.sessions || 0, carts: d.addToCarts ?? null, checkouts: d.checkouts ?? null, orders: d.purchases || 0 })),
     devices: (r.devices || []).map(x => row(DEVICE[String(x.device).toLowerCase()] || x.device, x)),
     channels: (r.channels || []).map(x => row(CHANNEL[x.group] || x.group, x)),
     pages: (r.landing || []).filter(x => x.page && x.page !== '(not set)').slice(0, 12).map(x => row(x.page, x)),
   };
 }
 
-function figures(d) {
+function figures(d, ctx) {
   const s = d.steps, p = d.prev;
   const move = (now, then) => (ok(now) && then > 0 ? now / then - 1 : null);
   const point = (now, then) => (ok(now) && ok(then) ? delta(now - then, { text: (now - then >= 0 ? '+' : '') + ((now - then) * 100).toFixed(1) + ' pts' }) : null);
   const cart = of(s.carts, s.visits), check = of(s.checkouts, s.carts), buy = of(s.orders, s.visits);
+  /* a step's daily rate when the days carry both counts (Google Analytics gives carts and checkouts by day) */
+  const daily = (top, base) => (d.days.some(x => ok(x[top])) ? d.days.map(x => (ok(x[top]) && x[base] > 0 ? 100 * x[top] / x[base] : null)) : null);
   const list = [
     { label: 'Visits', value: num(s.visits), delta: p && ok(move(s.visits, p.visits)) ? delta(move(s.visits, p.visits)) : null, sub: p ? 'against the period before' : null, spark: d.days.map(x => x.visits) },
-    { label: 'Add to cart', value: ok(cart) ? pct(cart, { digits: 1 }) : 'no data', delta: p ? point(cart, of(p.carts, p.visits)) : null, sub: ok(s.carts) ? `${num(s.carts)} visits` : null },
-    { label: 'Carts that reach checkout', value: ok(check) ? pct(check) : 'no data', delta: p ? point(check, of(p.checkouts, p.carts)) : null, sub: ok(s.checkouts) ? `${num(s.checkouts)} checkouts` : null },
-    { label: 'Visits that buy', value: ok(buy) ? pct(buy, { digits: 1 }) : 'no data', delta: p ? point(buy, of(p.orders, p.visits)) : null, sub: ok(s.orders) ? `${num(s.orders)} orders` : null, spark: d.days.map(x => of(x.orders, x.visits)).map(v => (ok(v) ? v * 100 : null)) },
+    { label: 'Add to cart', value: ok(cart) ? pct(cart, { digits: 1 }) : 'no data', delta: p ? point(cart, of(p.carts, p.visits)) : null, sub: ok(s.carts) ? `${num(s.carts)} visits` : null, spark: daily('carts', 'visits'), sparkFormat: v => v.toFixed(1) + '%' },
+    { label: 'Carts that reach checkout', value: ok(check) ? pct(check) : 'no data', delta: p ? point(check, of(p.checkouts, p.carts)) : null, sub: ok(s.checkouts) ? `${num(s.checkouts)} checkouts` : null, spark: daily('checkouts', 'carts'), sparkFormat: v => Math.round(v) + '%' },
+    { label: dl('Visits that buy', VISITS_THAT_BUY), value: ok(buy) ? pct(buy, { digits: 1 }) : 'no data', delta: p ? point(buy, of(p.orders, p.visits)) : null, sub: ok(s.orders) ? `${num(s.orders)} orders` : null, spark: d.days.map(x => of(x.orders, x.visits)).map(v => (ok(v) ? v * 100 : null)), sparkFormat: v => v.toFixed(2) + '%' },
   ];
-  const el = kpis(list.map(k => kpi({ ...k, size: 'lg', spark: (k.spark || []).filter(ok) })), { cols: 4 });
-  el.classList.add('fx-kpis');
-  return el;
+  return tileRow(list, { cols: 4, window: rangeWords(ctx, d.range), source: GA, labels: d.days.map(x => shortDay(x.date)) });
 }
 
 function stepCard(d, ctx) {
@@ -64,27 +65,29 @@ function stepCard(d, ctx) {
   const lost = worst ? raw[raw.indexOf(worst) - 1].value - worst.value : null;
   const words = { carts: 'never add to cart', checkouts: 'leave with a full cart', orders: 'start checkout and do not finish' };
   return card({ class: 'fx-pad' },
-    head('Which step loses the most people?', 'visits to orders, all on one scale'),
+    head('Which step loses the most people?', 'Visits to orders, all on one scale'),
+    h('div', { class: 'fx-src' }, rangeWords(ctx, d.range) + ' · ' + GA),
     h('div', { class: 'fx-big' }, h('span', { class: 'fx-bigtxt' }, `${num(s.visits)} visits to ${num(s.orders)} orders`)),
     steps(raw, { height: 320 }),
     worst ? h('div', { style: { marginTop: '20px' } }, takeaway([h('b', null, num(lost)), ` people ${words[worst.key]}. That is the step to fix first.`],
       { action: ctx.isClient ? null : askWhy(ctx, 'Which step loses the most people') })) : null);
 }
 
-function rateCard(d) {
+function rateCard(d, ctx) {
   const days = d.days.filter(x => x.visits > 0);
   if (days.length < 3) return null;
   const rate = days.map(x => 100 * x.orders / x.visits);
   const all = of(d.steps.orders, d.steps.visits);
   return card({ class: 'fx-pad' },
-    head('Is the share of visits that buy holding?', 'orders out of visits, day by day', legend([{ name: 'Visits that buy', lead: true }, ok(all) && { name: 'Average for these dates', dashed: true }])),
+    head('Is the share of visits that buy holding?', 'Orders out of ' + GA + ' visits, day by day · orders as ' + GA + ' counts them', legend([{ name: 'Visits that buy', lead: true }, ok(all) && { name: 'Average for these dates', dashed: true }])),
     lineChart({
       series: [{ name: 'Visits that buy', lead: true, values: rate, end: v => v.toFixed(1) + '%' }],
       labels: days.map(x => shortDay(x.date)),
       goal: ok(all) ? { value: all * 100, label: 'Average ' + pct(all, { digits: 1 }), at: 'start' } : null,
       format: v => v.toFixed(1) + '%', endFormat: v => v.toFixed(1) + '%', yTicks: 3, height: 340, phoneHeight: 280,
+      windowLabel: 'Daily, ' + rangeWords(ctx, { from: days[0].date, to: days[days.length - 1].date }),
       label: `Share of visits that buy, by day. Average ${pct(all, { digits: 1 })}.`,
-      hover: i => [h('b', null, shortDay(days[i].date)), h('span', null, h('b', null, rate[i].toFixed(1) + '%'), ' buy'), h('span', null, h('b', null, num(days[i].orders)), ' of ', num(days[i].visits))],
+      hover: i => tipRows(shortDay(days[i].date), [['Visits that buy', rate[i].toFixed(1) + '%', 'lead'], ['Orders', num(days[i].orders)], ['Visits', num(days[i].visits)]]),
     }));
 }
 
@@ -116,7 +119,7 @@ function splitCard(d, ctx) {
   };
   paint();
   return card({ flush: true },
-    head('Where is it weakest?', 'every figure is a share of that row’s visits; the crimson dot is the lowest buy rate',
+    head('Where is it weakest?', 'Every figure is a share of that row’s visits; the crimson dot is the lowest buy rate · ' + GA,
       have.length > 1 ? segmented(have, view, id => { view = id; ctx.saveSetting('funnel.stepsBy', id); paint(); }) : null),
     body);
 }
@@ -124,6 +127,7 @@ function splitCard(d, ctx) {
 export default {
   title: ['Which step on the site ', em('loses them?')],
   eyebrow: 'Full funnel',
+  stamp: false,                     /* Home's stamp with a refresh button sits in the help bar */
 
   async load(ctx) {
     if (!ctx.brand) return { connected: false, reason: 'not_linked' };
@@ -147,14 +151,16 @@ export default {
       }));
       return;
     }
+    ctx.askWindow = rangeWords(ctx, d.range);
+    ctx.askContext = `${ctx.brand.name} website steps, ${ctx.askWindow} (${GA}): ${num(d.steps.visits)} visits, ${num(d.steps.carts)} added to cart, ${num(d.steps.checkouts)} reached checkout, ${num(d.steps.orders)} orders.`;
     put(el, ...[
       helpBar([
         { title: 'What it is for', text: 'Once someone is on the site, which step loses them: visits, added to cart, reached checkout, bought, then the same steps by device, channel and landing page.' },
         { title: 'Where the numbers come from', text: 'Google Analytics. Its order count can sit a little under the store’s own; use it to compare steps, not to count sales.' },
-      ], h('span', { class: 'bz-chip' }, rangeWords(ctx, d.range))),
-      hero({ line: true }, figures(d)),
+      ], h('span', { class: 'bz-chip' }, rangeWords(ctx, d.range)), pageStamp(ctx)),
+      figures(d, ctx),
       stepCard(d, ctx),
-      rateCard(d),
+      rateCard(d, ctx),
       splitCard(d, ctx),
     ].filter(Boolean));
   },

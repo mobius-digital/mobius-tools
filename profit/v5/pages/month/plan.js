@@ -11,8 +11,8 @@
 
 import { helpBar, dl } from '../home/_biz.js';
 import { put } from '../../kit.js';
-import { h, money, pct, x, card, hero, em, kpi, kpis, button, statusDot, pill, gauge, legend, lineChart, table, segmented, empty } from '../../kit.js';
-import { ok, iso, dayLabel, monthName, monthShort, nextMonth, b, soft, pickBrand, styles } from './_m.js';
+import { h, money, pct, x, card, em, button, statusDot, pill, gauge, legend, lineChart, table, segmented, empty, sourceLine } from '../../kit.js';
+import { ok, iso, dayLabel, monthName, monthShort, nextMonth, b, soft, pickBrand, styles, tileRow, tipRows, pageStamp, TW } from './_m.js';
 
 /* ---------- live data ---------- */
 function shapeMonth(p, costsBroken) {
@@ -63,7 +63,7 @@ const whole = v => (ok(v) ? money(Math.round(v)) : 'no data');
 
 function heroBlock(m, data) {
   const g = m.goals, a = m.status === 'current' ? m.actual : null, name = monthName(m.month);
-  if (!g) return hero({}, empty({ title: `No plan set for ${name}`, text: 'Once a sales goal and an ad budget are agreed they show here, and every other page reports against them.' }));
+  if (!g) return card({}, empty({ title: `No plan set for ${name}`, text: 'Once a sales goal and an ad budget are agreed they show here, and every other page reports against them.' }));
   const share = a && a.days && m.days_in_month ? a.days / m.days_in_month : null;
   const soFar = (actual, goal, cost) => {
     if (!ok(actual) || !ok(goal) || share == null) return null;
@@ -71,13 +71,13 @@ function heroBlock(m, data) {
     return statusDot(cost ? (over ? 'warn' : 'good') : (over ? 'good' : 'warn'), `${whole(Math.abs(d))} ${cost ? (over ? 'over' : 'under') : (over ? 'ahead' : 'behind')} so far`);
   };
   const list = [
-    { label: 'Sales goal', value: whole(g.sales), sub: soFar(a && a.sales, g.sales) || (ok(m.growth) && m.basis && m.basis.month ? `${pct(m.growth, { signed: true })} on ${monthName(m.basis.month)}` : null) },
-    { label: 'Ad budget', value: whole(g.spend), sub: soFar(a && a.spend, g.spend, true) || (ok(g.spend) && m.days_in_month ? whole(g.spend / m.days_in_month) + ' a day' : null) },
-    { label: 'MER the plan needs', value: x(g.mer), sub: a && ok(a.mer) && ok(g.mer) ? statusDot(a.mer >= g.mer ? 'good' : a.mer >= g.mer * 0.8 ? 'warn' : 'bad', x(a.mer) + ' so far') : 'sales over ad spend' },
+    { label: 'Sales goal', value: whole(g.sales), source: a ? 'so far: ' + TW : null, sub: soFar(a && a.sales, g.sales) || (ok(m.growth) && m.basis && m.basis.month ? `${pct(m.growth, { signed: true })} on ${monthName(m.basis.month)}` : null) },
+    { label: 'Ad budget', value: whole(g.spend), source: a ? 'so far: the ad platforms' : null, sub: soFar(a && a.spend, g.spend, true) || (ok(g.spend) && m.days_in_month ? whole(g.spend / m.days_in_month) + ' a day' : null) },
+    { label: h('span', null, dl('MER', 'mer'), ' the plan needs'), value: x(g.mer), sub: a && ok(a.mer) && ok(g.mer) ? statusDot(a.mer >= g.mer ? 'good' : a.mer >= g.mer * 0.8 ? 'warn' : 'bad', x(a.mer) + ' so far') : 'sales over ad spend' },
     data.profit_withheld ? { label: 'Profit it should leave', value: 'held back', sub: 'the cost numbers need a check first' }
-      : { label: 'Profit it should leave', value: whole(m.expected_profit), sub: ok(m.expected_profit) && g.sales > 0 ? pct(m.expected_profit / g.sales) + ' of sales, after ads' : null },
-  ].map(k => kpi({ ...k, size: 'lg' }));
-  return hero({}, kpis(list, { cols: 4 }));
+      : { label: dl('Profit it should leave', { name: 'Profit it should leave', definition: 'Profit after ads the plan should leave: the sales goal times the margin before ads, less the ad budget. Fixed costs come off after this.', source: TW + ' costs' }), value: whole(m.expected_profit), sub: ok(m.expected_profit) && g.sales > 0 ? pct(m.expected_profit / g.sales) + ' of sales, after ads' : null },
+  ];
+  return tileRow(list, { cols: 4, window: monthName(m.month) + ' plan' });
 }
 
 function stateOf(m, ctx) {
@@ -91,21 +91,22 @@ function stateOf(m, ctx) {
 function chartCard(m, data) {
   const hist = (data.history || []).filter(r => r.month < m.month), g = m.goals;
   const head = h('div', { class: 'lx-chart-h' },
-    h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, g ? `How does ${monthName(m.month)} compare with past months?` : 'What have past months done?')), h('p', null, 'sales and ad spend by month, whole store')),
-    legend([{ name: 'Sales', square: true, color: 'var(--ink)' }, g && { name: 'The plan', lead: true, square: true, color: 'var(--e2)' }, { name: 'Ad spend' }]));
+    h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, g ? `How does ${monthName(m.month)} compare with past months?` : 'What have past months done?')), h('p', null, 'Sales and ad spend by month, whole store · ' + TW)),
+    legend([{ name: 'Sales', square: true, color: 'var(--slate)' }, g && { name: 'The plan', lead: true, square: true, color: 'var(--e2)' }, { name: 'Ad spend' }]));
   if (hist.length + (g ? 1 : 0) < 2) return card({ class: 'mo-chart' }, head, empty({ title: 'Not enough months yet', text: 'The chart draws once there is a finished month to compare with.' }));
   const cols = hist.map(r => ({ label: monthShort(r.month) + (r.partial ? ' so far' : ''), sales: r.sales, spend: r.spend, partial: r.partial }));
   if (g) cols.push({ label: monthShort(m.month) + ' plan', sales: g.sales, spend: g.spend, plan: true });
   const short = v => money(v, { compact: true });
   return card({ class: 'mo-chart' }, head, lineChart({
     series: [
-      { name: 'Sales', type: 'bar', values: cols.map(c => c.sales), labels: short, leadAt: g ? cols.length - 1 : null, dimAt: i => cols[i].partial },
+      { name: 'Sales', type: 'bar', tone: 'slate', values: cols.map(c => c.sales), labels: short, leadAt: g ? cols.length - 1 : null, dimAt: i => cols[i].partial },
       { name: 'Ad spend', values: cols.map(c => c.spend), points: true, end: short },
     ],
-    labels: cols.map(c => c.label), height: 340, barWidth: 54,
+    labels: cols.map(c => c.label), height: 340, barWidth: 54, format: short,
+    windowLabel: 'Monthly, ' + cols[0].label + ' to ' + cols[cols.length - 1].label,
     label: 'Sales and ad spend by month, with the plan as the last column',
-    hover: i => { const c = cols[i]; return [b(c.label), h('span', null, c.plan ? 'Sales goal ' : 'Sales ', b(whole(c.sales))), h('span', null, c.plan ? 'Ad budget ' : 'Ad spend ', b(whole(c.spend))),
-      ok(c.sales) && c.spend > 0 ? h('span', null, 'MER ', b(x(c.sales / c.spend))) : null]; },
+    hover: i => { const c = cols[i]; return tipRows(c.label, [[c.plan ? 'Sales goal' : 'Sales', whole(c.sales), 'ink'], [c.plan ? 'Ad budget' : 'Ad spend', whole(c.spend), 'slate'],
+      ok(c.sales) && c.spend > 0 ? ['MER', x(c.sales / c.spend)] : null]); },
   }));
 }
 
@@ -117,9 +118,10 @@ function reachCard(m) {
   const verdict = r == null ? null : r <= 1.05 ? ['good', 'Within reach'] : r <= 1.25 ? ['warn', 'A stretch'] : ['bad', 'Out of reach at this rate'];
   const win = y.from && y.to ? `${dayLabel(y.from)} to ${dayLabel(y.to)}` : 'the last 28 days';
   return card({ title: 'Can it be reached?', note: `against ${win}`, flush: true, action: verdict ? statusDot(verdict[0], verdict[1]) : null },
+    h('div', { class: 'mo-src' }, sourceLine(win, TW + ', new customers')),
     h('div', { class: 'mo-yard' },
       h('span', { class: 'need' }, h('small', null, dl('New customer ROAS the plan needs', 'new_customer_roas_plan')), h('span', { class: 'lx-big' }, x(y.needs))),
-      h('span', { class: 'rec' }, h('small', null, dl('Recent new customer ROAS', 'new_customer_roas')), h('b', null, x(y.recent))),
+      h('span', { class: 'need' }, h('small', null, dl('Recent new customer ROAS', 'new_customer_roas')), h('span', { class: 'lx-big' }, x(y.recent))),
       gauge({ value: y.recent, max: Math.max(y.needs, y.recent) * 1.25, goal: y.needs, tone: verdict ? verdict[0] : '',
         ticks: [{ side: 'l', text: '0' }, { at: y.needs, text: 'plan needs ' + x(y.needs), on: true }] })),
     h('div', { class: 'mo-facts' },
@@ -133,11 +135,12 @@ function optionsCard(m, data) {
   const chosen = o => near === o && Math.abs(o.growth - m.growth) < 0.03;
   const base = m.basis.run_rate ? `${monthName(m.basis.month)} at its current pace` : m.basis.month ? `${monthName(m.basis.month)}` : 'the last full month';
   return card({ title: 'Other ways to set it', note: `${base} sales were ${whole(m.basis.sales)}`, flush: true, class: 'mo-opts' },
+    h('div', { class: 'mo-src' }, sourceLine(monthName(m.month) + ' options, grown on ' + base, 'sales ' + TW + ', spend and profit worked out from that month')),
     table({
       cols: [
         { key: 'growth', label: dl('Growth on ' + (m.basis.month ? monthName(m.basis.month) : 'last month') + ' sales', { name: 'Growth', definition: `How much higher than ${base} sales this option sets the goal. Pick one with Change the plan.` }), class: 'name', render: o => h('span', { class: chosen(o) ? 'mo-chosen' : '' }, o.growth ? pct(o.growth, { signed: true }) : 'Hold level', chosen(o) ? ', closest to the plan' : '') },
-        { key: 'sales', label: 'Sales goal', num: true, render: o => whole(o.sales) },
-        { key: 'spend', label: 'Ad spend it takes', num: true, render: o => whole(o.spend) },
+        { key: 'sales', label: 'Sales goal', num: true, sortable: true, render: o => whole(o.sales) },
+        { key: 'spend', label: 'Ad spend it takes', num: true, sortable: true, render: o => whole(o.spend) },
         { key: 'mer', label: 'MER', num: true, class: 'hide-sm', render: o => x(o.mer) },
         !data.profit_withheld && { key: 'profit', label: 'Profit after ads', num: true, class: 'hide-sm', render: o => whole(o.profit) },
       ].filter(Boolean),
@@ -148,20 +151,20 @@ function optionsCard(m, data) {
 function historyCard(data) {
   const rows = [...(data.history || [])].reverse();
   if (!rows.length) return null;
-  return card({ title: 'Past months', note: 'the same numbers as the chart above', flush: true },
+  return card({ title: 'Past months', note: 'the same numbers as the chart above · ' + TW, flush: true },
     h('details', { class: 'mo-hist' }, h('summary', null, 'Show the table'), table({
       cols: [
-        { key: 'month', label: 'Month', class: 'name', render: r => monthName(r.month) + (r.partial ? ', so far' : '') },
-        { key: 'sales', label: 'Sales', num: true, render: r => whole(r.sales) },
-        { key: 'spend', label: 'Ad spend', num: true, render: r => whole(r.spend) },
-        { key: 'mer', label: 'MER', num: true, class: 'strong', render: r => x(r.mer) },
+        { key: 'month', label: 'Month', class: 'name', sortable: true, render: r => monthName(r.month) + (r.partial ? ', so far' : '') },
+        { key: 'sales', label: 'Sales', num: true, sortable: true, render: r => whole(r.sales) },
+        { key: 'spend', label: 'Ad spend', num: true, sortable: true, render: r => whole(r.spend) },
+        { key: 'mer', label: dl('MER', 'mer'), num: true, class: 'strong', sortable: true, render: r => x(r.mer) },
         !data.profit_withheld && { key: 'profit', label: 'Profit after ads', num: true, class: 'hide-sm', render: r => whole(r.profit) },
       ].filter(Boolean),
-      rows,
+      rows, sort: { key: 'month', dir: 'desc' },
     })));
 }
 
-function basedOn(m) {
+function basedOn(m, ctx) {
   const parts = [];
   if (m.basis && m.basis.month && ok(m.basis.sales)) parts.push(`Growth is measured on ${monthName(m.basis.month)}${m.basis.run_rate ? ' at its current pace' : ''}, ${whole(m.basis.sales)} in sales.`);
   if (m.yard && m.yard.from && m.yard.to) parts.push(`Returning customers and the return on ads come from ${dayLabel(m.yard.from)} to ${dayLabel(m.yard.to)}.`);
@@ -169,7 +172,7 @@ function basedOn(m) {
   return helpBar([
     { title: 'What it is for', text: 'The plan agreed for the month: the sales goal, the ad budget, the MER that takes, and whether it can be reached.' },
     { title: 'What it rests on', text: parts.join(' ') },
-  ]);
+  ], pageStamp(ctx));
 }
 
 /* ---------- the page ---------- */
@@ -179,11 +182,13 @@ function draw(el, data, ctx) {
   const saved = ctx.settingNow(KEY, null);
   const m = data.months.find(r => r.month === saved) || data.months[0];
   ctx.setTitle(['What is the plan for ', em(monthName(m.month) + '?')], { eyebrow: 'This month' });
+  ctx.askWindow = monthName(m.month);
+  ctx.askContext = m.goals ? `${ctx.brand.name} plan for ${monthName(m.month)}: sales goal ${whole(m.goals.sales)}, ad budget ${whole(m.goals.spend)}, MER needed ${x(m.goals.mer)}${m.agreed_at ? ', agreed ' + dayLabel(m.agreed_at) : m.planned ? ', not agreed yet' : ', carried over'}.` + (m.yard ? ` New customer ROAS needed ${x(m.yard.needs)} against a recent ${x(m.yard.recent)}.` : '') : `${ctx.brand.name} has no plan set for ${monthName(m.month)}.`;
   const pick = data.months.length > 1
     ? segmented(data.months.map(r => ({ id: r.month, label: monthName(r.month) + (r.month === data.current ? ', in progress' : '') })), m.month, id => { ctx.saveSetting(KEY, id); draw(el, data, ctx); })
     : null;
   put(el, h('div', { class: 'mo' }, [
-    basedOn(m),
+    basedOn(m, ctx),
     h('div', { class: 'mo-pick' }, pick, stateOf(m, ctx),
       ctx.isClient || !ctx.legacy ? null : button(m.goals ? 'Change the plan' : 'Set the plan', { href: ctx.legacy, icon: 'arrow', primary: !m.goals, title: 'Opens the plan editor in old Locus' })),
     heroBlock(m, data),
@@ -197,6 +202,7 @@ function draw(el, data, ctx) {
 export default {
   title: ['What is ', em('the plan?')],
   eyebrow: 'This month',
+  stamp: false,                     /* Home's stamp with a refresh button sits in the help bar */
   ranges: false,                    // a plan is agreed per month; the month is picked inside the page
 
   load,

@@ -10,9 +10,10 @@
      /api/overview?days=7&cmp=none&series=0      the cost check (the goal ROAS comes from the brand's own goal, _m.js brandGoals) */
 
 import { put } from '../../kit.js';
-import { askWhy, helpBar, dl } from '../home/_biz.js';
-import { h, money, x, card, hero, em, kpi, kpis, takeaway, button, statusDot, delta, gauge, legend, lineChart, table, empty } from '../../kit.js';
-import { ok, addDays, dayLabel, span, sum, b, soft, brandFacts, brandGoals, hasSource, grade, gradeDot, pickBrand, noSource, noDays, styles } from './_m.js';
+import { askWhy, helpBar, dl, rangeWords } from '../home/_biz.js';
+import { h, money, x, card, em, takeaway, delta, gauge, legend, lineChart, table, empty } from '../../kit.js';
+import { ok, addDays, dayLabel, span, sum, soft, brandFacts, brandGoals, hasSource, grade, gradeDot, pickBrand, noSource, noDays, styles, tileRow, tipRows, pageStamp, TW } from './_m.js';
+const b = v => h('b', null, v);
 
 /* ---------- live data ---------- */
 async function load(ctx) {
@@ -58,7 +59,7 @@ function weeksOf(data) {
   return out;
 }
 
-function heroBlock(weeks, data) {
+function heroBlock(weeks, data, ctx) {
   const gm = data.goal_mer, full = weeks.filter(w => w.full);
   const best = [...weeks].filter(w => ok(w.sales_day)).sort((p, q) => q.sales_day - p.sales_day)[0];
   const cur = weeks[weeks.length - 1], prev = weeks[weeks.length - 2];
@@ -68,12 +69,12 @@ function heroBlock(weeks, data) {
     /* goals and day counts ride in the label: beside a hero size figure they run into the next column on a phone */
     gm ? { label: h('span', null, 'Weeks at the ', dl('MER', 'mer'), ' goal ' + x(gm)), value: String(at), small: 'of ' + judged.length }
        : { label: 'Weeks', value: String(weeks.length), small: full.length + ' full', sub: 'no MER goal set' },
-    best ? { label: 'Best week, sales a day', value: money(Math.round(best.sales_day)), sub: best.name + (ok(best.mer) ? ', MER ' + x(best.mer) : '') } : null,
-    cur ? { label: cur.full ? 'Latest week' : `This week, ${cur.n} of 7 days`, value: money(cur.sales),
-      delta: change != null ? delta(change, change >= 0 ? {} : { bad: true }) : null, sub: change != null ? 'a day, on last week' : cur.name } : null,
-    cur ? { label: h('span', null, dl('MER', 'mer'), gm ? ' this week, goal ' + x(gm) : ' this week'), value: x(cur.mer), sub: gradeDot(cur.mer, gm) } : null,
-  ].filter(Boolean).map(k => kpi({ ...k, size: 'lg' }));
-  return hero({}, kpis(list, { cols: list.length }));
+    best ? { label: 'Best week, sales a day', value: money(Math.round(best.sales_day)), sub: ok(best.mer) ? 'MER ' + x(best.mer) : null, window: best.name } : null,
+    cur ? { label: cur.full ? 'Latest week, sales' : `This week so far, sales`, value: money(cur.sales),
+      delta: change != null ? delta(change, change >= 0 ? {} : { bad: true }) : null, sub: change != null ? 'a day, on the week before' : null, window: cur.name + (cur.full ? '' : `, ${cur.n} of 7 days`) } : null,
+    cur ? { label: h('span', null, dl('MER', 'mer'), gm ? ' this week, goal ' + x(gm) : ' this week'), value: x(cur.mer), sub: gradeDot(cur.mer, gm), window: cur.name } : null,
+  ];
+  return tileRow(list, { window: rangeWords(ctx, data.range), source: TW, cols: 4 });
 }
 
 /* One sentence, by rule: the two latest full weeks, sales against ad spend. */
@@ -90,7 +91,7 @@ function sentence(weeks) {
 function chartCard(weeks, data) {
   const p = data.plan_day;
   const head = h('div', { class: 'lx-chart-h' },
-    h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, 'Is each week better than the last?')), h('p', null, 'average day in each week, so a part week compares fairly')),
+    h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, 'Is each week better than the last?')), h('p', null, 'Average day in each week, so a part week compares fairly · ' + TW)),
     legend([{ name: 'Sales a day', lead: true }, { name: 'Ad spend a day' }]));
   if (weeks.length < 2) return card({ class: 'mo-chart' }, head, empty({ title: 'One week so far', text: 'The chart draws once these dates hold two weeks. Pick a longer range to compare more.' }));
   const whole = v => money(Math.round(v));
@@ -102,8 +103,9 @@ function chartCard(weeks, data) {
     labels: weeks.map(w => w.name + (w.full ? '' : ` (${w.n} ${w.n === 1 ? 'day' : 'days'})`)),
     goal: p && ok(p.sales) ? { value: p.sales, label: 'plan ' + whole(p.sales) + ' a day', at: 'start' } : null,
     pad: 56, fill: true, height: 360, format: v => money(v, { compact: true }),
+    windowLabel: 'Weekly, ' + span(weeks[0].from, weeks[weeks.length - 1].to),
     label: 'Average sales and ad spend a day, week by week',
-    hover: i => { const w = weeks[i]; return [b(w.name), h('span', null, 'Sales ', b(money(w.sales))), h('span', null, 'Ad spend ', b(money(w.spend))), ok(w.mer) ? h('span', null, 'MER ', b(x(w.mer))) : null]; },
+    hover: i => { const w = weeks[i]; return tipRows(w.name + (w.full ? '' : ` (${w.n} of 7 days)`), [['Sales a day', money(Math.round(w.sales_day)), 'lead'], ['Ad spend a day', money(Math.round(w.spend_day)), 'slate'], ['Sales, week', money(w.sales)], ok(w.mer) ? ['MER', x(w.mer)] : null]); },
   }));
 }
 
@@ -119,22 +121,22 @@ function weeksCard(weeks, data) {
   const wide = h('div', { class: 'mo-wide' }, table({
     roomy: true, total,
     cols: [
-      { key: 'name', label: 'Week', class: 'name', render: r => h('span', { class: 'mo-wk' }, h('b', null, r.name), h('small', null, daysText(r))) },
-      { key: 'sales', label: 'Sales', num: true, render: r => money(r.sales) },
-      hasPlan && { key: 'plan', label: dl('Against plan', { name: 'Against plan', definition: 'The week\'s sales against the plan for those days (the month plan split evenly over the days).' }), num: true, class: 'hide-md', render: vsPlan },
-      { key: 'spend', label: 'Ad spend', num: true, render: r => money(r.spend) },
-      { key: 'mer', label: dl('MER', 'mer'), num: true, class: 'strong', render: r => x(r.mer) },
+      { key: 'name', label: 'Week', class: 'name', sortable: true, value: r => r.from, render: r => h('span', { class: 'mo-wk' }, h('b', null, r.name), h('small', null, daysText(r))) },
+      { key: 'sales', label: 'Sales', num: true, sortable: true, render: r => money(r.sales) },
+      hasPlan && { key: 'plan', label: 'Against plan', num: true, class: 'hide-md', render: vsPlan },
+      { key: 'spend', label: 'Ad spend', num: true, sortable: true, render: r => money(r.spend) },
+      { key: 'mer', label: dl('MER', 'mer'), num: true, class: 'strong', sortable: true, render: r => x(r.mer) },
       { key: 'bar', label: gm ? 'Against the MER goal ' + x(gm) : '', width: 240, render: r => { const g = bar(r); return g ? h('span', { class: 'mo-g' }, g) : ''; } },
       { key: 'st', label: 'Status', width: 110, render: stat },
     ].filter(Boolean),
-    rows: weeks,
+    rows: weeks, sort: { key: 'name', dir: 'asc' },
   }));
   const cell = (label, v) => h('span', null, h('small', null, label), h('b', null, v));
   const narrow = h('div', { class: 'mo-list' }, [...weeks, total].map(r => h('div', { class: 'mo-item' + (r.total ? ' total' : '') },
     h('div', { class: 'mo-item-h' }, h('b', null, r.name), h('small', null, daysText(r)), stat(r) || null),
     h('div', { class: 'mo-figs' }, cell('Sales', money(r.sales)), cell('Ad spend', money(r.spend)), cell('MER', x(r.mer))),
     bar(r))));
-  return card({ title: 'Every week', note: hasPlan ? 'against the plan and the MER goal' : gm ? 'against the MER goal' : null, flush: true }, wide, narrow);
+  return card({ title: 'Every week', note: (hasPlan ? 'against the plan and the MER goal' : gm ? 'against the MER goal' : '') + (hasPlan || gm ? ' · ' : '') + 'sales ' + TW + ', spend from the ad platforms', flush: true }, wide, narrow);
 }
 
 const WORDS = { month: 'carried the month?', 'last-month': 'carried last month?', '7d': 'made the last 7 days?', '30d': 'carried the last 30 days?', custom: 'carried these dates?' };
@@ -142,6 +144,7 @@ const WORDS = { month: 'carried the month?', 'last-month': 'carried last month?'
 export default {
   title: ctx => ['Which weeks ', em(WORDS[ctx.range.preset] || WORDS.month)],
   eyebrow: 'This month',
+  stamp: false,                     /* Home's stamp with a refresh button sits in the help bar */
 
   load,
 
@@ -153,12 +156,15 @@ export default {
     const weeks = weeksOf(data);
     if (!weeks.length) return put(el, noDays());
     const say = sentence(weeks);
+    const tS = sum(weeks, 'sales'), tC = sum(weeks, 'spend');
+    ctx.askWindow = rangeWords(ctx, data.range);
+    ctx.askContext = `${ctx.brand.name} week by week, ${ctx.askWindow}: ${weeks.length} weeks, sales ${money(tS)}, ad spend ${money(tC)}, MER ${x(tC > 0 ? tS / tC : null)}${data.goal_mer ? ' against a ' + x(data.goal_mer) + ' goal' : ''}. ` + weeks.map(w => `${w.name}: ${money(w.sales)} sales, MER ${x(w.mer)}`).join('; ') + '.';
     put(el, h('div', { class: 'mo' }, [
       helpBar([
         { title: 'What it is for', text: 'Which weeks carried these dates: sales and ad spend for each week, against the plan and the MER goal.' },
         { title: 'How it is counted', text: `Weeks are seven day blocks from ${dayLabel(weeks[0].from)}; a part week is compared on its average day. Sales are store sales less tax (Triple Whale). MER is whole store sales over all ad spend.` },
-      ]),
-      heroBlock(weeks, data),
+      ], pageStamp(ctx)),
+      heroBlock(weeks, data, ctx),
       say ? takeaway(say, { action: ctx.isClient ? null : askWhy(ctx, 'Which weeks carried the month') }) : null,
       chartCard(weeks, data),
       weeksCard(weeks, data),

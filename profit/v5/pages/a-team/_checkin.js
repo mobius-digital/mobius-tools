@@ -27,7 +27,7 @@ export function checkinCard(board) {
   const c = board.counts || {};
   const note = board.weekend ? 'weekend, no check-in' : `${c.plan || 0} in, ${c.out || 0} out, ${c.none || 0} not yet`;
   return card({ title: "Today's check-in", note, flush: true },
-    rows.length ? rows.map(r => h('div', { class: 'tm-r', style: { cursor: 'default' } },
+    rows.length ? rows.map(r => h('div', { class: 'tm-r tm-ci' },
       h('div', { class: 'tm-p' }, avatar({ name: r.name }, { size: 34 }), h('span', null, h('b', null, r.name), h('small', null, r.wrap || (r.need ? 'needs: ' + r.need : '')))),
       h('div', { class: 'tm-t' }, r.items.length ? r.items.map(x => h('small', null, x)) : h('small', null, r.state === 'out' ? '' : 'Nothing posted yet'), r.more ? h('small', null, `and ${r.more} more`) : null),
       h('div', { class: 'tm-n' }, statusDot(r.tone, r.label))))

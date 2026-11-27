@@ -141,10 +141,13 @@ export function oldLocus(ctx, { label = 'Open in old ' + APP_NAME, href, large =
 }
 /** The small "Team only" tag (same look as the kit tabs), with its hover definition. */
 export const teamTag = () => defined(h('span', { class: 'lx-team-tag' }, 'Team only'), 'team_only');
-/** The one row at the top of a page: "What is this page?" on the left, quiet extras on the right.
-    body: text or [{ title, text }] (the help sheet). */
-export function pageTop(body, ...right) {
-  return h('div', { class: 'pd-top' }, pageHelp({ body }), h('span', { class: 'lx-sp' }), ...right);
+/** The one row at the top of a page, the same layout as the Creative pages' help row: the source chip and its quiet
+    line on the left; the "Team only" tag, its link or button, then "What is this page?" on the right.
+    body: text or [{ title, text }] (the help sheet). extras: nodes in any order; buttons and the team tag go right. */
+export function pageTop(body, ...extras) {
+  const list = extras.filter(Boolean);
+  const isRight = n => !!(n && n.nodeType === 1 && (n.matches('.lx-btn, a, button, .lx-team-tag') || n.querySelector('.lx-team-tag')));
+  return h('div', { class: 'pd-top' }, h('div', { class: 'l' }, ...list.filter(n => !isRight(n))), h('span', { class: 'lx-sp' }), ...list.filter(isRight), pageHelp({ body }));
 }
 /** A status dot that explains itself on hover or tap. */
 export const dotDef = (dot, name, definition) => defined(dot, { name, definition });
@@ -154,17 +157,23 @@ export const lucide = name => svgNode(icon(name));
 
 /* ---------- layout rules ---------- */
 const CSS = `
-.pd-tools{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.pd-tools{display:flex;gap:12px 16px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap}
+.pd-th h2{margin:0;font-size:var(--fs-section,17px);font-weight:600;line-height:1.25}
+.pd-th p{margin:2px 0 0;font-size:var(--fs-small,12.5px);color:var(--muted)}
+.pd-filt{max-width:100%;overflow-x:auto;scrollbar-width:none}
+.pd-filt .lx-seg button{white-space:nowrap}
 .pd-top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;min-width:0}
 .pd-top>.cr-quiet,.pd-top>.note{font-size:13px;color:var(--muted)}
-.pd-kpi-go{cursor:pointer;border-radius:12px;transition:background var(--t) var(--ease)}
-.pd-kpi-go:hover{background:var(--row-hover)}
+.pd-top>.l{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;min-width:0}
+.pd-top>.l>.cr-quiet,.pd-top>.l>.note{font-size:13px;color:var(--muted)}
+.pd-kpi-go{cursor:pointer;transition:box-shadow var(--t) var(--ease)}
+.pd-kpi-go:hover{box-shadow:var(--sh-2)}
 .pd-kpi-go:focus-visible{outline:2px solid var(--ink-2);outline-offset:2px}
 .pd-sect{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:-12px}
-.pd-sect h2{font-size:18px;font-weight:600;letter-spacing:-.02em}
+.pd-sect h2{font-size:var(--fs-section,17px);font-weight:600;letter-spacing:-.015em}
 .pd-sect>span{font-size:13px;color:var(--muted)}
 .pd-ex{background:var(--warn-bg);color:var(--warn)}
-.pd-pic{position:relative;width:100%;border-radius:10px;overflow:hidden;background:var(--bg-sunk);display:grid;place-items:center;min-width:0}
+.pd-pic{position:relative;width:100%;border-radius:var(--r-chip,6px);overflow:hidden;background:var(--bg-sunk);display:grid;place-items:center;min-width:0}
 .pd-pic>img,.pd-pic>svg{width:100%;height:100%;object-fit:cover;display:block}
 .pd-pic-none{color:var(--icon);display:grid;place-items:center}
 .pd-pic-none .lx-ic{width:22px;height:22px}
@@ -187,13 +196,13 @@ const CSS = `
 
 /* the board */
 .pd-board{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;align-items:start}
-.pd-col{background:var(--band);border-radius:18px;padding:10px;display:grid;grid-template-columns:minmax(0,1fr);gap:10px;min-width:0;align-content:start}
-.pd-col-h{display:flex;justify-content:space-between;align-items:center;padding:6px 6px 0;font-size:13.5px;font-weight:600}
+.pd-col{background:var(--band);border-radius:var(--r-card,16px);padding:10px;display:grid;grid-template-columns:minmax(0,1fr);gap:10px;min-width:0;align-content:start}
+.pd-col-h{display:flex;justify-content:space-between;align-items:center;padding:6px 6px 0;font-size:var(--fs-card,14px);font-weight:600}
 .pd-col-h span{color:var(--muted);font-weight:500;font-variant-numeric:tabular-nums}
 .pd-col-none{padding:4px 6px 8px;font-size:12.5px;color:var(--faint)}
 .pd-col-more{padding:2px 6px 6px;font-size:12.5px;color:var(--muted)}
-.pd-card{display:grid;gap:8px;width:100%;min-width:0;padding:10px;border:0;border-radius:14px;background:var(--surface);box-shadow:var(--sh-1);text-align:left;cursor:pointer;transition:box-shadow var(--t) var(--ease),transform var(--t) var(--ease)}
-.pd-card:hover{box-shadow:var(--sh-2);transform:translateY(-1px)}
+.pd-card{display:grid;gap:8px;width:100%;min-width:0;padding:10px;border:0;border-radius:var(--r-tbl,12px);background:var(--surface);box-shadow:var(--sh-1);text-align:left;cursor:pointer;transition:box-shadow var(--t) var(--ease),transform var(--t) var(--ease)}
+.pd-card:hover{box-shadow:var(--sh-2)}
 .pd-meta{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);min-width:0;flex-wrap:wrap}
 .pd-meta b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
 .pd-meta .lx-stat{margin-left:auto;font-size:11.5px}
@@ -206,6 +215,7 @@ const CSS = `
 
 /* rows of cards in a list (agency pages, coming up) */
 .pd-list{display:flex;flex-direction:column}
+.pd-line:hover{background:var(--row-hover)}
 .pd-line{display:grid;grid-template-columns:54px minmax(0,1fr) auto auto;gap:14px;align-items:center;padding:12px 0;border-top:1px solid var(--line);color:inherit;text-decoration:none;background:none;border-left:0;border-right:0;border-bottom:0;width:100%;text-align:left;cursor:pointer;font:inherit}
 .pd-line:first-child{border-top:0}
 .pd-line .n{font-weight:600;font-variant-numeric:tabular-nums;color:var(--muted)}
@@ -219,7 +229,8 @@ const CSS = `
 /* grids of pictures (creators, library) */
 .pd-grid{display:grid;grid-template-columns:repeat(var(--cols,4),minmax(0,1fr));gap:18px}
 .pd-tile{display:grid;grid-template-columns:minmax(0,1fr);gap:9px;min-width:0;align-content:start;padding:0;border:0;background:none;text-align:left;font:inherit;color:inherit;text-decoration:none;cursor:pointer}
-.pd-tile .pd-pic{border-radius:14px;box-shadow:0 0 0 1px var(--line)}
+.pd-tile .pd-pic{border-radius:var(--r-tbl,12px);box-shadow:0 0 0 1px var(--line)}
+.pd-tile:hover .pd-pic{box-shadow:0 0 0 1px var(--line),var(--sh-2)}
 .pd-tile b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:13.5px;font-weight:600;line-height:1.3;overflow:hidden}
 .pd-tile small{display:block;font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pd-tile q{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:12.5px;color:var(--ink-2);quotes:none;line-height:1.4}
@@ -227,8 +238,8 @@ const CSS = `
 .pd-by>div{min-width:0}
 .pd-search{max-width:280px;flex:1 1 200px}
 .pd-chips{display:flex;gap:6px;flex-wrap:wrap}
-.pd-chips button{height:30px;padding:0 12px;border:0;border-radius:999px;background:var(--bg-sunk);color:var(--ink-2);font-size:13px;font-weight:500;cursor:pointer}
-.pd-chips button.on{background:var(--ink);color:#fff}
+.pd-chips button{height:30px;padding:0 12px;border:0;border-radius:var(--r-chip,6px);background:var(--bg-sunk);color:var(--ink-2);font-size:13px;font-weight:500;cursor:pointer}
+.pd-chips button.on{background:var(--surface);color:var(--ink);box-shadow:var(--sh-1),inset 0 0 0 1px var(--line)}
 .pd-chips button span{margin-left:6px;opacity:.65;font-variant-numeric:tabular-nums}
 .pd-cell{display:flex;align-items:center;gap:10px;min-width:0}
 .pd-cell .pd-pic{width:38px;flex:none;border-radius:8px}

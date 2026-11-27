@@ -11,10 +11,15 @@ import { h, button, card, statusDot, addStyles } from '../../kit.js';
 import { APP_NAME, OLD_LOCUS } from '../../config.js';
 import { loadWaiting } from '../../bell.js';
 
-/** loadWaiting() items as My day rows: { id, text, why, brand, due, btn }. */
+/* the bell's kind as the chip a row carries, the same words as the sub line the bell writes */
+const KIND = { calls: 'Ad calls', google: 'Google suggestions', send: 'To send', war: 'War Room', review: 'Production', load: 'Load ads', requests: 'Requests', alert: 'Alert', release: 'Client message', proposal: 'Suggested change' };
+/** loadWaiting() items as My day rows: { id, text, why, kind, brand, due, btn }. A why that only repeats the kind is dropped. */
 export function agencyRows(w) {
-  return ((w && w.items) || []).map(it => ({ id: 'agency:' + it.id, source: 'agency', text: it.text, why: it.by || '', brand: it.brand || '', due: 'Today',
-    btn: { label: it.btn && it.btn.label || 'Open', href: it.btn && it.btn.href || '#' } }));
+  return ((w && w.items) || []).map(it => {
+    const kind = KIND[it.kind] || null, why = it.by || '';
+    return { id: 'agency:' + it.id, source: 'agency', text: it.text, kind, why: kind && why.toLowerCase() === kind.toLowerCase() ? '' : why, brand: it.brand || '', due: 'Today',
+    btn: { label: it.btn && it.btn.label || 'Open', href: it.btn && it.btn.href || '#' } };
+  });
 }
 
 const isTeam = ctx => !!ctx && !ctx.isClient && ctx.role !== 'client';

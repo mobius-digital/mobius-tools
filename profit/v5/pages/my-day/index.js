@@ -9,7 +9,7 @@
    box and "I'm out today" write the check-in itself (POST /api/mywork/plan), and the "no plan yet" line opens the box. */
 
 import { put } from '../../kit.js';
-import { h, button, takeaway, kpis, kpi, statusDot, segmented, toast, sheet, field, em } from '../../kit.js';
+import { h, button, takeaway, tiles, kpi, statusDot, segmented, toast, sheet, field, em } from '../../kit.js';
 import { OLD_LOCUS, APP_NAME } from '../../config.js';
 import { css, face, ic, heading, store } from './_ui.js';
 import { lineButtons, css as gsCss } from '../get-started/_ui.js';
@@ -119,12 +119,12 @@ function row(r, ctx, { primary, onDone }) {
     : b.nudge ? button(b.label, { onclick: () => toast(ctx.sample ? 'Sample numbers: no nudge was sent.' : 'Nudges come with the notifications release.') })
     : button(b.label || 'Open', { primary, icon: primary ? 'arrow' : null, href: hrefOf(b, ctx) || '#', target: b.out ? '_blank' : null });
   return h('div', { class: 'lx-md-row', dataset: { id: r.id } },
-    h('div', { class: 'what' }, h('b', null, r.text), h('span', { class: 'why' }, r.who && face({ name: r.who }, 22), h('span', null, r.why))),
-    h('span', { class: 'brand' }, brandWord(r.brand)), h('span', { class: 'due' + (r.late ? ' late' : '') }, r.due), h('span', { class: 'go' }, go));
+    h('div', { class: 'what' }, h('b', null, r.text), h('span', { class: 'why' }, r.kind ? h('span', { class: 'lx-md-k' }, r.kind) : null, r.who && face({ name: r.who }, 22), r.why ? h('span', null, r.why) : null)),
+    h('span', { class: 'brand' }, brandWord(r.brand)), h('span', { class: 'due' + (r.late ? ' late' : '') }, r.due), h('span', { class: 'go' + (primary ? ' main' : '') }, go));
 }
 
 function group(title, rows, ctx, opts, emptyText) {
-  return h('section', { class: 'lx-md-grp' }, heading(title, rows ? rows.length : null),
+  return h('section', { class: 'lx-card lx-md-grp' }, heading(title, rows ? rows.length : null),
     rows == null ? h('p', { class: 'lx-md-none' }, 'Not connected yet. Open requests and cards waiting on others will list here.')
       : rows.length ? rows.map((r, i) => row(r, ctx, { ...opts, primary: !!opts.lead && i === 0 }))
       : h('p', { class: 'lx-md-none' }, emptyText));
@@ -160,9 +160,9 @@ function draw(el, data, ctx) {
     ] }),
     h('span', { class: 'lx-sp' }),
     h('div', { class: 'lx-md-acts' }, outBtn, h('button', { class: 'lx-btn', type: 'button', onclick: () => addTask(el, d, ctx) }, ic('plus'), 'Task')));
-  const hero = h('section', { class: 'lx-hero line lx-md-hero' },
-    kpis([
-      kpi({ label: 'Need you today', value: String(T.length), sub: lateN ? statusDot('bad', lateN + (lateN === 1 ? ' is late' : ' are late')) : T.length ? 'none late' : 'all clear' }),
+  const hero = h('div', { class: 'lx-md-hero' },
+    tiles([
+      kpi({ label: 'Needs you today', value: String(T.length), sub: lateN ? statusDot('bad', lateN + (lateN === 1 ? ' is late' : ' are late')) : T.length ? 'none late' : 'all clear' }),
       kpi({ label: 'Clients waiting', value: d.clients_waiting ? String(d.clients_waiting.n) : 'not connected', sub: d.clients_waiting ? d.clients_waiting.sub : 'Requests did not answer' }),
       kpi({ label: 'Due this week', value: String(W.length), sub: W.length ? 'next one ' + W[0].due : 'nothing else this week' }),
       kpi({ label: 'Waiting on someone else', value: X ? String(X.length) : 'not connected', sub: X && X.length ? statusDot(oldest >= 7 ? 'warn' : '', 'oldest ' + oldest + (oldest === 1 ? ' day' : ' days')) : X ? 'nothing is stuck' : '' }),
@@ -229,11 +229,12 @@ function draw(el, data, ctx) {
       : h('p', { class: 'lx-md-quiet' }, 'No meetings today.'),
     mb ? button(mb.label, { href: hrefOf(mb, ctx) || '#', class: 'wide' }) : null);
   const D = d.done || [];
-  const done = h('section', { class: 'lx-md-doneb' }, heading(d.done_title || 'Done today', D.length),
+  const done = h('section', { class: 'lx-card lx-md-doneb' }, heading(d.done_title || 'Done today', D.length),
     D.length ? D.map(x => h('div', { class: 'lx-md-done' }, ic('check'), h('span', null, x.text, x.at && h('span', { class: 'lx-md-sub' }, x.at))))
       : h('p', { class: 'lx-md-quiet' }, 'Nothing ticked off yet.'));
 
   const t = d.take;
+  ctx.askContext = 'My day for ' + (person.name || 'this person') + ': ' + T.length + ' need them today (' + lateN + ' late), ' + W.length + ' due this week, ' + (X ? X.length : 0) + ' waiting on someone else' + (d.clients_waiting ? ', ' + d.clients_waiting.n + ' clients waiting' : '') + '.' + (T[0] ? ' First: ' + T[0].text + '.' : '');
   put(el, bar, hero,
     team ? liveNote(ctx) : null,
     t ? takeaway(say(t.say), { action: t.action ? button(t.action.label, { href: hrefOf(t.action, ctx) || '#' }) : null }) : '',
@@ -244,7 +245,7 @@ function draw(el, data, ctx) {
 function agencyGroup(a, f, ctx) {
   const rows = a && a.rows;
   const note = a && a.failed && a.failed.length ? 'Could not read: ' + a.failed.join(', ') : null;
-  return h('section', { class: 'lx-md-grp' }, heading('Waiting across the agency', rows ? rows.length : null, note),
+  return h('section', { class: 'lx-card lx-md-grp' }, heading('Waiting across the agency', rows ? rows.length : null, note || 'every brand, the same rows as the bell'),
     rows == null ? h('p', { class: 'lx-md-none' }, 'Reading every brand.')
       : f(rows).length ? f(rows).map(r => row(r, ctx, { primary: false, onDone: () => {} }))
       : h('p', { class: 'lx-md-none' }, note ? 'Nothing found in what could be read.' : 'Nothing is waiting on the team.'));
@@ -293,11 +294,22 @@ addStyles('lx-md-page-css', `
 .lx-md-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:var(--sp-4)}
 .lx-md-go2{flex-direction:column;align-items:flex-end;gap:4px}
 .lx-md-more{display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap}
-.lx-md-row .go .lx-btn.lx-md-link{height:auto;padding:0;border:0;background:none;box-shadow:none;font-size:12.5px;font-weight:500;color:var(--muted);text-decoration:underline;text-underline-offset:3px}
-.lx-md-row .go .lx-btn.lx-md-link:hover{color:var(--ink)}
+.lx-md-row .go .lx-btn.lx-md-link{height:auto;padding:0;border:0;background:none;box-shadow:none;font-size:12.5px;font-weight:500;color:var(--muted)}
+.lx-md-row .go .lx-btn.lx-md-link:hover{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+/* the lists sit in cards (batch 1 look): card title size, warm gray row hover */
+.lx-md-main{gap:var(--gap-5,24px)}
+.lx-card.lx-md-grp .lx-md-h h2,.lx-card.lx-md-doneb .lx-md-h h2,.lx-md-band .lx-md-h h2{font-size:var(--fs-card,14px);letter-spacing:-.01em}
+.lx-card.lx-md-grp .lx-md-h .note{margin-left:0;color:var(--muted);font-size:var(--fs-small,12.5px)}
+.lx-card.lx-md-grp .lx-md-row{position:relative}
+.lx-card.lx-md-grp .lx-md-row:hover{background:var(--row-hover);box-shadow:-12px 0 0 var(--row-hover),12px 0 0 var(--row-hover)}
+.lx-card.lx-md-doneb{padding:18px 22px}
+.lx-md-done:first-of-type{padding-top:4px}
+.lx-md-hero{margin-bottom:0}
 .lx-md-pick{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
 .lx-md-pick select{height:34px;width:auto;min-width:200px;font-size:13.5px}
 @media (max-width:759px){
+  .lx-card.lx-md-grp .lx-md-h .note{display:none}
+  .lx-card.lx-md-grp .lx-md-row:hover{box-shadow:none}
   .lx-md-go2{align-items:stretch}
   .lx-md-more{justify-content:flex-start}
   .lx-md-row .go .lx-btn.lx-md-link{width:auto;height:auto}

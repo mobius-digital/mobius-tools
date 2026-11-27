@@ -60,7 +60,7 @@ function draw(el, data, ctx) {
       ex.length ? table({ cols: [
         { key: 'name', label: 'Brand', render: r => h('b', null, r.name) },
         { key: 'diff', label: 'Its own numbers', render: r => h('span', { class: 'lx-hw-chips' }, r.diff.map(x => h('span', { class: 'lx-chip' }, chipText(x)))) },
-        { key: 'go', label: '', num: true, class: 'hide-sm', render: r => h('a', { href: '#/brand/' + String(r.id).replace(/^brand_/, '').replace(/_/g, '-') + '/brand-settings/goals' }, 'Open') },
+        { key: 'go', label: '', num: true, class: 'hide-sm', render: r => h('a', { class: 'lx-hw-open', href: '#/brand/' + String(r.id).replace(/^brand_/, '').replace(/_/g, '-') + '/brand-settings/goals', 'aria-label': 'Open ' + (r.name || 'this brand') + ' goals' }, 'Open', h('span', { 'aria-hidden': 'true' }, ' ›')) },
       ], rows: ex }) : null),
     fold('Advanced', 'Guards rarely touched',
       say('An opener ad counts as working at ', n('opener_x', 1.3, { suffix: 'x', step: 0.1, label: 'Opener first click' }), ' first click and ', n('opener_sales', 2, { label: 'Opener sales' }), ' sales.'),
@@ -75,6 +75,7 @@ export default {
   title: ['How do we ', em('run ads?')],
   eyebrow: 'Agency settings',
   ranges: false,
+  stamp: false,                  /* a form or a conversation, not numbers: no "updated" stamp in the head */
   async load(ctx) {
     const list = (ctx.brands || []).slice(0, 40);
     const got = await Promise.all(list.map(b => ctx.api('/api/brand/rules?act=' + encodeURIComponent(b.id), { signal: ctx.signal }).then(j => ({ b, r: j.rules || {} })).catch(e => { if (e && e.name === 'AbortError') throw e; return null; })));
@@ -94,4 +95,6 @@ export default {
 };
 
 import { addStyles } from '../../kit.js';
-addStyles('lx-hw-css', `.lx-hw-chips{display:inline-flex;gap:6px;flex-wrap:wrap}`);
+addStyles('lx-hw-css', `.lx-hw-chips{display:inline-flex;gap:6px;flex-wrap:wrap}
+.lx-hw-open{font-size:13px;font-weight:600;color:var(--ink-2);text-decoration:none;white-space:nowrap}
+.lx-hw-open:hover{color:var(--ink);text-decoration:underline}`);

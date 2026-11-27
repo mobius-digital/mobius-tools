@@ -14,32 +14,29 @@ import { APP_NAME } from '../../config.js';
 import { put } from '../../kit.js';
 import { h, em, empty, card, table, statusDot, avatar } from '../../kit.js';
 import { css, stage, saveBar, group, row, fold, setHelp, onOff, pick, numBox, textBox } from '../brand-settings/_set.js';
-import { defLabel } from '../../defs.js';
-
-const DEF = {
-  connected: { title: 'Connected', body: 'Connections working, out of the ones this brand needs (store, Triple Whale, each ad account, email and the rest). Open the brand, Integrations, to see which.' },
-  paused: { title: 'Paused', body: 'A paused brand stops its daily work: no briefs, calls or client posts until it runs again. Its history is kept. Saving asks first.' },
-  hide: { title: 'Hide from team', body: 'Takes the brand off team screens and lists without pausing it. Its work and client posts carry on.' },
-};
+import { countTiles, look } from './_look.js';
 
 const slugOf = id => String(id || '').replace(/^brand_/, '').replace(/_/g, '-');
 
 function draw(el, data, ctx) {
-  css();
+  css(); look();
   const brands = (data && data.brands) || [];
   if (!brands.length) return put(el, empty({ title: 'No clients yet', text: 'A brand shows here once its ad account or store is connected.' }));
   const d = data.defaults || {}, real = !ctx.sample;
   const k = (id, n) => 'brand:' + id + '.' + n;
-  const sum = h('div', { class: 'lx-st-sum' });
+  const sum = h('div');
   const paintSum = () => {
     const active = brands.filter(b => b.status === 'active').length;
     const paused = brands.filter(b => b.status === 'paused').length, demo = brands.filter(b => b.status === 'demo').length;
     const logins = brands.reduce((n, b) => n + (b.logins || 0), 0);
-    put(sum,
-      h('span', { class: 'lx-big' }, active + ' running' + (paused ? ', ' + paused + ' paused' : ''), h('small', null, 'clients')),
-      h('span', { class: 'lx-sp' }),
-      demo ? statusDot('off', demo + (demo === 1 ? ' demo' : ' demos')) : null,
-      statusDot(logins ? 'good' : 'off', logins + (logins === 1 ? ' client login' : ' client logins')));
+    /* running brands only, the same count Client list shows (a paused brand is not listed there) */
+    const none = brands.filter(b => b.status === 'active' && !b.logins).length;
+    put(sum, countTiles([
+      { label: 'Running', value: String(active), sub: active === 1 ? 'client brand' : 'client brands', window: 'Right now', source: 'Brand list' },
+      { label: 'Paused', value: String(paused), sub: paused ? 'no briefs, calls or client posts' : 'none paused', window: 'Right now', source: 'Brand list' },
+      { label: 'Client logins', value: String(logins), sub: none ? statusDot('warn', none + (none === 1 ? ' running brand has none' : ' running brands have none')) : 'every running brand has one', window: 'Right now', source: 'Client logins' },
+      demo ? { label: 'Demo brands', value: String(demo), sub: 'not real clients', window: 'Right now', source: 'Brand list' } : null,
+    ], { cols: demo ? 4 : 3 }));
   };
   /* Through data.js saveSetting, so the session's cached agency settings are cleared too. */
   const savers = { 'agency.briefClientStyle': async v => { await ctx.saveSetting('agency.briefClientStyle', v); d.client_style = v; } };
@@ -63,30 +60,44 @@ function draw(el, data, ctx) {
   }
   const S = stage(ctx, { live, savers, names });
 
+  const leadOf = b => b.lead ? h('span', { class: 'lx-st-who' }, avatar({ name: b.lead }, { size: 24 }), h('span', null, b.lead)) : h('span', { class: 'lx-foot' }, 'Nobody yet');
+  const loginsOf = b => b.logins ? String(b.logins) : 'None';
+  const connOf = b => statusDot(b.connected.ok === b.connected.of ? 'good' : 'warn', b.connected.ok + ' of ' + b.connected.of);
   const list = table({
     cols: [
-      { key: 'name', label: 'Brand', sortable: true, render: b => h('a', { class: 'lx-cl-name', href: '#/brand/' + slugOf(b.id) + '/brand-settings/goals' }, h('i', { style: { background: b.color || 'var(--ink)' } }), b.name) },
-      { key: 'lead', label: 'Account lead', class: 'hide-sm', render: b => b.lead ? h('span', { class: 'lx-st-who' }, avatar({ name: b.lead }, { size: 24 }), h('span', null, b.lead)) : h('span', { class: 'lx-foot' }, 'Nobody yet') },
-      { key: 'logins', label: 'Client logins', num: true, class: 'hide-md', value: b => b.logins || 0, render: b => b.logins ? String(b.logins) : 'None' },
-      { key: 'connected', label: defLabel('Connected', DEF.connected), class: 'hide-md', render: b => b.connected == null ? '' : statusDot(b.connected.ok === b.connected.of ? 'good' : 'warn', b.connected.ok + ' of ' + b.connected.of) },
-      { key: 'paused', label: defLabel('Paused', DEF.paused), num: true, render: b => canPause(b) ? onOff(S, k(b.id, 'paused'), b.status === 'paused', 'Pause ' + b.name)
+      { key: 'name', label: 'Brand', sortable: true, render: b => h('div', { class: 'lx-cl-cell' },
+        h('a', { class: 'lx-cl-name', href: '#/brand/' + slugOf(b.id) + '/brand-settings/goals' }, h('i', { style: { background: b.color || 'var(--ink)' } }), b.name),
+        /* on a phone the columns that leave stack here as label and value lines, the Hide from team switch too */
+        h('dl', { class: 'lx-cl-more' },
+          h('div', null, h('dt', null, 'Account lead'), h('dd', null, leadOf(b))),
+          h('div', null, h('dt', null, 'Client logins'), h('dd', null, loginsOf(b))),
+          b.connected == null ? null : h('div', null, h('dt', null, 'Connected'), h('dd', null, connOf(b))),
+          real ? null : h('div', null, h('dt', null, 'Hide from team'), h('dd', null, onOff(S, k(b.id, 'hide_team'), !!b.hidden, 'Hide ' + b.name + ' from team screens'))))) },
+      { key: 'lead', label: 'Account lead', class: 'hide-sm', render: leadOf },
+      { key: 'logins', label: 'Client logins', num: true, class: 'hide-sm', value: b => b.logins || 0, render: loginsOf },
+      { key: 'connected', label: 'Connected', class: 'hide-sm', render: b => b.connected == null ? '' : connOf(b) },
+      { key: 'paused', label: 'Paused', num: true, render: b => canPause(b) ? onOff(S, k(b.id, 'paused'), b.status === 'paused', 'Pause ' + b.name)
         : h('span', { class: 'lx-foot' }, b.status === 'demo' ? 'Demo' : b.status === 'paused' ? 'Paused' : 'Running') },
-      real ? null : { key: 'hide', label: defLabel('Hide from team', DEF.hide), num: true, class: 'hide-sm', render: b => onOff(S, k(b.id, 'hide_team'), !!b.hidden, 'Hide ' + b.name + ' from team screens') },
+      real ? null : { key: 'hide', label: 'Hide from team', num: true, class: 'hide-sm', render: b => onOff(S, k(b.id, 'hide_team'), !!b.hidden, 'Hide ' + b.name + ' from team screens') },
       { key: 'open', label: '', num: true, render: b => h('a', { class: 'lx-cl-open', href: '#/brand/' + slugOf(b.id) + '/brand-settings/goals', 'aria-label': 'Open ' + b.name + ' settings' }, 'Open', h('span', { 'aria-hidden': 'true' }, ' ›')) },
     ].filter(Boolean),
     rows: brands, sort: { key: 'name', dir: 'asc' }, roomy: true,
   });
   paintSum();
 
-  put(el, h('div', { class: 'lx-st' },
+  put(el, h('div', { class: 'lx-st adm' },
     saveBar(S, ctx, { help: setHelp({
       about: 'Every client brand, one row each. Open a brand to set its goals, people and sending. Below: what every client gets by default.',
       fixed: [
         ['A client sees', 'Their own brands only', 'Never another client, goals, rules, the team or suggestions.'],
         ['Client sign in', 'Google or an email link', 'No passwords. A sign in lasts 30 days.'],
-        ['A paused brand', 'Stops its daily work', 'No briefs, calls or posts until it runs again. Its history is kept.'],
-      ] }), note: real ? (ctx.role === 'owner' ? 'Pausing a brand and what a client reads save for everyone, after a check.' : 'What a client reads saves for everyone, after a check. Only the owner pauses a brand.') : undefined }),
-    h('section', { class: 'lx-hero line' }, sum),
+        ['A paused brand', 'Stops its daily work', 'No briefs, calls or posts until it runs again. Its history is kept. Saving asks first.'],
+      ],
+      sections: [
+        { title: 'Connected', text: 'Connections working, out of the ones this brand needs (store, Triple Whale, each ad account, email and the rest). Open the brand, Integrations, to see which.' },
+        real ? null : { title: 'Hide from team', text: 'Takes the brand off team screens and lists without pausing it. Its work and client posts carry on.' },
+      ].filter(Boolean) }), note: real ? (ctx.role === 'owner' ? 'Pausing a brand and what a client reads save for everyone, after a check.' : 'What a client reads saves for everyone, after a check. Only the owner pauses a brand.') : undefined }),
+    sum,
     card({ title: 'Every client', note: 'Open a brand to set its goals, people and sending', flush: true, class: 'lx-st-card lx-cl' }, list),
     group('What every client gets', real ? 'The agency default.' : 'The agency default. A brand can change its own in People and sending.',
       real ? null : row('Client messages are sent as', 'The name a client sees on a Slack post or an email.', pick(S, 'agency.clientSender', d.sender || 'owner', [{ id: 'owner', label: 'The owner' }, { id: 'lead', label: 'Each brand’s account lead' }, { id: 'agency', label: 'The agency' }], { label: 'Client messages are sent as', width: 230 })),
@@ -133,4 +144,10 @@ addStyles('lx-cl-css', `
 .lx-cl .lx-table tbody tr:hover td{background:var(--row-hover)}
 .lx-cl-open{font-size:13px;font-weight:600;color:var(--ink-2);text-decoration:none;white-space:nowrap}
 .lx-cl-open:hover{color:var(--ink)}
+.lx-cl-cell{display:grid;gap:8px;min-width:0}
+.lx-cl-more{display:none;margin:0;gap:6px}
+.lx-cl-more>div{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:28px}
+.lx-cl-more dt{font-size:12.5px;color:var(--muted)}
+.lx-cl-more dd{margin:0;font-size:13px;text-align:right}
+@media (max-width:759px){.lx-cl-more{display:grid}}
 `);

@@ -12,7 +12,7 @@
    A product with no stock count says "Not tracked". It never shows a zero for something it cannot read. */
 
 import { put } from '../../kit.js';
-import { h, em, card, kpi, kpis, delta, takeaway, button, table, statusDot, sheet, exampleChip, empty, skeleton, addStyles, pct, num } from '../../kit.js';
+import { h, em, card, kpi, kpis, tiles, delta, takeaway, button, table, statusDot, sheet, exampleChip, empty, skeleton, addStyles, pct, num } from '../../kit.js';
 import { css, usd, roas, change, say, splitBar, lockBox, loadTotals, winLabel, wasText } from './_ui.js';
 import { def, headRow } from '../platforms/_ads.js';
 import { askWhy } from '../home/_biz.js';
@@ -74,18 +74,18 @@ function lead(k, w) {
   const r = div(k.ad_sales, k.spend), dSales = change(k.sales, k.sales_prev), dSpend = change(k.spend, k.spend_prev);
   const na = text => h('span', { class: 'az-na' }, text);
   const rest = ok(k.sales) && ok(k.ad_sales) ? Math.max(0, k.sales - k.ad_sales) : null;
-  return h('section', { class: 'lx-hero line az-kpis' },
-    kpis([
-      ok(k.sales) ? kpi({ label: 'Amazon sales, ' + wl, value: usd(k.sales), size: 'lg', delta: dSales != null && delta(dSales, { bad: dSales < 0 }), sub: ok(k.sales_prev) && wasText(k.sales_prev, w, usd) })
-        : kpi({ label: 'Amazon sales', value: na('Not connected'), size: 'lg', sub: 'No sales source connected' }),
-      ok(k.spend) ? kpi({ label: def('Amazon ad spend, ' + wl, 'ad_spend'), value: usd(k.spend), size: 'lg', delta: dSpend != null && delta(dSpend, { plain: true }), sub: ok(k.spend_prev) && wasText(k.spend_prev, w, usd) })
-        : kpi({ label: 'Ad spend', value: na('No ads ran'), size: 'lg', sub: 'no Amazon ad spend in these dates' }),
-      kpi({ label: def('Sales that came through an ad', { title: 'Through an ad', body: "Ad sales (Amazon Ads' own count) as a share of all Amazon sales." }), value: ok(adShare) ? pct(adShare) : na('No data'), size: 'lg',
+  return h('section', { class: 'az-ret' },
+    tiles([
+      ok(k.sales) ? kpi({ label: 'Amazon sales', value: usd(k.sales), window: wl, source: 'Triple Whale', delta: dSales != null && delta(dSales, { bad: dSales < 0 }), sub: ok(k.sales_prev) && wasText(k.sales_prev, w, usd) })
+        : kpi({ label: 'Amazon sales', value: na('Not connected'), sub: 'No sales source connected' }),
+      ok(k.spend) ? kpi({ label: 'Amazon ad spend', value: usd(k.spend), window: wl, source: 'Triple Whale', delta: dSpend != null && delta(dSpend, { plain: true }), sub: ok(k.spend_prev) && wasText(k.spend_prev, w, usd) })
+        : kpi({ label: 'Ad spend', value: na('No ads ran'), sub: 'no Amazon ad spend in these dates', window: wl }),
+      kpi({ label: def('Sales that came through an ad', { title: 'Through an ad', body: "Ad sales (Amazon Ads' own count) as a share of all Amazon sales." }), value: ok(adShare) ? pct(adShare) : na('No data'), window: wl, source: "Amazon Ads' own count",
         sub: ok(k.ad_sales) ? usd(k.ad_sales) + ' of ad sales' : 'needs both sales and ad sales' }),
-      kpi({ label: def('TACOS', 'tacos'), value: ok(tacos) ? pct(tacos, { digits: 1 }) : na('No data'), size: 'lg', sub: ok(r) ? 'ROAS ' + roas(r) : '' }),
+      kpi({ label: def('TACOS', 'tacos'), value: ok(tacos) ? pct(tacos, { digits: 1 }) : na('No data'), sub: ok(r) ? 'ROAS ' + roas(r) : '', window: wl, source: 'Triple Whale' }),
     ], { cols: 4 }),
-    ok(rest) && k.sales > 0 ? h('div', null,
-      splitBar([{ value: k.ad_sales, color: 'var(--ink)' }, { value: rest, color: 'var(--line-strong)' }],
+    ok(rest) && k.sales > 0 ? card({ title: 'Sales through an ad, and without one', note: wl + " · sales Triple Whale, ad sales Amazon Ads' own count" },
+      splitBar([{ value: k.ad_sales, color: 'var(--brand)' }, { value: rest, color: 'var(--line-strong)' }],
         { thin: true, label: `Amazon sales split: ${usd(k.ad_sales)} through an ad, ${usd(rest)} without one` }),
       h('div', { class: 'az-ends' }, h('span', null, h('b', null, usd(k.ad_sales)), ' through an ad'), h('span', null, h('b', null, usd(rest)), ' without one'))) : null);
 }
@@ -131,12 +131,12 @@ function productsCard(d, rows) {
     rows, sort: { key: 'sales', dir: 'desc' }, total: { ...t, total: true },
     onRow: r => openProduct(r, d), empty: 'No products sold on Amazon in these dates',
   });
-  return card({ title: 'Product by product', note: 'tap a product for its numbers', flush: true, class: 'azp-tbl', action: d.example ? exampleChip() : null }, tbl);
+  return card({ title: 'Product by product', note: winLabel(d.window) + " · sales Triple Whale, ad sales Amazon Ads' own count · tap a product", flush: true, class: 'azp-tbl', action: d.example ? exampleChip() : null }, tbl);
 }
 
 export default {
   /* the plain question, drawn by the shell above the tabs */
-  title: ['Which products ', em('lean on ads?')],
+  title: 'Amazon products',
   eyebrow: 'Amazon',
 
   async load(ctx) {

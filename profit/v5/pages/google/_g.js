@@ -16,7 +16,7 @@
 
 import { info } from '../platforms/_ads.js';
 import { exampleChip as kitExampleChip } from '../../kit.js';
-import { h, svgNode, addStyles, card, button, empty, statusDot, gauge, money, num, pct, x } from '../../kit.js';
+import { h, svgNode, addStyles, card, button, empty, statusDot, gauge, kpi, tiles, money, num, pct, x } from '../../kit.js';
 import { icon } from '../../icons.js';
 import { AI_NAME } from '../../config.js';
 import { askWhy } from '../home/_biz.js';
@@ -42,11 +42,19 @@ const CSS = `
 .gg-status .r{margin-left:auto}
 .gg-figs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--sp-8)}
 .gg-figs.three{grid-template-columns:repeat(3,minmax(0,1fr))}
-.gg-figs .lx-kpi .v{font-size:var(--num-xl)}
+.gg-ret{display:grid;gap:var(--gap-3,12px);min-width:0}
+.gg-ret .lx-sec h2{margin:0}
+.gg-tl{font-size:var(--fs-colhead,11.5px);font-weight:600;color:var(--muted)}
+.gg-lab{display:inline-flex;align-items:center;gap:6px;min-width:0}
+.gg-tiles .lx-gauge{margin-top:auto;padding-top:12px}
 .gg-figs .lx-kpi .v small{font-size:13px;font-weight:500;letter-spacing:0;color:var(--muted);margin-left:8px}
 .gg-figs .lx-kpi .s{flex-wrap:wrap}
 .gg-figs .lx-gauge{margin-top:14px}
 .gg-figs .says{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.gg-says2{display:block;width:100%;font-size:var(--fs-small,12.5px);color:var(--muted);font-variant-numeric:tabular-nums}
+.gg-legend{margin:10px 0 0;font-size:var(--fs-small,12.5px);color:var(--muted);line-height:1.5}
+.gg-legend b{display:inline-grid;place-items:center;width:17px;height:17px;margin-right:5px;border-radius:50%;background:var(--bg-sunk);color:var(--ink);font-size:11px;font-weight:600}
+.gg-legend span{margin-right:14px}
 .gg-ex{margin-left:auto;flex:none}
 .lx-sec .gg-ex{margin-left:0}
 .gg-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-6);align-items:stretch}
@@ -58,7 +66,7 @@ const CSS = `
 .gg-ctype{display:flex;align-items:center;gap:8px;margin-top:2px;font-size:12px;color:var(--muted)}
 .gg-more-cols{display:flex;justify-content:flex-end;padding:10px 24px 14px}
 .gg-sh{display:grid;gap:16px}.gg-sh .g{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-.gg-sh .g>div{display:grid;gap:3px;padding:12px 14px;border-radius:12px;background:var(--surface-2)}.gg-sh .g .l{font-size:12px;color:var(--muted)}
+.gg-sh .g>div{display:grid;gap:3px;padding:12px 14px;border-radius:var(--r-tbl,12px);background:var(--surface-2)}.gg-sh .g .l{font-size:12px;color:var(--muted)}
 .gg-sh .g b{font-size:var(--num-s);font-variant-numeric:tabular-nums}
 @media (max-width:759px){.gg-sh .g{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .gg-camps .lx-table td.num{white-space:nowrap}
@@ -68,8 +76,8 @@ const CSS = `
 .gg-test-n{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
 .gg-test-n span{display:grid;gap:3px}
 .gg-test-n b{font-size:18px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.gg-wait{display:flex;align-items:center;gap:14px;padding:14px 8px;margin:0 -8px;border-top:1px solid var(--line);color:inherit;text-decoration:none;border-radius:10px}
-a.gg-wait:hover{background:var(--bg-sunk)}
+.gg-wait{display:flex;align-items:center;gap:14px;padding:14px 8px;margin:0 -8px;border-top:1px solid var(--line);color:inherit;text-decoration:none;border-radius:var(--r-btn,10px)}
+a.gg-wait:hover{background:var(--row-hover)}
 .gg-wait:first-of-type{border-top:0;padding-top:0}
 .gg-wait .tx{min-width:0;flex:1}
 .gg-wait .tx b{display:block;font-size:14.5px;font-weight:600}
@@ -84,7 +92,7 @@ a.gg-wait:hover{background:var(--bg-sunk)}
 .gg-sw.g{background:var(--line-strong)}
 .gg-terms .lx-table td{white-space:normal}
 .gg-terms .lx-table td.num{white-space:nowrap}
-.gg-terms tr:has(.gg-th) td{background:var(--band);font-weight:600}
+.gg-terms tr:has(.gg-th) td{background:var(--surface-2);font-weight:600}
 .gg-th{font-weight:600}
 .gg-th small{margin-left:10px;font-size:12.5px;font-weight:400;color:var(--muted)}
 .gg-term{padding-left:16px;display:block}
@@ -109,7 +117,7 @@ a.gg-wait:hover{background:var(--bg-sunk)}
 .gg-sm .v{display:flex;align-items:baseline;gap:8px}.gg-sm .v b{font-size:var(--num-m);font-weight:600;font-variant-numeric:tabular-nums}
 .gg-sm .v b.bad{color:var(--bad)}.gg-sm .v b.good{color:var(--good)}.gg-sm .v span,.gg-sm .per{color:var(--muted);font-size:12px}
 .gg-n{display:flex;align-items:baseline;gap:12px;color:var(--muted);font-size:13.5px}
-.gg-n b{font-size:var(--num-xl);font-weight:600;letter-spacing:-.04em;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
+.gg-n b{font-size:var(--num-l);font-weight:600;letter-spacing:-.03em;line-height:1.1;color:var(--ink);font-variant-numeric:tabular-nums}
 .gg-day{display:grid;grid-template-columns:92px minmax(0,1fr);gap:8px 22px;padding:18px 0;border-top:1px solid var(--line)}
 .gg-day:first-of-type{border-top:0;padding-top:4px}
 .gg-day .d{font-size:13px;font-weight:600;color:var(--ink-2);padding-top:2px}
@@ -124,8 +132,8 @@ a.gg-wait:hover{background:var(--bg-sunk)}
 .gg-more summary{cursor:pointer;font-size:13.5px;font-weight:500;color:var(--ink-2)}
 .gg-more .gg-chg .tx b{font-weight:450;font-size:13.5px}
 .gg-rules{margin:0;padding-left:20px;display:grid;gap:6px;font-size:14px;color:var(--ink-2)}
-.gg-strip{display:flex;align-items:center;gap:16px;padding:18px 22px;border-radius:18px;background:var(--band)}
-.gg-strip .ic{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:var(--surface);box-shadow:0 0 0 1px var(--line)}
+.gg-strip{display:flex;align-items:center;gap:16px;padding:18px 22px;border-radius:var(--r-card,16px);background:var(--band)}
+.gg-strip .ic{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:var(--r-tbl,12px);background:var(--surface);box-shadow:0 0 0 1px var(--line)}
 .gg-strip .tx{min-width:0;flex:1}
 .gg-strip .tx b{display:block;font-size:15px;font-weight:600}
 .gg-strip .tx span{font-size:13px;color:var(--muted)}
@@ -163,7 +171,6 @@ a.gg-wait:hover{background:var(--bg-sunk)}
   .gg-chg .tx{flex-basis:calc(100% - 90px)}
   .gg-chg .ba{text-align:left;padding-left:88px;width:100%}
   .gg-chg .ba b{display:inline;margin-right:6px}
-  .gg-n b{font-size:var(--num-xl)}
 }`;
 export function styles() { addStyles('gg-css', CSS); }
 
@@ -177,15 +184,21 @@ export function strip({ ic = 'google', title, text, action }) {
   return h('div', { class: 'gg-strip' }, h('span', { class: 'ic' }, svgNode(icon(ic))), h('span', { class: 'tx' }, h('b', null, title), h('span', null, text)), action || null);
 }
 
-/** One big figure: label (with a small source tag), value, ONE line under it, and an optional gauge.
-    says / more: extra words that used to be a second and third line; they live in the (i) beside the label now. */
-export function fig({ label, src, value, small, sub, says, more, extra, href }) {
-  const extraWords = [says, more].filter(Boolean).join('. ');
-  const kids = [h('span', { class: 'l' }, label, src && h('span', { class: 'lx-src' }, src), extraWords ? info({ title: typeof label === 'string' ? label : 'More on this number', body: extraWords }) : null),
-    h('span', { class: 'v' }, value, small && h('small', null, small)),
-    h('span', { class: 's' }, sub || ''), extra || null];
-  return href ? h('a', { class: 'lx-kpi lg', href }, kids) : h('div', { class: 'lx-kpi lg' }, kids);
+/** One figure tile (the batch 1 look): label, value, ONE line under it, the window and source line, an optional gauge.
+    says / more: extra words that live in the (i) beside the label. src: the old small source tag, now the source line.
+    win: the dates ("Nov 1 to 22"); source: "Triple Whale" | "Google Ads" | "Google's own count". */
+export function fig({ label, src, value, small, sub, says, more, extra, href, win, source, spark, sparkLabels, sparkFormat }) {
+  /* one mark per term (brief rule 3): the label carries its own dotted definition, never an (i) beside it. Google's own
+     figure (says) is a labeled second line under the number; the longer working (more) rides on the tile's hover title. */
+  const under = says ? [sub && (Array.isArray(sub) ? sub.some(Boolean) : sub) ? sub : null, h('span', { class: 'gg-says2' }, says)].filter(Boolean) : sub || null;
+  const node = kpi({ label, value, small, sub: under, window: win, source: source || src, href, spark, sparkLabels, sparkFormat });
+  if (more) node.title = typeof more === 'string' ? more : '';
+  if (extra) node.append(extra);
+  return node;
 }
+/** The row of figure tiles: 3 or 4 a row (2 on a tablet, the kit decides the phone). */
+export const figs = (list, cls) => { const l = list.filter(Boolean); return tiles(l, { cols: l.length === 3 ? 3 : l.length === 2 ? 2 : 4, class: 'gg-tiles' + (cls ? ' ' + cls : '') }); };
+export const TWS = 'Triple Whale', GADS = 'Google Ads', GSAYS = "Google's own count";
 export const none = text => h('small', null, text || 'No sales source connected');
 
 /** ROAS against its goal (higher is better) and a cost against its goal (lower is better): a tone and a word. */

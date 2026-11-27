@@ -17,7 +17,7 @@
 
 import { put } from '../../kit.js';
 import { headRow } from '../platforms/_ads.js';
-import { h, em, table, segmented, statusDot, sheet, button, empty, addStyles, money, num, pct, x } from '../../kit.js';
+import { h, em, table, segmented, statusDot, sheet, button, empty, addStyles, kpi, tiles, money, num, pct, x } from '../../kit.js';
 import { style } from '../a-today/_more.js';
 import { soft, ok, sumOf, figures, brandRows, brandName, brandHref, quiet, shortDay } from '../a-today/_ag.js';
 import { styles as googleStyles } from '../google/_g.js';
@@ -152,7 +152,7 @@ function termsCard(d, ctx) {
   const seg = segmented([{ id: 'look', label: 'Worth a look' }, { id: 'sold', label: 'Sold, not our name' }, { id: 'all', label: 'All terms' }], view,
     id => { draw(id); ctx.saveSetting('agoogle.termsView', id).catch(() => {}); });
   return h('section', { class: 'lx-card flush gg-terms' },
-    h('div', { class: 'lx-sec gg-termsh' }, h('h3', null, 'The searches, every brand'), h('span', { class: 'note' }, 'Orders and sales here are Google’s count'), seg),
+    h('div', { class: 'lx-sec gg-termsh' }, h('h3', null, 'The searches, every brand'), h('span', { class: 'note' }, `${shortDay(d.window.from)} to ${shortDay(d.window.to)} · orders and sales are Google’s own count`), seg),
     body, quietLine);
 }
 
@@ -180,8 +180,8 @@ function brandsCard(d, ctx) {
 }
 
 export default {
-  title: ['Where is search money going ', em('with no sale?')],
-  eyebrow: 'Google, all brands',
+  title: 'Search terms, all brands',
+  eyebrow: 'Google',
   load, sample,
   render(el, d, ctx) {
     style(); googleStyles(); addStyles('agt-css', CSS);
@@ -191,12 +191,15 @@ export default {
       text: ['Search and Shopping terms show here once a brand spends on them. Performance Max gives categories only.', missing].filter(Boolean).join(' ') }));
     const spend = sumOf(d.brands, b => b.spend), nosale = sumOf(d.brands, b => b.nosale_spend), lookN = sum(d.brands, 'look_n'), lookSpend = sum(d.brands, 'look_spend');
     const sold = sum(d.brands, 'sold_other_n'), worst = [...d.brands].sort((a, b) => b.look_spend - a.look_spend)[0];
-    const hero = figures([
-      { label: 'Went to searches with no sale', value: money(Math.round(nosale)), lead: true, sub: `${pct(div(nosale, spend))} of the ${money(Math.round(spend))} we can see as terms` },
-      { label: 'Searches worth a look', value: String(lookN), sub: lookN ? `${money(Math.round(lookSpend))}, most on ${worst.name}` : `none over $${d.line} without a sale` },
-      { label: 'Other searches that sold', value: String(sold), sub: 'Google says, not counting a brand’s own name' },
-      { label: 'Brands read', value: String(d.brands.length), sub: d.not_linked.length || d.failed.length ? `${d.not_linked.length + d.failed.length} left out, named below` : 'up to 50 searches each' },
-    ]);
+    const W = `${shortDay(d.window.from)} to ${shortDay(d.window.to)}`, G = 'Google Ads', GS = "Google's own count";
+    const hero = tiles([
+      kpi({ label: 'Went to searches with no sale', value: money(Math.round(nosale)), sub: `${pct(div(nosale, spend))} of the ${money(Math.round(spend))} we can see as terms`, window: W, source: GS }),
+      kpi({ label: 'Searches worth a look', value: String(lookN), sub: lookN ? `${money(Math.round(lookSpend))}, most on ${worst.name}` : `none over $${d.line} without a sale`, window: W, source: G }),
+      kpi({ label: 'Other searches that sold', value: String(sold), sub: 'not counting a brand’s own name', window: W, source: GS }),
+      kpi({ label: 'Brands read', value: String(d.brands.length), sub: d.not_linked.length || d.failed.length ? `${d.not_linked.length + d.failed.length} left out, named below` : 'up to 50 searches each', window: W, source: G }),
+    ], { cols: 4 });
+    ctx.askWindow = W;
+    ctx.askContext = `Google search terms across every brand, ${W}: ${money(Math.round(nosale))} went to searches with no sale (Google's own count) out of ${money(Math.round(spend))} seen as terms; ${lookN} searches worth a look.`;
     const foot = h('p', { class: 'lx-foot' }, `Search and Shopping terms from Google Ads, the top 50 by spend for each brand, so this is not all of Google's spend: Performance Max gives categories only. Triple Whale does not go down to the search term, so a term's orders and sales are what Google says. "No sale" leaves out a brand's own name and anything already blocked. ${missing} Nothing changes from this page.`.replace(/\s+/g, ' '));
     put(el, h('div', { class: 'ag' }, headRow({ help: [{ title: 'What it is for', text: 'Every brand\'s Google search terms: which searches sold and which spent with no sale. Tap a term for its numbers.' }, { title: 'Where the numbers come from', text: foot.textContent }] }), hero, brandsCard(d, ctx), termsCard(d, ctx)));
   },
