@@ -59,18 +59,18 @@ export function planBand(ctx, board, redraw, hasNudge = false) {
   if (!me || (board.weekend && me.state === 'none')) return null;
   const set = row => { if (row) Object.assign(me, row); redraw(); };
   /* out: a plan posted here takes it back (planFromLocus clears out), so a mis-tap is never stuck */
-  if (me.state === 'out') return h('section', { class: 'lx-md-grp' },
+  if (me.state === 'out') return h('section', { class: 'lx-card lx-md-grp' },
     h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' } },
       statusDot('off', 'You are out today.'), h('span', { class: 'lx-sp' }),
       button('Working after all? Post my plan', { ghost: true, onclick: () => openPlan(ctx, me, set) })));
-  if (me.state === 'plan') return h('section', { class: 'lx-md-grp' },
+  if (me.state === 'plan') return h('section', { class: 'lx-card lx-md-grp' },
     h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' } },
       h('b', null, 'Your plan for today'), statusDot('good', 'posted ' + clock(me.plan && me.plan.at)), h('span', { class: 'lx-sp' }),
       button('Change it', { ghost: true, onclick: () => openPlan(ctx, me, set) })),
     h('ul', { style: { margin: '6px 0 0', paddingLeft: '18px', display: 'grid', gap: '4px' } }, (me.items || []).map(x => h('li', null, x))));
   /* no plan yet: once the "Your plan for today is not in" line is on the list it carries the button; before that
      (early in the morning, before the check-in post is up) this band does */
-  return hasNudge ? null : h('section', { class: 'lx-md-grp' },
+  return hasNudge ? null : h('section', { class: 'lx-card lx-md-grp' },
     h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' } },
       h('b', null, 'Your plan for today'), statusDot('off', 'not posted yet'), h('span', { class: 'lx-sp' }),
       button('Post my plan', { onclick: () => openPlan(ctx, me, set) })));

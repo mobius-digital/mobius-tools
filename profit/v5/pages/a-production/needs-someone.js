@@ -4,7 +4,7 @@
    (POST /api/production/field { id, owner }, Asana follows). Data: GET /api/production?act=all on the account-health worker (see _ap.js). */
 
 import { APP_NAME } from '../../config.js';
-import { h, hero, kpi, kpis, em, card, statusDot, empty, skeleton, table } from '../../kit.js';
+import { h, kpi, tiles, em, card, statusDot, empty, skeleton, table } from '../../kit.js';
 import { SAMPLE } from '../../data.js';
 import { refresh } from '../../router.js';
 import { canWrite } from '../production/_act.js';
@@ -58,12 +58,11 @@ const page = {
         { title: 'What you can do here', text: canWrite(ctx) ? 'Open a card and pick who has it. Asana follows.' : 'You can look here. Cards are assigned by the team.' },
         { title: 'Who has room', text: 'One square per open card a person has: red is late, dark is due this week, light is later or has no date. Tap a column header to sort.' },
       ], old ? teamTag() : null, old),
-      hero({ line: true },
-        kpis([
-          kpi({ label: 'Open cards with nobody', value: String(nobody.length), sub: plural(new Set(nobody.map(c => c.act_id)).size, 'brand') }),
-          kpi({ label: 'Due by Sunday', value: String(soon.length), sub: soon.length ? statusDot('warn', 'need someone this week') : statusDot('good', 'nothing this week') }),
-          kpi({ label: 'Already past their date', value: String(lateNobody.length), sub: lateNobody.length ? statusDot('bad', 'oldest ' + day(dateOf(lateNobody[0]))) : statusDot('good', 'none') }),
-        ], { cols: 3 })),
+      tiles([
+          kpi({ label: 'Open cards with nobody', value: String(nobody.length), sub: plural(new Set(nobody.map(c => c.act_id)).size, 'brand'), window: 'Now', source: 'Production boards' }),
+          kpi({ label: 'Due by Sunday', value: String(soon.length), sub: soon.length ? statusDot('warn', 'Need someone this week') : statusDot('good', 'Nothing this week'), window: `${day(wk[0])} to ${day(wk[1])}`, source: 'Production boards' }),
+          kpi({ label: 'Already past their date', value: String(lateNobody.length), sub: lateNobody.length ? statusDot('bad', 'Oldest ' + day(dateOf(lateNobody[0]))) : statusDot('good', 'None'), window: 'Now', source: 'Production boards' }),
+        ], { cols: 3 }),
       nobody.length ? card({ title: 'Nobody on them', note: 'soonest first', flush: true },
         h('div', { class: 'pd-list ap-list' }, nobody.map(row)))
         : card({}, h('p', { class: 'ps-none' }, 'Every open card has someone on it.')),

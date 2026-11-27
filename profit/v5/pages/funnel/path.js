@@ -7,9 +7,13 @@
 
 import { put } from '../../kit.js';
 import { askWhy, helpBar, rangeWords } from '../home/_biz.js';
-import { h, num, pct, card, hero, em, kpi, kpis, takeaway, button, table, empty, segmented, svgNode, addStyles } from '../../kit.js';
+import { h, num, pct, card, em, takeaway, button, table, empty, segmented, svgNode, addStyles } from '../../kit.js';
+import { tileRow, pageStamp, TW } from '../month/_m.js';
 import { icon } from '../../icons.js';
 import { fxStyles, flow, exampleChip, bar, head, pathDots, channelName, channelDot } from './_flow.js';
+
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const shortDay = d => MON[+String(d).slice(5, 7) - 1] + ' ' + +String(d).slice(8, 10);
 
 const ok = n => n != null && isFinite(n);
 const b = v => h('b', null, v);
@@ -18,7 +22,7 @@ const CSS = `
 .pp-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .pp-from{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
 .pp-ad{display:flex;align-items:center;gap:12px;min-width:0}
-.pp-ad .th{flex:none;width:40px;height:40px;border-radius:10px;background:var(--bg-sunk);display:grid;place-items:center;color:var(--faint)}
+.pp-ad .th{flex:none;width:40px;height:40px;border-radius:var(--r-btn,10px);background:var(--bg-sunk);display:grid;place-items:center;color:var(--faint)}
 .pp-ad .th svg{width:17px;height:17px}
 .pp-ad .tx{min-width:0}
 .pp-ad .tx b{display:block;font-weight:600;font-size:14px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -31,7 +35,7 @@ const CSS = `
 .pp-row .nx .ln{flex:1;height:1px;background:var(--line)}
 .pp-row .end{display:grid;gap:5px;font-size:12.5px;color:var(--muted)}
 .pp-row .o{text-align:right;font-size:20px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.pp-head{display:grid;grid-template-columns:28px minmax(0,1.2fr) minmax(0,1fr) minmax(120px,.9fr) 64px;gap:16px;padding:10px 28px;border-top:1px solid var(--line);font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.pp-head{display:grid;grid-template-columns:28px minmax(0,1.2fr) minmax(0,1fr) minmax(120px,.9fr) 64px;gap:16px;padding:10px 28px;border-top:1px solid var(--line);font-size:var(--fs-colhead,11.5px);font-weight:600;color:var(--muted)}
 .pp-head span:last-child{text-align:right}
 .pp-say{padding:14px 28px 18px;border-top:1px solid var(--line)}
 @media (max-width:759px){
@@ -53,18 +57,18 @@ function adCell(a) {
     h('span', { class: 'tx' }, h('b', null, a.name), h('span', null, channelDot(a.channel, channelName(a.channel) + ', ' + a.where))));
 }
 
-function figures(d) {
+function figures(d, ctx) {
   const multi = ok(d.multi_orders) && d.orders > 0 ? d.multi_orders / d.orders : null;
-  const top = d.top_first || {};
+  const top = d.top_first || {}, sp = d.sparks || {};
   const list = [
-    { label: 'Orders with 2 or more clicks', value: ok(multi) ? pct(multi) : 'no data', sub: ok(multi) ? `${num(d.multi_orders)} of ${num(d.orders)} orders` : null, spark: d.sparks && d.sparks.multi },
-    { label: 'Clicks before buying', value: ok(d.clicks_avg) ? num(d.clicks_avg, 1) : 'no data', sub: ok(multi) ? pct(1 - multi) + ' buy on one click' : null },
-    { label: 'Days, first click to order', value: ok(d.days_avg) ? num(d.days_avg, 1) : 'no data', sub: ok(d.same_day) ? pct(d.same_day) + ' buy the same day' : null },
-    { label: 'Most common first click', value: top.channel ? channelName(top.channel) : 'no data', sub: top.orders ? `${num(top.orders)} of ${num(d.orders)} orders start here` : null },
+    { label: 'Orders with 2 or more clicks', value: ok(multi) ? pct(multi) : 'no data', sub: ok(multi) ? `${num(d.multi_orders)} of ${num(d.orders)} orders` : null, spark: sp.multi, sparkFormat: v => Math.round(v) + '%' },
+    { label: 'Clicks before buying', value: ok(d.clicks_avg) ? num(d.clicks_avg, 1) : 'no data', sub: ok(multi) ? pct(1 - multi) + ' buy on one click' : null, spark: sp.clicks, sparkFormat: v => num(v, 1) },
+    { label: 'Days, first click to order', value: ok(d.days_avg) ? num(d.days_avg, 1) : 'no data', sub: ok(d.same_day) ? pct(d.same_day) + ' buy the same day' : null, spark: sp.days, sparkFormat: v => num(v, 1) + ' days' },
+    /* the spark is this channel's share of each day's first clicks */
+    { label: 'Most common first click', value: top.channel ? channelName(top.channel) : 'no data', sub: top.orders ? `${num(top.orders)} of ${num(d.orders)} orders start here` : null, spark: top.channel ? sp.first : null, sparkFormat: v => Math.round(v) + '%' },
   ];
-  const el = kpis(list.map(k => kpi({ ...k, size: 'lg', spark: (k.spark || []).filter(ok) })), { cols: 4 });
-  el.classList.add('fx-kpis');
-  return el;
+  const labels = (sp.dates || []).length ? sp.dates.map(shortDay) : null;
+  return tileRow(list, { cols: 4, window: rangeWords(ctx, d.range), source: TW + ' click paths', labels });
 }
 
 function readLine(d, ctx) {
@@ -92,18 +96,18 @@ function channelsView(d, ex) {
   ];
 }
 
-function pathsCard(d) {
+function pathsCard(d, ctx) {
   const rows = (d.paths || []).filter(r => r.orders > 0).sort((a, b) => b.orders - a.orders);
   if (!rows.length) return null;
   const max = rows[0].orders;
   return card({ flush: true },
-    head('Top paths', 'sorted by orders, most first'),
-    table({
+    head('Top paths', 'Most orders first · ' + rangeWords(ctx, d.range) + ' · ' + TW + ' click paths'),
+    table({ sort: { key: 'orders', dir: 'desc' },
       roomy: true,
       cols: [
         { key: 'path', label: 'Path', class: 'name', render: r => pathDots(r.path, { end: 'bought' }) },
-        { key: 'orders', label: 'Orders', num: true, width: 84, render: r => num(r.orders) },
-        { key: 'share', label: 'Share', num: true, width: 80, class: 'hide-sm', render: r => pct(r.orders / d.orders, { digits: 1 }) },
+        { key: 'orders', label: 'Orders', num: true, width: 84, sortable: true, render: r => num(r.orders) },
+        { key: 'share', label: 'Share', num: true, width: 80, class: 'hide-sm', value: r => r.orders, render: r => pct(r.orders / d.orders, { digits: 1 }) },
         { key: 'bar', label: '', class: 'fx-barcell hide-sm', render: r => bar(r.orders / max, r.path.length > 1) },
       ],
       rows,
@@ -132,12 +136,13 @@ function adsView(d, ctx, from) {
   ];
 }
 
-function clicksCard(d) {
+function clicksCard(d, ctx) {
   const rows = (d.clicks || []).filter(r => ok(r.orders));
   if (!rows.length) return null;
   const all = rows.reduce((a, r) => a + r.orders, 0) || 1;
   return card({ flush: true },
     head('How many clicks before they buy?', `${num(d.orders)} orders`),
+    h('div', { class: 'fx-src' }, rangeWords(ctx, d.range) + ' · ' + TW + ' click paths'),
     table({
       cols: [
         { key: 'name', label: 'Clicks', class: 'name', width: 130 },
@@ -152,6 +157,7 @@ function clicksCard(d) {
 export default {
   title: ['What do people click ', em('before they buy?')],
   eyebrow: 'Full funnel',
+  stamp: false,                     /* Home's stamp with a refresh button sits in the help bar */
 
   async load(ctx) {
     if (!ctx.brand) return { connected: false };
@@ -184,7 +190,7 @@ export default {
     const fromSeg = () => h('div', { class: 'pp-from' }, h('span', null, 'Paths from'),
       segmented([{ id: 'all', label: 'All' }, { id: 'meta', label: 'Meta' }, { id: 'google', label: 'Google' }, { id: 'email', label: 'Email' }], from, id => { from = id; paint(); }));
     const flowCard = card({ class: 'fx-pad pp-card' });
-    const paths = pathsCard(d), clicks = clicksCard(d);
+    const paths = pathsCard(d, ctx), clicks = clicksCard(d, ctx);
     const paint = () => {
       const isAds = view === 'ads';
       flowCard.classList.toggle('flush', isAds);
@@ -192,18 +198,21 @@ export default {
       put(tools, ...[isAds ? fromSeg() : null, segmented([{ id: 'channels', label: 'Channels' }, { id: 'ads', label: 'Ads' }], view, id => { view = id; ctx.saveSetting('funnel.pathView', id); paint(); })].filter(Boolean));
       put(flowCard, 
         head(isAds ? 'Which ads did they click before buying?' : 'Which channels do they click, in what order?',
-          isAds ? 'every channel, first click and the next one' : `${num(d.orders)} orders, hover a band to follow it`, ex ? exampleChip() : null, tools),
+          isAds ? 'every channel, first click and the next one' : `${num(d.orders)} orders. Hover or tap a band to follow it.`, ex ? exampleChip() : null, tools),
+        h('div', { class: 'fx-src' }, rangeWords(ctx, d.range) + ' · ' + TW + ' click paths'),
         ...(isAds ? adsView(d, ctx, from) : channelsView(d, ex)));
       if (paths) paths.style.display = isAds ? 'none' : '';
       if (clicks) clicks.style.display = isAds ? '' : 'none';
     };
     paint();
+    ctx.askWindow = rangeWords(ctx, d.range);
+    ctx.askContext = `${ctx.brand.name} path to purchase, ${ctx.askWindow}${ex ? ' (example numbers until the click path feed is built)' : ''}: ${num(d.orders)} orders, ${num(d.multi_orders)} took two or more clicks, ${num(d.clicks_avg, 1)} clicks on average.`;
     put(el, ...[
       helpBar([
         { title: 'What it is for', text: 'What people click before they buy: the channels in order, the ads, and how many clicks it takes.' },
         { title: 'Where the numbers come from', text: 'Triple Whale click paths, clicks only (ad views are not counted). Each order counts once; a path names up to three clicks before the order. Hover or tap a band for its count and share.' },
-      ], h('span', { class: 'bz-chip' }, rangeWords(ctx, d.range))),
-      hero({ line: true }, figures(d), ex ? h('div', null, exampleChip()) : null),
+      ], h('span', { class: 'bz-chip' }, rangeWords(ctx, d.range)), ex ? exampleChip() : null, pageStamp(ctx)),
+      figures(d, ctx),
       readLine(d, ctx),
       flowCard,
       paths,

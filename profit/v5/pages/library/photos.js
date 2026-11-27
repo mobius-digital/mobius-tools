@@ -4,7 +4,8 @@
    Data: GET /api/assets?act=<brand id>&limit=200 on the account-health worker. Pictures: the worker's public
    /assets-img/<brand id>/<file id> (the same address old Locus uses). */
 
-import { h, hero, kpi, kpis, em, num, button, statusDot, empty, skeleton, relativeTime } from '../../kit.js';
+import { h, kpi, tiles, em, num, button, statusDot, empty, skeleton, relativeTime } from '../../kit.js';
+import { secHead } from '../what-works/_ww.js';
 import { workers, ORG_SHORT, APP_NAME } from '../../config.js';
 import { SAMPLE } from '../../data.js';
 import { put, css, oldLocus, plural } from '../production/_ui.js';
@@ -55,7 +56,7 @@ export default {
     const looks = data.looks || items.filter(x => x.source === 'locus').length;
     const sets = (data.settings || []).filter(s => s.setting).slice(0, 5);
     let who = ctx.settingNow('library.people', 'all'), where = '', q = '';
-    const grid = h('div', { class: 'lb-grid' }), row = h('div', { class: 'lb-tools' }), count = h('span', { class: 'lb-quiet' });
+    const grid = h('div', { class: 'lb-grid' }), row = h('div', { class: 'lb-row' }), count = h('span', { class: 'lb-quiet' });
     const draw = () => {
       const shown = items.filter(x => (who === 'all' || (who === 'yes' ? x.people > 0 : who === 'no' ? !x.people : x.source === 'locus'))
         && (!where || x.setting === where) && (!q || q.split(/\s+/).every(w => words(x).includes(w))));
@@ -71,18 +72,20 @@ export default {
     };
     draw();
     const old = ctx.isClient ? null : oldLocus(ctx, { label: 'Check Drive in old ' + APP_NAME });
+    ctx.askWindow = 'All time';
+    ctx.askContext = `Library, Photos: ${plural(total - (data.looks || 0), 'photo')} in the brand's Drive folders, ${looks} looks made with ${APP_NAME} AI; of the newest ${items.length}, ${withPeople} have people in them; ${c.new || 0} waiting for tags.`;
     put(el,
       pageTop([
         { title: 'What it is for', text: 'Every photo in the brand\'s Drive folders, and the looks made with ' + APP_NAME + ' AI, to pick from when making ads. Filter by people and setting, search the words, tap one to see it large.' },
         { title: 'Where the photos come from', text: 'Read from the brand\'s Drive folders. Files are never moved or changed. Tags (people, setting, shot, products) are written once by ' + APP_NAME + ' AI from a small copy of each photo; new photos are read a few each hour.' },
       ], old ? teamTag() : null, old),
-      hero({ line: true },
-        kpis([
-          kpi({ label: 'Photos', value: num(total - (data.looks || 0)), sub: 'from the brand\'s Drive' }),
-          kpi({ label: 'With people in them', value: num(withPeople), sub: 'of the newest ' + items.length }),
-          kpi({ label: defLabel('Waiting for tags', { name: 'Waiting for tags', definition: APP_NAME + ' AI reads a few new photos each hour and tags them. Until then they show here untagged.' }), value: num(c.new || 0), sub: c.new ? statusDot('warn', 'tagged a few each hour') : statusDot('good', 'all tagged') }),
-          kpi({ label: defLabel('Last synced from Drive', { name: 'Last synced from Drive', definition: 'When ' + APP_NAME + ' last looked in the brand\'s Drive folders for new photos.' }), value: data.synced_at ? relativeTime(data.synced_at) : 'not yet', sub: looks ? 'Made with ' + APP_NAME + ' AI: ' + num(looks) : null }),
-        ], { cols: 4 })),
+      tiles([
+          kpi({ label: 'Photos', value: num(total - (data.looks || 0)), sub: 'In the brand\'s Drive folders', window: 'All time', source: 'Drive' }),
+          kpi({ label: 'With people in them', value: num(withPeople), sub: 'Of the newest ' + items.length, window: 'Newest ' + items.length, source: APP_NAME + ' AI tags' }),
+          kpi({ label: defLabel('Waiting for tags', { name: 'Waiting for tags', definition: APP_NAME + ' AI reads a few new photos each hour and tags them. Until then they show here untagged.' }), value: num(c.new || 0), sub: c.new ? statusDot('warn', 'Tagged a few each hour') : statusDot('good', 'All tagged'), window: 'Now', source: APP_NAME + ' AI tags' }),
+          kpi({ label: defLabel('Last synced from Drive', { name: 'Last synced from Drive', definition: 'When ' + APP_NAME + ' last looked in the brand\'s Drive folders for new photos.' }), value: data.synced_at ? relativeTime(data.synced_at) : h('small', null, 'Not yet'), sub: looks ? 'Made with ' + APP_NAME + ' AI: ' + num(looks) : null, source: 'Drive' }),
+        ], { cols: 4 }),
+      secHead('Every photo', 'Newest first · tap one to see it large'),
       h('div', { class: 'lb-tools' }, search('Search: man in a polo, buckle close up, golf course', '', v => { q = v; draw(); }), count, h('span', { class: 'lx-sp' }), assetsButton(ctx, data.assets_link)),
       row, grid,
       items.length < total ? h('div', { style: { justifySelf: 'center' } }, old ? oldLocus(ctx, { label: 'See all ' + num(total) + ' in old ' + APP_NAME }) : null) : null);

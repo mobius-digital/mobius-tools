@@ -4,9 +4,10 @@
    account-health worker). The table is always the last 90 days: Klaviyo reports flows on that window. */
 
 import { put } from '../../kit.js';
-import { h, em, card, kpi, kpis, table, legend, lineChart, statusDot, skeleton, money } from '../../kit.js';
-import { ok, usd, rate, sum, shortDate, css, head, barCell, flowStatus, kl, hubEmail, soft, notConnected, num, pct, openFlow } from './_em.js';
-import { helpBar, dl, rangeWords } from '../home/_biz.js';
+import { h, tiles, em, card, kpi, kpis, table, legend, lineChart, statusDot, skeleton, money } from '../../kit.js';
+import { ok, usd, rate, sum, shortDate, css, head, barCell, flowStatus, kl, hubEmail, soft, notConnected, num, pct, openFlow, goCell } from './_em.js';
+import { dl, rangeWords } from '../home/_biz.js';
+import { headRow } from '../platforms/_ads.js';
 
 /* the five flows most stores should have live, and how to spot each by name */
 const BASICS = [['Welcome', /welcome/i], ['Abandoned cart', /cart|checkout/i], ['Browse abandonment', /browse/i], ['Post purchase', /post.?purchase|thank|fit check|review/i], ['Win back', /win.?back|winback|lapsed/i]];
@@ -23,17 +24,17 @@ function shape(ctx, hub, r) {
   };
 }
 
-function figures(d) {
+function figures(d, W) {
   const flows = d.flows || [], live = flows.filter(f => f.status === 'live'), off = flows.filter(f => f.status && f.status !== 'live');
   const fs = sum(d.days, 'flows'), cs = sum(d.days, 'campaigns'), rec = sum(flows, 'recipients'), sales90 = sum(flows, 'sales');
   const split = fs + cs > 0;
-  const el = kpis([
+  const el = tiles([
     /* 'no data' only when there is no flow and campaign split at all (as snapshot.js splitOk); a real $0 in flows shows $0 */
-    kpi({ label: 'Flow sales, these dates', size: 'lg', value: split ? usd(fs) : 'no data', sub: split ? 'Triple Whale\'s count' : 'not split by flow for these dates' }),
-    kpi({ label: 'Share of email sales', size: 'lg', value: split ? pct(fs / (fs + cs)) : 'no data', sub: 'campaigns made the rest' }),
-    kpi({ label: 'Live flows', size: 'lg', value: d.klaviyo ? num(live.length) : 'no data',
+    kpi({ label: 'Flow sales', value: split ? usd(fs) : 'no data', window: W, source: 'Triple Whale', sub: split ? 'always-on emails and texts' : 'not split by flow for these dates' }),
+    kpi({ label: 'Share of email sales', value: split ? pct(fs / (fs + cs)) : 'no data', window: W, source: 'Triple Whale', sub: 'campaigns made the rest' }),
+    kpi({ label: 'Live flows', value: d.klaviyo ? num(live.length) : 'no data', window: 'Right now', source: 'Klaviyo',
       delta: off.length ? statusDot('warn', off.length + ' not live') : null, sub: off.length ? null : d.klaviyo ? 'none switched off' : 'needs the Klaviyo key' }),
-    kpi({ label: dl('Sales per message, last 90 days', 'sales_per_message'), size: 'lg', value: rec ? money(sales90 / rec, { cents: true }) : 'no data', sub: 'Klaviyo\'s count' }),
+    kpi({ label: dl('Sales per message', 'sales_per_message'), value: rec ? money(sales90 / rec, { cents: true }) : 'no data', window: 'Last 90 days', source: "Klaviyo's count", sub: num(rec) + ' messages' }),
   ], { cols: 4 });
   el.classList.add('em-kpis');
   return el;
@@ -44,11 +45,11 @@ function chartCard(d) {
   if (days.length < 2 || !days.some(r => (r.flows || 0) > 0)) return null;
   const b = v => h('b', null, v);
   return card({ class: 'em-chart' },
-    head('Flows are the base, campaigns are the spikes', 'Sales by day', legend([{ name: 'Flows', lead: true }, { name: 'Campaigns' }])),
+    head('Sales by day, flows and campaigns', 'Triple Whale\'s count', legend([{ name: 'Flows', lead: true }, { name: 'Campaigns' }])),
     lineChart({
       series: [{ name: 'Flows', lead: true, values: days.map(r => r.flows || 0) }, { name: 'Campaigns', values: days.map(r => r.campaigns || 0) }],
       labels: days.map(r => shortDate(r.date)), format: v => money(v, { compact: true }), height: 340, phoneHeight: 290,
-      label: 'Flow sales and campaign sales by day',
+      label: 'Flow sales and campaign sales by day', windowLabel: 'Daily, ' + (d.range ? rangeWords(null, d.range) : ''), name: 'Email',
       hover: i => [b(shortDate(days[i].date)), h('span', null, 'Flows ', b(usd(days[i].flows))), h('span', null, 'Campaigns ', b(usd(days[i].campaigns)))],
     }));
 }
@@ -78,12 +79,12 @@ function listCard(d) {
       { key: 'click_rate', label: dl('Click rate', 'click_rate'), num: true, sortable: true, class: 'hide-md', render: r => (run(r) ? rate(r.click_rate) : '') },
       { key: 'per_recipient', label: dl('Per message', 'sales_per_message'), num: true, sortable: true, class: 'hide-sm', render: r => (run(r) && ok(r.per_recipient) ? money(r.per_recipient, { cents: true }) : '') },
       { key: 'sales', label: 'Sales', num: true, sortable: true, render: r => (run(r) ? barCell(h('span', { class: 'strong' }, usd(r.sales || 0)), (r.sales || 0) / max) : '') },
-      { key: 'go', label: '', class: 'em-go', render: () => '>' },
+      { key: 'go', label: '', class: 'em-go', render: goCell },
     ] }));
 }
 
 export default {
-  title: ['Are the always-on emails ', em('earning?')],
+  title: 'Email flows',
   eyebrow: 'Email & SMS',
 
   async load(ctx) {
@@ -104,11 +105,11 @@ export default {
       return;
     }
     put(el, ...[
-      helpBar([
+      headRow({ help: [
         { title: 'What it is for', text: 'Are the always-on emails and texts (welcome, abandoned cart, post purchase and the rest) earning? Tap a flow to open it.' },
         { title: 'Two periods on this page', text: 'Flow sales by day and the share of email sales follow the dates at the top (Triple Whale). Each flow\'s results are Klaviyo\'s own count over the last 90 days, whatever dates are picked.' },
-      ], h('span', { class: 'bz-chip' }, rangeWords(ctx, d.range))),
-      h('section', { class: 'lx-hero line' }, figures(d)),
+      ] }),
+      figures(d, rangeWords(ctx, d.range)),
       chartCard(d),
       d.klaviyo ? basics(d) : null,
       d.klaviyo ? listCard(d) : card({ title: 'Every flow' }, notConnected(ctx, { title: 'Klaviyo is not connected',

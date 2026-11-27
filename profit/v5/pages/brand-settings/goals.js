@@ -14,16 +14,12 @@ import { AI_NAME, APP_NAME } from '../../config.js';
 import { css, stage, saveBar, numBox, seg, exampleChip, fold, say, setHelp } from './_set.js';
 import { defLabel } from '../../defs.js';
 
-/* hover definitions this page needs that the shared glossary does not have */
+/* hover definitions this page needs that the shared glossary does not have. Only the terms that are not obvious
+   (MER, ROAS, break-even, goal MER, goal cost per new customer) carry the dotted mark; plain words are plain text
+   and the help bar explains the rest. */
 const DEF = {
-  keep: { title: 'What an order keeps', body: 'The share of each sales dollar left after product cost, postage and payment fees, before any ad spend. Also called the margin.' },
-  left: { title: 'Left after ads, per sales dollar', body: 'The cents of each sales dollar you want to keep after ads are paid. More cents left means a higher goal MER and less spend on new customers.' },
   goal_roas: { title: 'Goal ROAS in use (all ads)', body: 'The ROAS every platform and campaign is judged on, unless a platform has its own goal below. Saved for everyone. ROAS is one platform or campaign: Triple Whale attributed sales (last click) divided by its spend.' },
   platform_goal: { title: 'Platform goal ROAS', body: 'Used instead of the all-ads goal ROAS for ads on this platform only.' },
-  first_order: { title: 'First order size', body: 'The average first order of a new customer, paying orders only, from Triple Whale.' },
-  order_again: { title: 'Order again', body: 'The share of new customers who place a second order within 90 days.' },
-  returning: { title: 'Returning sales', body: 'The share of store sales that came from customers who had ordered before.' },
-  order_size: { title: 'Order size', body: 'Average order value: store sales divided by orders, paying orders only ($0 and creator sample orders left out).' },
   goal_cac: { title: 'Goal cost per new customer', body: 'The most the ads should spend to win one new customer and still leave the cents you asked for. Ad spend divided by new customers.' },
 };
 
@@ -76,19 +72,23 @@ function draw(el, data, ctx) {
 
   const paintTop = () => {
     const v = read(), w = workOut(v);
+    /* the bar marks the goal in use (the saved goal ROAS, or what is typed in its box), the same goal Home reads;
+       the worked out goal MER stands in only when no goal is set */
+    const inUse = S.get(live('target_roas'), liveNow[live('target_roas')]);
+    const goalNow = ok(+inUse) ? +inUse : w.goalMer;
     if (mer == null) return put(top, empty({ title: 'No sales source yet', text: 'MER needs store sales and ad spend. ' + (ctx.isClient ? '' : 'Connect the store under Integrations.') }));
-    const tone = w.be && mer < w.be ? 'bad' : w.goalMer && mer >= w.goalMer ? 'good' : 'warn';
+    const tone = w.be && mer < w.be ? 'bad' : goalNow && mer >= goalNow ? 'good' : 'warn';
     const word = tone === 'bad' ? 'Under break-even' : tone === 'good' ? 'On goal' : w.be ? 'Above break-even, under goal' : 'No break-even yet';
-    const max = Math.max(mer, w.goalMer || 0, w.be || 0) * 1.25;
+    const max = Math.max(mer, goalNow || 0, w.be || 0) * 1.25;
     put(top, hero({ line: true },
       h('div', { class: 'lx-gl-top' },
-        h('span', { class: 'lx-hero-num' }, x(mer)), h('span', { class: 'lab' }, defLabel('Store MER', 'mer'), ', ' + (data.mtd.dates ? data.mtd.dates : 'this month')), statusDot(tone, word),
-        h('span', { class: 'lx-sp' }), h('span', { class: 'src' }, 'store sales ' + money(data.mtd.sales) + ' / all ad spend ' + money(data.mtd.spend))),
-      gauge({ value: mer, max, goal: w.goalMer || undefined, tone, ticks: [
-        w.be && { at: w.be, text: 'Break-even ' + x(w.be) }, far(mer, [w.be, w.goalMer], max) && { at: mer, text: 'Now ' + x(mer), on: true }, w.goalMer && { at: w.goalMer, text: 'Goal ' + x(w.goalMer) }].filter(Boolean) }),
+        h('span', { class: 'lx-hero-num' }, x(mer)), h('span', { class: 'lab' }, defLabel('Store MER', 'mer'), ', ' + (data.mtd.dates || monthDates())), statusDot(tone, word),
+        h('span', { class: 'lx-sp' }), h('span', { class: 'src' }, 'store sales ' + money(data.mtd.sales) + ' / all ad spend ' + money(data.mtd.spend) + ' · Triple Whale')),
+      gauge({ value: mer, max, goal: goalNow || undefined, tone, ticks: [
+        w.be && { at: w.be, text: 'Break-even ' + x(w.be) }, far(mer, [w.be, goalNow], max) && { at: mer, text: 'Now ' + x(mer), on: true }, goalNow && { at: goalNow, text: 'Goal ' + x(goalNow) }].filter(Boolean) }),
       /* the gauge already shows now, break-even and goal: a line only when it adds something the gauge does not */
-      w.be && w.goalMer
-        ? (mer < w.goalMer ? takeaway(['At this ad spend the store needs ', h('b', null, money(Math.round((w.goalMer - mer) * data.mtd.spend))), ' more sales to reach the goal MER.']) : null)
+      w.be && goalNow
+        ? (mer < goalNow ? takeaway(['At this ad spend the store needs ', h('b', null, money(Math.round((goalNow - mer) * data.mtd.spend))), ' more sales to reach the goal.']) : null)
         : takeaway('Fill in the four facts below to see break-even and the goal.')));
   };
 
@@ -103,7 +103,7 @@ function draw(el, data, ctx) {
      and only when it was worked from this brand's own numbers, never from the example facts. Save asks first. */
   const goalCell = (name, liveKey, opts, show, worked, own) => {
     const state = h('span'), use1 = h('span');
-    const box = numBox(S, liveKey, liveNow[liveKey], { ...opts, label: name, onInput: () => bits() });
+    const box = numBox(S, liveKey, liveNow[liveKey], { ...opts, label: name, onInput: () => { bits(); paintTop(); } });
     function bits() {
       const now = S.get(liveKey, null), was = liveNow[liveKey], w = worked();
       state.replaceChildren(ok(now) && ok(was) && +now !== +was ? statusDot('warn', 'Not saved yet, was ' + show(was)) : !ok(now) ? statusDot('off', 'Not set') : !ok(was) ? statusDot('warn', 'Not saved yet') : w == null ? statusDot('off', 'In use today') : near(now, w) ? statusDot('good', 'Matches the working') : statusDot('warn', 'Set by hand'));
@@ -140,20 +140,20 @@ function draw(el, data, ctx) {
   const again = () => { paintTop(); paintOut(); };
   const leftBox = numBox(S, key('left'), inp.left_cents, { suffix: '¢', max: 90, onInput: again, label: 'Cents left after ads' });
   steps.append(
-    step(1, defLabel('What an order keeps', DEF.keep), numBox(S, key('keep'), inp.keep_pct, { suffix: '%', max: 100, onInput: again, label: 'What an order keeps' }),
+    step(1, 'What an order keeps', numBox(S, key('keep'), inp.keep_pct, { suffix: '%', max: 100, onInput: again, label: 'What an order keeps' }),
       ok(f.order_size) && ok(f.product) ? `${money(f.order_size)} order: ${money(f.product)} product, ${money(f.postage)} postage, ${money(f.fees)} fees. Keeps ${money(f.order_size - f.product - f.postage - f.fees)} before ads.` : 'The share of each sales dollar left after product, postage and fees, before ads.'),
     step(2, 'Fixed costs a month', numBox(S, key('fixed'), inp.fixed_costs, { prefix: '$', step: 100, width: 76, onInput: again, label: 'Fixed costs a month' }), 'Optional. Rent, people, software: what you pay whether or not an order comes in.'),
     step(3, (data.month || 'This month') + ' sales goal', numBox(S, key('sales'), inp.sales_goal, { prefix: '$', step: 1000, width: 86, onInput: again, label: 'Sales goal' }), ex.has('sales_goal') ? 'Agreed with the client on the plan.' : 'Read from the plan agreed with the client.'),
-    step(4, 'Stance', [seg(S, key('stance'), inp.stance || 'profit', STANCE), h('span', { class: 'lx-gl-left' }, defLabel('Left after ads, per sales dollar', DEF.left), leftBox)],
+    step(4, 'Stance', [seg(S, key('stance'), inp.stance || 'profit', STANCE), h('span', { class: 'lx-gl-left' }, 'Left after ads, per sales dollar', leftBox)],
       'Profit now keeps the most; Growth spends it on new customers.'));
   S.onChange((k2, v2) => { if (k2 === key('stance') && v2 in STANCE_LEFT) { leftBox.querySelector('input').value = STANCE_LEFT[v2]; S.set(key('left'), STANCE_LEFT[v2]); } if (k2 === null || k2 === key('stance')) again(); });
 
   const factList = [
-    ok(f.order_size) && { label: defLabel('Order size', DEF.order_size), value: money(f.order_size), sub: 'paying orders only' },
-    ok(f.first_order) && { label: defLabel('First order size', DEF.first_order), value: money(f.first_order), sub: 'new customers' },
-    f.repeat_90 != null && { label: defLabel('Order again', DEF.order_again), value: pct(f.repeat_90, { digits: 1 }), sub: 'within 90 days' },
-    f.returning_share != null && { label: defLabel('Returning sales', DEF.returning), value: pct(f.returning_share), sub: 'of store sales' },
-    ok(f.store_mer_90) && { label: defLabel('Store MER', 'mer'), value: x(f.store_mer_90), sub: 'last 90 days' },
+    ok(f.order_size) && { label: 'Order size', value: money(f.order_size), sub: 'paying orders only', window: 'Last 90 days', source: 'Triple Whale' },
+    ok(f.first_order) && { label: 'First order size', value: money(f.first_order), sub: 'new customers', window: 'Last 90 days', source: 'Triple Whale' },
+    f.repeat_90 != null && { label: 'Order again', value: pct(f.repeat_90, { digits: 1 }), sub: 'within 90 days of a first order', window: 'Last 90 days', source: 'Triple Whale' },
+    f.returning_share != null && { label: 'Returning sales', value: pct(f.returning_share), sub: 'of store sales', window: 'Last 90 days', source: 'Triple Whale' },
+    ok(f.store_mer_90) && { label: defLabel('Store MER', 'mer'), value: x(f.store_mer_90), window: 'Last 90 days', source: 'Triple Whale' },
   ].filter(Boolean);
 
   const rule = (n, o = {}) => numBox(S, rk(n), R ? R[n] : null, { width: 40, ...o, label: names[rk(n)] });
@@ -164,7 +164,11 @@ function draw(el, data, ctx) {
   put(el, h('div', { class: 'lx-st' },
     saveBar(S, ctx, { label: 'Save goals', note: data.saved ? 'Saved ' + data.saved.at + ' by ' + data.saved.by + '.' : undefined, help: setHelp({
       about: 'You give ' + APP_NAME + ' four facts about the brand and it works out break-even and the goals from them, live as you type. Save shows every change first, then writes the goal ROAS, the goal cost and the rules for everyone.' + (ctx.isClient ? ' Changes you make are logged and your team is told.' : ' A change a client makes is logged and the team gets a bell note.'),
-      sections: [{ title: 'Store MER and ROAS', text: 'Store MER is the whole store: all sales divided by all ad spend. ROAS is one platform or campaign: the sales Triple Whale credits to it, divided by its own spend. Hover or tap any dotted label for its meaning.' }],
+      sections: [
+        { title: 'Store MER and ROAS', text: 'Store MER is the whole store: all sales divided by all ad spend. ROAS is one platform or campaign: the sales Triple Whale credits to it, divided by its own spend. Hover or tap any dotted label for its meaning.' },
+        { title: 'The four facts', text: 'What an order keeps is the share of each sales dollar left after product cost, postage and payment fees, before any ad spend (the margin). Left after ads is the cents of each sales dollar you want to keep once ads are paid: more cents left means a higher goal MER and less spend on new customers.' },
+        { title: 'What ' + APP_NAME + ' reads itself', text: 'Order size is store sales divided by orders, paying orders only ($0 and creator sample orders left out). First order size is the same for a new customer\'s first order. Order again is the share of new customers who order a second time within 90 days. Returning sales is the share of store sales from customers who had ordered before.' },
+      ],
       fixedTitle: 'How goals are used',
       fixed: [
         ['Used by', 'Home, This month, Suggestions, Black Friday, Reports, Ask ' + APP_NAME + ' AI', 'One set of goals, read everywhere.'],
@@ -199,7 +203,7 @@ addStyles('lx-goals-css', `
 .lx-gl-step .lx-seg{flex-wrap:wrap;height:auto}
 .lx-gl-step .lx-seg button{white-space:nowrap;padding:5px 9px}
 .lx-gl-left{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
-.lx-gl-out.head{padding-top:10px;padding-bottom:10px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.lx-gl-out.head{padding-top:10px;padding-bottom:10px;font-size:var(--fs-colhead,11.5px);font-weight:600;color:var(--muted)}
 .lx-gl-out .k{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .lx-gl-facts{margin-top:var(--sp-5)}
 .lx-gl-step .hint{font-size:12.5px;line-height:1.45;color:var(--muted)}
@@ -229,6 +233,13 @@ addStyles('lx-goals-css', `
 `);
 
 const monthName = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'long' });
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** "Nov 1 to 25": this month so far, ending yesterday (the plan month's numbers are whole days); "Nov 1" on the 2nd. */
+function monthDates(now = new Date()) {
+  const y = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  if (y.getMonth() !== now.getMonth()) return 'this month';
+  return MON[y.getMonth()] + ' 1' + (y.getDate() > 1 ? ' to ' + y.getDate() : '');
+}
 
 export default {
   title: ['What is this brand ', em('aiming for?')],
@@ -250,7 +261,7 @@ export default {
     const goal = +g.revenue || +g.sales || +g.revenue_goal || null;
     const sales = cur.sales ?? cur.revenue ?? null, spend = cur.spend ?? cur.ad_spend ?? null;
     return {
-      month: monthName(ctx.range.to), mtd: sales != null && spend ? { sales, spend, dates: '' } : null,
+      month: monthName(ctx.range.to), mtd: sales != null && spend ? { sales, spend, dates: monthDates() } : null,
       inputs: { ...(fx ? fx.inputs : {}), ...(goal ? { sales_goal: goal } : {}), ...(+b.margin_pct > 0 ? { keep_pct: Math.round(b.margin_pct * (b.margin_pct <= 1 ? 100 : 1)) } : {}) },
       facts: fx ? fx.facts : {},
       in_use: { target_roas: +b.target_roas || +r.target_roas || null, target_cpa: +b.target_cpa || +r.target_cpa || null, goal_meta: +r.goal_meta || null, goal_google: +r.goal_google || null, goal_tiktok: +r.goal_tiktok || null },

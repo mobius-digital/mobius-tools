@@ -14,7 +14,7 @@
    A brand whose creators run in their own app has no /api/trybe answer: its live and waiting counts read
    "not read here", never 0. Sales are Triple Whale (last platform click); spend is Meta's. */
 
-import { h, hero, kpi, kpis, em, money, num, x, button, statusDot, empty, skeleton, sheet, addStyles, barChart, platformChip } from '../../kit.js';
+import { h, kpi, tiles, em, money, num, x, button, statusDot, empty, skeleton, sheet, addStyles, barChart, platformChip } from '../../kit.js';
 import { defined, defLabel } from '../../defs.js';
 import { APP_NAME } from '../../config.js';
 import { put, css, plural, pageTop } from '../production/_ui.js';
@@ -24,17 +24,19 @@ import { acCss, perBrand, brandOf, brandName, brandPage, oldCreators, todayStr, 
 
 const CSS = `
 .ab-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
-.ab-card{display:grid;gap:16px;align-content:start;text-align:left;min-width:0;padding:22px 24px;border:0;border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--sh-1);color:inherit;font:inherit;cursor:pointer}
-.ab-card:hover{box-shadow:var(--sh-2,var(--sh-1));transform:translateY(-1px)}
+.ab-card{display:grid;gap:16px;align-content:start;text-align:left;min-width:0;padding:20px 22px;border:0;border-radius:var(--r-card,16px);background:var(--surface);box-shadow:var(--sh-1);color:inherit;font:inherit;cursor:pointer}
+.ab-card:hover{box-shadow:var(--sh-2,var(--sh-1))}
 .ab-card:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .ab-top{display:flex;align-items:center;gap:10px;min-width:0;flex-wrap:nowrap}
-.ab-top .ac-brand{font-size:15.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 auto;min-width:0}
+.ab-top .ac-brand{font-size:var(--fs-card,14px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 auto;min-width:0}
 .ab-top .lx-stat{flex:none;white-space:nowrap;font-size:12px}
-.ab-nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-.ab-nums span{display:grid;gap:2px;min-width:0}
-.ab-nums em{font-style:normal;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.ab-nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;align-items:start}
+.ab-nums>span{display:grid;gap:2px;min-width:0;align-content:start;grid-template-rows:18px 30px auto}
+.ab-nums span>.lx-def,.ab-nums em{align-self:start;line-height:18px}
+.ab-nums em{font-style:normal;font-size:var(--fs-colhead,11.5px);font-weight:500;color:var(--muted)}
 .ab-nums b{font-size:var(--num-l);font-weight:600;letter-spacing:-.03em;line-height:1.1;font-variant-numeric:tabular-nums}
-.ab-nums b.none{font-size:13px;font-weight:500;letter-spacing:0;line-height:1.35;color:var(--muted);padding-top:6px}
+.ab-nums b.none{color:var(--faint);font-weight:500}
+.ab-nums em{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ab-nums b.hot{color:var(--bad)}
 .ab-nums small{font-size:12px;color:var(--muted);line-height:1.3}
 .ab-m{display:grid;gap:8px;padding-top:12px;border-top:1px solid var(--line)}
@@ -49,12 +51,12 @@ const CSS = `
 .ab-cmp h4{margin:0 0 4px;font-size:13px;font-weight:600}
 .ab-hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .ab-hd .lx-stat{margin-left:auto}
-.ab-old{font-size:12.5px;color:var(--muted);text-decoration:underline;text-underline-offset:3px}
+.ab-old{font-size:12.5px;color:var(--muted)}.ab-old:hover{text-decoration:underline;text-underline-offset:3px}
 .ab-line{display:grid;gap:4px;padding-top:12px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted);line-height:1.45}
 .ab-line b{color:var(--ink-2);font-weight:600}
 .ab-tbl{display:grid;gap:0;font-size:13.5px}
 .ab-tbl>div{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr);gap:12px;padding:9px 0;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
-.ab-tbl>div:first-child{border-top:0;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.ab-tbl>div:first-child{border-top:0;font-size:var(--fs-colhead,11.5px);font-weight:600;color:var(--muted)}
 .ab-tbl>div>span:not(:first-child){text-align:right}
 .ab-tbl>div>span:first-child{color:var(--muted)}
 .ab-go{display:grid;gap:8px}
@@ -62,7 +64,7 @@ const CSS = `
 @media (max-width:1180px){.ab-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:759px){
   .ab-grid{grid-template-columns:minmax(0,1fr);gap:12px}
-  .ab-card{padding:18px;border-radius:18px}
+  .ab-card{padding:18px}
   .ab-nums b{font-size:var(--num-m)}
   .ab-cmp{grid-template-columns:1fr}
 }
@@ -72,8 +74,9 @@ const abCss = () => addStyles('ab-css', CSS);
 const known = v => v != null && Number.isFinite(+v);
 /** A number, or plain words when it could not be read. Never a made-up zero. */
 const OWN = { name: 'Counted in their own app', definition: 'This brand runs its creators in its own creator app, so Locus cannot read the count here.' };
-const figure = (v, { hot = false, none = 'not read here', wait = false, own = false } = {}) => known(v) ? h('b', { class: hot && +v > 0 ? 'hot' : null }, num(+v)) : wait ? h('b', null, dots())
-  : own ? defined(h('b', { class: 'none' }, 'none'), OWN) : h('b', { class: 'none' }, none);
+/* an empty value is a quiet dash at the same size as the numbers beside it, so the row stays level; the words are on hover */
+const figure = (v, { hot = false, none = 'Not read here', wait = false, own = false } = {}) => known(v) ? h('b', { class: hot && +v > 0 ? 'hot' : null }, num(+v)) : wait ? h('b', null, dots())
+  : own ? h('b', { class: 'none', title: OWN.definition, 'aria-label': OWN.definition }, '-') : h('b', { class: 'none', title: none, 'aria-label': none }, '-');
 const DEFS = {
   creators: { name: 'Creators', definition: 'Creators who sent this brand a video in the last 30 days.' },
   live: { name: 'Live videos', definition: 'Creator videos that ran as Meta ads in the last 30 days.' },
@@ -97,7 +100,7 @@ function goalDot(r) {
   if (!known(m.spend) || +m.spend <= 0) return statusDot('off', 'No creator ads ran');
   if (!known(m.cpa)) return statusDot('off', 'No sales yet');
   if (!known(m.goal_cpa)) return null;
-  return +m.cpa <= +m.goal_cpa ? statusDot('good', 'On goal') : statusDot('bad', 'Over goal');
+  return +m.cpa <= +m.goal_cpa ? statusDot('good', 'On goal ' + money(Math.round(+m.goal_cpa)) + ' per sale') : statusDot('bad', 'Over goal ' + money(Math.round(+m.goal_cpa)) + ' per sale');
 }
 
 /** Scorecard cards and per-brand counts, joined on the brand id. */
@@ -205,29 +208,30 @@ const page = {
     const part = (list) => list.length === rows.length ? 'every brand' : list.length + ' of ' + plural(rows.length, 'brand');
     const waitingBrands = rows.filter(r => r.pending > 0);
     const notLaunched = sum(rows, r => r.not_launched);
+    ctx.askWindow = 'Last 30 days';
+    ctx.askContext = `Creators, all brands: ${plural(rows.length, 'brand')} with a creator program, ${sum(rows, r => r.creators)} active creators, ${sum(rows, r => r.pending)} videos waiting for a yes across ${plural(waitingBrands.length, 'brand')}, ${notLaunched} approved videos not launched. Spend Meta, sales Triple Whale, last click.`;
     put(el,
       pageTop([
         { title: 'What it is for', text: 'One card per brand with a creator program: active creators, videos running as ads, videos waiting for a yes, and what creator ads cost per sale against the goal. Most waiting first; tap a brand for its last 7 against 30 days.' },
         { title: 'The words', text: 'Active creators sent a video in the last 30 days. Live videos ran as ads in the last 30 days. Approving and launching are done in old ' + APP_NAME + '.' },
         { title: 'Where the numbers come from', text: 'Spend is Meta. Sales are Triple Whale, last platform click. A brand whose creators run in their own app shows a dash where Locus cannot read the count.' },
       ], platformChip('meta'), h('span', { class: 'cr-quiet' }, 'Creator ads on Meta, last 30 days')),
-      hero({ line: true },
-        kpis([
-          kpi({ label: 'Brands with creators', value: String(rows.length), sub: plural(sum(rows, r => r.creators), 'active creator') }),
+      tiles([
+          kpi({ label: 'Brands with creators', value: String(rows.length), sub: plural(sum(rows, r => r.creators), 'active creator'), window: 'Last 30 days', source: 'Creator platform' }),
           kpi({ label: 'Waiting for a yes', value: readPending.length ? String(sum(rows, r => r.pending)) : wc ? dots() : 'not read',
             sub: !readPending.length ? null : waitingBrands.length ? statusDot('warn', plural(waitingBrands.length, 'brand') + (readPending.length < rows.length ? ', ' + part(readPending) + ' read' : '')) : statusDot('good', 'nothing waiting'),
-            href: ctx.href('a-creators', 'to-review') }),
-          kpi({ label: defLabel('Live videos', DEFS.live), value: readLive.length ? String(sum(rows, r => r.live)) : wc ? dots() : 'not read', sub: readLive.length ? 'ran as ads in 30 days, ' + part(readLive) : null }),
-          kpi({ label: 'Approved, not launched', value: wc && !rows.some(r => known(r.not_launched)) ? dots() : String(notLaunched), sub: notLaunched ? statusDot('warn', 'ready to load into Meta') : statusDot('good', 'all launched') }),
-        ], { cols: 4 })),
+            href: ctx.href('a-creators', 'to-review'), window: 'Now', source: 'Creator platform' }),
+          kpi({ label: 'Live videos', value: readLive.length ? String(sum(rows, r => r.live)) : wc ? dots() : 'not read', sub: readLive.length ? 'Ran as ads, ' + part(readLive) : null, window: 'Last 30 days', source: 'Meta' }),
+          kpi({ label: 'Approved, not launched', value: wc && !rows.some(r => known(r.not_launched)) ? dots() : String(notLaunched), sub: notLaunched ? statusDot('warn', 'Ready to load into Meta') : statusDot('good', 'All launched'), window: 'Now', source: 'Creator platform' }),
+        ], { cols: 4 }),
       h('div', { class: 'ab-grid' }, rows.map(r => {
         const m = r.last_30 || {}, own = r.own_app;
         return h('article', { class: 'ab-card', role: 'button', tabindex: '0', 'aria-label': 'Open ' + ((brandOf(ctx, r.act_id) || {}).name || r.name || 'the brand'), onclick: () => openBrand(ctx, r), onkeydown: e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); openBrand(ctx, r); } } },
           h('div', { class: 'ab-top' }, brandName(ctx, r.act_id, r.name), ws && !r.last_30 ? null : goalDot(r)),
           h('div', { class: 'ab-nums' },
-            h('span', null, defLabel('Creators', DEFS.creators, { tag: 'em' }), figure(r.creators, { wait: ws || wc }), h('small', null, 'active in 30 days')),
-            h('span', null, defLabel('Live videos', DEFS.live, { tag: 'em' }), figure(r.live, { own, wait: wc && !own }), h('small', null, 'ran as ads, 30 days')),
-            h('span', null, defLabel('Waiting', DEFS.waiting, { tag: 'em' }), figure(r.pending, { hot: true, own, wait: wc && !own }), h('small', null, 'need a yes'))),
+            h('span', null, h('em', null, 'Creators'), figure(r.creators, { wait: ws || wc }), h('small', null, 'active, 30 days')),
+            h('span', null, h('em', null, 'Live videos'), figure(r.live, { own, wait: wc && !own }), h('small', null, 'ads, 30 days')),
+            h('span', null, h('em', null, 'Waiting'), figure(r.pending, { hot: true, own, wait: wc && !own }), h('small', null, 'need a yes'))),
           known(m.spend) && +m.spend > 0 ? h('div', { class: 'ab-m' }, h('span', { class: 'h' }, 'Creator ads on Meta, last 30 days'), mfigs(m))
             : h('div', { class: 'ab-m' }, h('span', { class: 'h' }, r.last_30 ? 'No creator ad spend in 30 days' : ws ? dots('9em') : 'No creator ad numbers yet')),
           known(r.not_launched) && r.not_launched ? h('div', { class: 'ab-line' }, h('span', null, h('b', null, plural(r.not_launched, 'approved video')), ' not launched yet' + (known(r.oldest) && r.oldest ? ', oldest ' + plural(r.oldest, 'day') : ''))) : null);

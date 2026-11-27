@@ -5,7 +5,7 @@
    owner's Amazon login whatever the mode. */
 
 import { put } from '../../kit.js';
-import { h, s, button, statusDot, gauge, em, pct, num, skeleton } from '../../kit.js';
+import { h, s, card, button, statusDot, gauge, em, pct, num, skeleton } from '../../kit.js';
 import { css, usd, roas, splitBar, notConnected, needsLogin, loadTotals, winLabel } from './_ui.js';
 import { def, defOn, headRow } from '../platforms/_ads.js';
 
@@ -38,19 +38,19 @@ function picture(item, w, ht) {
 
 const sect = (title, note) => h('div', { class: 'az-sectitle' }, h('h2', null, title), note && h('span', null, note));
 const stat = (label, value) => h('div', null, h('span', null, label), h('b', null, value == null ? notConnected() : value));
+const AZ = "Amazon Ads' own count";
 
+/* the lead: a titled card with the orange split bar, the same look as Amazon > Products */
 function lead(d) {
-  const sp = d.spend, total = sp.products + sp.brands + (sp.display || 0);
-  return h('section', { class: 'lx-hero line' },
-    h('div', { class: 'az-lead' },
-      h('span', { class: 'lx-hero-num' }, pct(total ? sp.products / total : null)),
-      h('div', null, h('b', null, 'of ad spend shows the listing itself'), h('p', null, 'Main photo, title, price and stars. No separate ad to design.'))),
-    h('div', null,
-      splitBar([{ value: sp.products, color: 'var(--ink)' }, { value: sp.brands, color: 'var(--slate)' }, { value: sp.display || 0, color: 'var(--line-strong)' }],
-        { thin: true, label: `Ad spend by ad type: ${usd(sp.products)} Sponsored Products, ${usd(sp.brands)} Sponsored Brands, ${usd(sp.display || 0)} Sponsored Display` }),
-      h('div', { class: 'az-ends' },
-        h('span', null, h('b', null, usd(sp.products)), ' Sponsored Products, the listing'),
-        h('span', null, h('b', null, usd(sp.brands)), ' Sponsored Brands, pictures and video'))));
+  const sp = d.spend, total = sp.products + sp.brands + (sp.display || 0), wl = winLabel(d.window);
+  return card({ title: 'Where the ad money goes', note: wl + ' · ' + AZ, class: 'az-splitc' },
+    h('p', { class: 'az-say' }, h('b', null, pct(total ? sp.products / total : null)), ' of ad spend shows the listing itself: main photo, title, price and stars. No separate ad to design.'),
+    splitBar([{ value: sp.products, color: 'var(--brand)' }, { value: sp.brands, color: 'var(--slate)' }, { value: sp.display || 0, color: 'var(--line-strong)' }],
+      { thin: true, label: `Ad spend by ad type: ${usd(sp.products)} Sponsored Products, ${usd(sp.brands)} Sponsored Brands, ${usd(sp.display || 0)} Sponsored Display` }),
+    h('div', { class: 'az-ends' },
+      h('span', null, h('em', { class: 'az-dot', style: { '--c': 'var(--brand)' } }), h('b', null, usd(sp.products)), ' Sponsored Products, the listing'),
+      h('span', null, h('em', { class: 'az-dot', style: { '--c': 'var(--slate)' } }), h('b', null, usd(sp.brands)), ' Sponsored Brands, pictures and video'),
+      sp.display ? h('span', null, h('em', { class: 'az-dot', style: { '--c': 'var(--line-strong)' } }), h('b', null, usd(sp.display)), ' Sponsored Display') : null));
 }
 
 function listing(x) {
@@ -58,7 +58,7 @@ function listing(x) {
     h('div', { class: 'az-ph' + (x.flip ? ' flip' : '') }, picture(x, 150, 112)),
     h('div', { class: 'az-body' },
       h('div', { class: 'az-name' }, x.name, h('small', null, x.shot)),
-      h('div', { class: 'az-stats' }, stat(def('Ad click rate', 'click_rate'), pct(x.ctr, { digits: 2 })), stat('Units', num(x.units)), stat(def('Ad spend', 'ad_spend'), usd(x.spend)))));
+      h('div', { class: 'az-stats' }, stat(def('Ad click rate', 'click_rate'), pct(x.ctr, { digits: 2 })), stat('Units', num(x.units)), stat('Ad spend', usd(x.spend)))));
 }
 
 function test(t) {
@@ -76,7 +76,7 @@ function test(t) {
 
 export default {
   /* the plain question, drawn by the shell above the tabs */
-  title: ['On Amazon, the listing ', em('is the ad.')],
+  title: 'Amazon creative',
   eyebrow: 'Amazon',
 
   async load(ctx) {
@@ -97,7 +97,9 @@ export default {
       return;
     }
     const sp = d.spend, total = sp.products + sp.brands + (sp.display || 0);
-    const owner = d.owner || 'the owner';
+    const owner = d.owner || 'the owner', wl = winLabel(d.window);
+    ctx.askWindow = wl;
+    ctx.askContext = `Amazon creative for ${ctx.brand ? ctx.brand.name : 'this brand'}, ${wl}: ${usd(sp.products)} of ad spend on Sponsored Products (the listing), ${usd(sp.brands)} on Sponsored Brands (Amazon Ads' own count).`;
     const kids = [
       headRow({ help: [
         { title: 'What it is for', text: 'On Amazon the listing is the ad: how ad spend splits by ad type, how each listing photo does, the split tests and the brand ads, ' + winLabel(d.window) + '.' },
@@ -109,18 +111,18 @@ export default {
       lead(d)];
 
     if (d.listings && d.listings.length) {
-      kids.push(sect('Listing photos', `top ${d.listings.length} by sales`), h('div', { class: 'az-grid four' }, d.listings.map(listing)));
+      kids.push(sect('Listing photos', `top ${d.listings.length} by sales · ${wl} · ${AZ}`), h('div', { class: 'az-grid four' }, d.listings.map(listing)));
     }
     if (d.tests && d.tests.length) {
-      kids.push(sect('Split tests', 'conversion, A against B'), h('div', { class: 'az-grid three', style: { gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,300px),1fr))' } }, d.tests.map(test)));
+      kids.push(sect('Split tests', "conversion, A against B · each test's own dates · Amazon's test count"), h('div', { class: 'az-grid three', style: { gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,300px),1fr))' } }, d.tests.map(test)));
     }
 
     const ba = d.brand_ads;
-    kids.push(sect('Brand ads and Store pages', pct(total ? sp.brands / total : null) + ' of ad spend'),
+    kids.push(sect('Brand ads and Store pages', pct(total ? sp.brands / total : null) + ' of ad spend · ' + wl + ' · ' + AZ),
       h('div', { class: 'az-two' },
         h('article', { class: 'az-card' }, h('div', { class: 'az-body roomy' },
           h('div', { class: 'az-name' }, 'Brand video and image ads', h('small', null, ba ? `Sponsored Brands, ${ba.live === 1 ? 'one campaign' : ba.live + ' campaigns'} live: ${ba.campaign}` : 'Sponsored Brands')),
-          h('div', { class: 'az-stats start' }, stat('Spend', ba ? usd(ba.spend) : null), stat('Ad sales', ba ? usd(ba.ad_sales) : null), stat('ROAS', ba && ba.spend ? roas(ba.ad_sales / ba.spend) : null)))),
+          h('div', { class: 'az-stats start' }, stat('Spend', ba ? usd(ba.spend) : null), stat('Ad sales', ba ? usd(ba.ad_sales) : null), stat('ROAS, Amazon says', ba && ba.spend ? roas(ba.ad_sales / ba.spend) : null)))),
         h('article', { class: 'az-card' }, h('div', { class: 'az-body roomy' },
           h('div', { class: 'az-name' }, 'Store pages', h('small', null, d.store_name || 'The brand store on Amazon')),
           h('div', { class: 'az-stats start' }, stat('Visits', null), stat('Sales', null), stat('Best page', null))))));

@@ -10,6 +10,7 @@
    only name, website, contact and services. Sample mode: _sample/new.json, nothing is sent. */
 
 import { h, button, field, toggle, segmented, toast, sheet, em, empty, put, pill, statusDot, card, addStyles } from '../../kit.js';
+import { datePick } from '../a-settings/_look.js';
 
 /* this page's spacing: 16px between a card's title and its form; the two fields of a pair line up at the top
    (a hint under one field no longer pushes the other down) */
@@ -54,17 +55,25 @@ function input(label, key, attrs = {}) {
   f.input.addEventListener('input', () => { F[key] = f.input.value; });
   return f;
 }
+/** One date, picked on the Locus calendar (never the native date input): the shared datePick from a-settings/_look.js. */
+function dateField(label, key) {
+  const id = 'nc' + Math.random().toString(36).slice(2, 8);
+  const pick = datePick(F[key] || '');
+  pick.btn.id = id;
+  pick.addEventListener('change', () => { F[key] = pick.value; });
+  return h('div', { class: 'lx-field' }, h('label', { for: id }, label), pick);
+}
 function formView(el, o, ctx) {
   const owner = !!o.owner;
   const ads = F.services.some(s => ADS.includes(s));
   const chips = h('div', { class: 'gs-chips', role: 'group', 'aria-label': 'Services' }, (o.services || []).map(s => h('button', { type: 'button', class: F.services.includes(s.key) ? 'on' : '', 'aria-pressed': String(F.services.includes(s.key)),
     onclick: () => { F.services = F.services.includes(s.key) ? F.services.filter(x => x !== s.key) : [...F.services, s.key]; draw(el, o, ctx); } }, s.label)));
   const err = h('p', { class: 'gs-err', role: 'alert', hidden: true });
-  const budget = input('Monthly ad budget', 'ad_budget', { inputmode: 'decimal', placeholder: '15000', disabled: F.budget_open || null });
+  const budget = input('Monthly ad budget', 'ad_budget', { inputmode: 'decimal', placeholder: 'For example 15000', disabled: F.budget_open || null });
   const parts = [
     card({ title: 'The client' }, h('div', { class: 'gs-form' },
-      h('div', { class: 'two' }, input('Brand name', 'name', { placeholder: 'Northlake Golf', maxlength: 80 }), input('Website', 'website', { placeholder: 'northlakegolf.com', inputmode: 'url' })),
-      h('div', { class: 'two' }, input('Contact name', 'contact_name', { placeholder: 'Pat Doyle', autocomplete: 'off' }), input('Contact email', 'contact_email', { type: 'email', placeholder: 'pat@example.com', autocomplete: 'off' })),
+      h('div', { class: 'two' }, input('Brand name', 'name', { placeholder: 'For example Northlake Golf', maxlength: 80 }), input('Website', 'website', { placeholder: 'For example northlakegolf.com', inputmode: 'url' })),
+      h('div', { class: 'two' }, input('Contact name', 'contact_name', { placeholder: 'For example Pat Doyle', autocomplete: 'off' }), input('Contact email', 'contact_email', { type: 'email', placeholder: 'For example pat@example.com', autocomplete: 'off' })),
       h('div', { class: 'lx-field' }, h('label', null, 'What we run for them'), chips))),
     ads ? card({ title: 'Ads' }, h('div', { class: 'gs-form' },
       h('div', { class: 'two' }, budget, h('div', { class: 'lx-field' }, h('label', null, ' '), toggle({ label: 'Not agreed yet', checked: F.budget_open, onchange: v => { F.budget_open = v; budget.input.disabled = v; } }))),
@@ -82,9 +91,9 @@ function formView(el, o, ctx) {
       card({ title: 'Money and the agreement' }, h('div', { class: 'gs-form' },
         toggle({ label: 'They sign an agreement and pay through ' + APP_NAME, checked: sp, onchange: v => { F.sign_pay = v; draw(el, o, ctx); } }),
         sp ? [
-          h('div', { class: 'two' }, input('Monthly fee', 'retainer', { inputmode: 'decimal', placeholder: '4000', hint: 'No fee, no invoice.' }), input('Start date', 'start_date', { type: 'date' })),
+          h('div', { class: 'two' }, input('Monthly fee', 'retainer', { inputmode: 'decimal', placeholder: 'For example 4000', hint: 'Leave it empty and no invoice is sent.' }), dateField('Start date', 'start_date')),
           h('div', { class: 'two' }, input('Who signs (optional)', 'signer_name', { placeholder: 'Name, if not the contact' }), input('Their email', 'signer_email', { type: 'email', placeholder: 'Email, if not the contact' })),
-          h('div', { class: 'two' }, input('Who pays (optional)', 'payer_email', { type: 'email', placeholder: 'accounts@example.com' }), input('Legal company name (optional)', 'company_legal', { placeholder: 'Northlake Golf LLC' }))]
+          h('div', { class: 'two' }, input('Who pays (optional)', 'payer_email', { type: 'email', placeholder: 'For example accounts@example.com' }), input('Legal company name (optional)', 'company_legal', { placeholder: 'For example Northlake Golf LLC' }))]
           : h('p', { class: 'gs-hint' }, 'No agreement and no invoice for this client, so their checklist has three steps. Send either one later from their setup page and the step comes back.'))),
       card({ title: 'Our team on it' }, h('div', { class: 'gs-form' }, h('div', { class: 'two' }, ROLES.map(([r, l]) => pick(r, l))))),
       card({ title: 'Send this now' }, h('div', { class: 'gs-form' },
@@ -208,6 +217,7 @@ export default {
   title: ['Set up a ', em('new client')],
   eyebrow: 'Client list',
   ranges: false,
+  stamp: false,                  /* a form, not numbers: no "updated" stamp */
   load: ctx => ctx.api('/api/onboard/options', { worker: 'ah', signal: ctx.signal }),
   render(el, o, ctx) { if (step === 'done' && !R) step = 'form'; draw(el, o, ctx); },
 };

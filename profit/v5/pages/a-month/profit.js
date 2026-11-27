@@ -3,7 +3,8 @@
    Real: profit worker GET /api/overview (window gross_profit and cm, gated by the brand's cost check). */
 
 import { put } from '../../kit.js';
-import { helpBar, dl } from '../home/_biz.js';
+import { helpBar, dl, rangeWords } from '../home/_biz.js';
+import { tileRow, tipRows, pageStamp, TW } from '../month/_m.js';
 import { h, em, money, pct, x, statusDot, pill, legend, lineChart, empty } from '../../kit.js';
 import { style, world, readBrands, ok, sumOf, figures, brandRows, brandName, brandHref, quiet, shortDay } from '../a-today/_ag.js';
 
@@ -19,21 +20,23 @@ function render(el, d, ctx) {
   const losing = known.filter(b => b.profit < 0), thin = known.filter(b => b.profit >= 0 && b.margin < 0.08);
   const left = rows.filter(b => !ok(b.profit));
 
-  const hero = figures([
-    { label: h('span', null, dl('Left after ads', 'profit_after_ads'), ', all brands'), value: money(profit), lead: true, sub: ok(profit) && sales > 0 ? `${pct(profit / sales)} of ${money(sales)} in sales` : 'no brand with trusted costs' },
+  const win = rangeWords(ctx, d.window);
+  ctx.askWindow = win;
+  const hero = tileRow([
+    { label: h('span', null, dl('Left after ads', 'profit_after_ads'), ', all brands'), value: money(profit), sub: ok(profit) && sales > 0 ? `${pct(profit / sales)} of ${money(sales)} in sales` : 'no brand with trusted costs' },
     { label: dl('Left before ads', 'left_before_ads'), value: money(gross), sub: ok(gross) && sales > 0 ? `${pct(gross / sales)} of sales` : '' },
-    { label: 'Ad spend', value: money(spend), sub: `brands with trusted costs, MER ${spend > 0 && ok(sales) ? x(sales / spend) : 'no data'}` },
-    { label: 'Brands losing money', value: String(losing.length), sub: losing.length ? losing.map(b => b.name).join(', ') : thin.length ? `${thin.length} close to zero` : `of ${known.length} with trusted costs` },
-  ]);
+    { label: 'Ad spend', value: money(spend), source: 'All ad platforms', sub: `brands with trusted costs, MER ${spend > 0 && ok(sales) ? x(sales / spend) : 'no data'}` },
+    { label: 'Brands losing money', value: String(losing.length), sub: losing.length ? losing.map(b => b.name).join(', ') : thin.length ? `${thin.length} close to zero` : `of ${known.length} with trusted costs`, source: TW + ' costs' },
+  ], { window: win, source: TW + ' costs' });
+  ctx.askContext = `Which brands made money after ads, ${win}: left after ads ${money(profit)} on ${money(sales)} sales across ${known.length} brands with trusted costs. ${losing.length ? 'Losing money: ' + losing.map(b => b.name).join(', ') + '.' : 'No brand losing money.'}`;
 
   /* one column per brand: what was left after ads, biggest first */
   const order = [...known].sort((a, b) => b.profit - a.profit);
   const chart = order.length > 1 ? h('section', { class: 'lx-card ag-chart' },
-    h('div', { class: 'lx-chart-h' }, h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, 'Who brought in the most after ads?')), h('p', null, `${shortDay(d.window.from)} to ${shortDay(d.window.to)}, sales less product, delivery and ad costs`)),
-      legend([{ name: 'Left after ads', square: true }])),
-    lineChart({ series: [{ type: 'bar', values: order.map(b => Math.max(0, b.profit)), dimAt: i => order[i].profit < 0, labels: (v, i) => money(order[i].profit, { compact: true }) }],
-      labels: order.map(b => b.name.split(' ')[0]), height: 320, endLabels: false, yTicks: 3, label: 'What each brand kept after ads',
-      hover: i => [h('b', null, order[i].name), h('span', null, 'Left after ads ', h('b', null, money(order[i].profit))), h('span', null, 'Sales ', h('b', null, money(order[i].sales)))] })) : null;
+    h('div', { class: 'lx-chart-h' }, h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, 'Who brought in the most after ads?')), h('p', null, `Sales less product, delivery and ad costs · ${TW} costs`))),
+    lineChart({ series: [{ type: 'bar', tone: 'brand', values: order.map(b => Math.max(0, b.profit)), dimAt: i => order[i].profit < 0, labels: (v, i) => money(order[i].profit, { compact: true }) }],
+      labels: order.map(b => b.name.split(' ')[0]), height: 320, endLabels: false, yTicks: 3, format: v => money(v, { compact: true }), windowLabel: 'By brand, ' + win, label: 'What each brand kept after ads',
+      hover: i => tipRows(order[i].name, [['Left after ads', money(order[i].profit), 'ink'], ['Sales', money(order[i].sales)], ['Ad spend', money(order[i].spend)]]) })) : null;
 
   const tone = r => !ok(r.profit) ? '' : r.profit < 0 ? 'bad' : r.margin < 0.08 ? 'warn' : 'good';
   const why = r => !r.store ? 'No sales source' : !r.costs_ok ? 'Costs not trusted yet' : 'No cost data';
@@ -56,12 +59,13 @@ function render(el, d, ctx) {
   const help = helpBar([
     { title: 'What it is for', text: 'Which brands made money after ads on these dates.' },
     { title: 'How it is counted', text: `Sales are store sales less tax (Triple Whale). Left before ads is sales less product, delivery, handling and payment fees. Left after ads also takes off all ad spend, before fixed costs.${left.length ? ` ${left.map(b => b.name).join(', ')} ${left.length === 1 ? 'is' : 'are'} left out of the totals: no sales source or costs not trusted yet.` : ''}` },
-  ]);
+  ], pageStamp(ctx));
   put(el, h('div', { class: 'ag' }, help, hero, chart, tbl));
 }
 
 export default {
   title: ['Which brands ', em('made money?')],
   eyebrow: 'This month, all brands',
+  stamp: false,                     /* Home's stamp with a refresh button sits in the help bar */
   load, sample, render,
 };

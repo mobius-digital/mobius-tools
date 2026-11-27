@@ -3,7 +3,8 @@
    A plan is agreed per month, so the plan columns only show on "This month". */
 
 import { put } from '../../kit.js';
-import { helpBar, dl } from '../home/_biz.js';
+import { helpBar, dl, rangeWords } from '../home/_biz.js';
+import { tileRow, tipRows, pageStamp, TW } from '../month/_m.js';
 import { h, em, money, pct, x, statusDot, pill, delta, legend, lineChart, empty } from '../../kit.js';
 import { style, world, readBrands, paceOf, against, ok, sumOf, figures, brandRows, brandName, brandHref, quiet, shortDay } from '../a-today/_ag.js';
 
@@ -22,23 +23,26 @@ function render(el, d, ctx) {
   const behind = rows.filter(b => b.st.tone === 'bad');
   const gap = planned && planSales > 0 ? salesOnPlan / planSales - 1 : null, over = planned && planSpend > 0 ? spendOnPlan / planSpend - 1 : null;
 
-  const hero = figures([
-    { label: 'Sales, all brands', value: money(sales), lead: true, sub: gap == null ? `${stores.length} brands with a store` : [delta(gap), `${gap >= 0 ? 'ahead of' : 'behind'} plan ${money(planSales)}`] },
-    { label: 'Ad spend, all brands', value: money(spend), sub: over == null ? 'every platform' : [delta(over, { bad: over > 0, plain: over <= 0 }), `${over > 0 ? 'over' : 'under'} plan ${money(planSpend)}`] },
+  const win = rangeWords(ctx, d.window);
+  ctx.askWindow = win;
+  const hero = tileRow([
+    { label: 'Sales, all brands', value: money(sales), sub: gap == null ? `${stores.length} brands with a store` : [delta(gap), `${gap >= 0 ? 'ahead of' : 'behind'} plan ${money(planSales)}`] },
+    { label: 'Ad spend, all brands', value: money(spend), source: 'All ad platforms', sub: over == null ? 'every platform' : [delta(over, { bad: over > 0, plain: over <= 0 }), `${over > 0 ? 'over' : 'under'} plan ${money(planSpend)}`] },
     { label: h('span', null, dl('Store MER', 'mer'), ', all stores'), value: storeSpend > 0 && ok(sales) ? x(sales / storeSpend) : 'no data', sub: 'sales over ad spend, brands with a store' },
-    planned && { label: 'Brands behind plan', value: String(behind.length), sub: behind.length ? behind.map(b => b.name).slice(0, 2).join(', ') + (behind.length > 2 ? ` and ${behind.length - 2} more` : '') : `of ${withPlan.length} with a plan` },
-  ]);
+    planned && { label: 'Brands behind plan', value: String(behind.length), sub: behind.length ? behind.map(b => b.name).slice(0, 2).join(', ') + (behind.length > 2 ? ` and ${behind.length - 2} more` : '') : `of ${withPlan.length} with a plan`, source: 'against the plan to date' },
+  ], { window: win, source: TW });
+  ctx.askContext = `Every brand's pace, ${win}: sales ${money(sales)}, ad spend ${money(spend)}${gap != null ? `, ${gap >= 0 ? 'ahead of' : 'behind'} plan by ${pct(Math.abs(gap))}` : ''}. ${behind.length ? 'Behind plan: ' + behind.map(b => b.name).join(', ') + '.' : 'No brand behind plan.'}`;
 
   let chart = null;
   const daily = d.daily;
   if (daily && daily.dates.length > 1) {
     const bb = v => h('b', null, v);
     chart = h('section', { class: 'lx-card ag-chart' },
-      h('div', { class: 'lx-chart-h' }, h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, 'Are sales keeping up with ad spend?')), h('p', null, 'by day, every brand added up')),
+      h('div', { class: 'lx-chart-h' }, h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, 'Are sales keeping up with ad spend?')), h('p', null, 'By day, every brand added up · sales ' + TW + ', spend from the ad platforms')),
         legend([{ name: 'Sales', lead: true }, { name: 'Ad spend' }])),
       lineChart({ series: [{ name: 'Sales', lead: true, values: daily.sales }, { name: 'Ad spend', values: daily.spend }], labels: daily.dates.map(shortDay),
-        endFormat: v => money(v), height: 340, label: `Sales and ad spend by day for every brand, ${shortDay(daily.dates[0])} to ${shortDay(daily.dates[daily.dates.length - 1])}`,
-        hover: i => [bb(shortDay(daily.dates[i])), h('span', null, 'Sales ', bb(money(daily.sales[i]))), h('span', null, 'Ad spend ', bb(money(daily.spend[i])))] }));
+        endFormat: v => money(v), format: v => money(v, { compact: true }), windowLabel: 'Daily, ' + rangeWords(ctx, { from: daily.dates[0], to: daily.dates[daily.dates.length - 1] }), height: 340, label: `Sales and ad spend by day for every brand, ${shortDay(daily.dates[0])} to ${shortDay(daily.dates[daily.dates.length - 1])}`,
+        hover: i => tipRows(shortDay(daily.dates[i]), [['Sales', money(daily.sales[i]), 'lead'], ['Ad spend', money(daily.spend[i]), 'slate'], daily.spend[i] > 0 ? ['MER', x(daily.sales[i] / daily.spend[i])] : null]) }));
   }
 
   const noStore = () => quiet('No sales source connected');
@@ -66,12 +70,13 @@ function render(el, d, ctx) {
   const help = helpBar([
     { title: 'What it is for', text: 'Is every brand on pace: sales against the plan to date, ad spend against its plan, store MER against goal.' },
     { title: 'How it is counted', text: `Sales are store sales less tax (Triple Whale). MER is whole store sales over all ad spend. ${planned ? `Plan to date is the month plan split evenly over the days so far. Behind plan means more than ${d.rules.behind_pct}% under it.` : 'The plan is agreed per month, so it shows on This month only.'} Click a brand to open its own Pace page.` },
-  ]);
+  ], pageStamp(ctx));
   put(el, h('div', { class: 'ag' }, help, hero, chart, table));
 }
 
 export default {
   title: ['Is every brand ', em('on pace?')],
   eyebrow: 'This month, all brands',
+  stamp: false,                     /* Home's stamp with a refresh button sits in the help bar */
   load, sample, render,
 };

@@ -8,6 +8,7 @@ import { h, put, card, segmented, button, pill, statusDot, toast, em, empty, add
 import { ENGINE_DEFAULT } from '../../config.js';
 import { engineMode, setEngineMode, engineApi, portedList, misses } from '../../engine.js';
 import { pageHelp } from '../../defs.js';
+import { look } from '../a-settings/_look.js';
 
 const SAMPLE_NOTE = 'Sample: nothing was changed';
 
@@ -76,14 +77,14 @@ function everyoneCard(d, redraw, ctx) {
 }
 
 function render(el, d, ctx) {
-  addStyles('en-css', CSS);
+  addStyles('en-css', CSS); look();
   if (!ctx.sample && (!ctx.me || ctx.me.role !== 'owner')) return put(el, empty({ title: 'Only the owner can open this page' }));
   const help = h('div', { class: 'row' }, pageHelp({ body: [
     { title: 'What it is for', text: 'Which engine answers the screens: the old workers, or the new engine that is taking their place one route at a time.' },
     { title: 'Two switches', text: 'This browser changes it for you only, in this browser. Everyone, at once changes it for every person within 30 seconds, with no deploy. The old engine keeps running either way.' },
     { title: 'What never moves', text: 'Timed jobs, chat and webhooks stay on the old engine whatever is chosen here.' },
   ] }));
-  const draw = data => put(el, h('div', { class: 'en' }, help, browserCard(ctx), engineCard(data || {}), everyoneCard(data || {}, draw, ctx)));
+  const draw = data => put(el, h('div', { class: 'en adm' }, help, browserCard(ctx), engineCard(data || {}), everyoneCard(data || {}, draw, ctx)));
   draw(d);
 }
 

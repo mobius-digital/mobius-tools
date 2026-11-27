@@ -6,7 +6,7 @@
    A client (or "See as client") gets the review page instead: what waits on them, Approve always in reach. */
 
 import { APP_NAME } from '../../config.js';
-import { h, hero, kpi, kpis, gauge, statusDot, empty, em, skeleton } from '../../kit.js';
+import { h, kpi, tiles, gauge, statusDot, empty, em, skeleton, segmented, card } from '../../kit.js';
 import { put, css, COLS, OPEN, day, daysFrom, dueText, todayOf, weekOf, picture, who, oldLocus, plural, pageTop, dotDef, teamTag } from './_ui.js';
 import { openCard } from './_sheet.js';
 import review from './review.js';
@@ -71,16 +71,16 @@ function top(cards, today, pickFilter) {
   /* a tile that has a matching filter chip sets it on click */
   const tap = (node, id, words) => { if (!id) return node; node.classList.add('pd-kpi-go'); node.tabIndex = 0; node.setAttribute('role', 'button'); node.title = 'Show ' + words;
     node.addEventListener('click', () => pickFilter(id)); node.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickFilter(id); } }); return node; };
-  return hero({ line: true },
-    kpis([
-      kpi({ label: 'Being made', value: String(n(c => c.board === 'brief' || c.board === 'making')), sub: plural(n(c => c.board === 'brief'), 'brief') + ' not started' }),
-      tap(kpi({ label: 'In review', value: String(n(c => c.board === 'review')), sub: client ? statusDot('warn', client + ' with the client') : 'none with the client' }), client ? 'client' : null, 'the cards waiting on the client'),
-      kpi({ label: 'Ready to load', value: String(n(c => c.board === 'ready' || c.board === 'scheduled')), sub: plural(n(c => c.board === 'scheduled'), 'card') + ' scheduled in Meta' }),
-      tap(kpi({ label: 'Late', value: String(late.length), sub: late.length ? statusDot('bad', 'oldest ' + plural(worst, 'day')) : statusDot('good', 'nothing overdue') }), 'late', 'the late cards'),
+  const SRC = 'Production board';
+  return [tiles([
+      kpi({ label: 'Being made', value: String(n(c => c.board === 'brief' || c.board === 'making')), sub: plural(n(c => c.board === 'brief'), 'brief') + ' not started', window: 'Now', source: SRC }),
+      tap(kpi({ label: 'In review', value: String(n(c => c.board === 'review')), sub: client ? statusDot('warn', client + ' with the client') : 'None with the client', window: 'Now', source: SRC }), client ? 'client' : null, 'the cards waiting on the client'),
+      kpi({ label: 'Ready to load', value: String(n(c => c.board === 'ready' || c.board === 'scheduled')), sub: plural(n(c => c.board === 'scheduled'), 'card') + ' scheduled in Meta', window: 'Now', source: SRC }),
+      tap(kpi({ label: 'Late', value: String(late.length), sub: late.length ? statusDot('bad', 'Oldest ' + plural(worst, 'day')) : statusDot('good', 'Nothing overdue'), window: 'Now', source: SRC }), 'late', 'the late cards'),
     ], { cols: 4 }),
-    due.length ? h('div', { class: 'pb-week' },
+    due.length ? card({ class: 'pb-weekc' }, h('div', { class: 'pb-week' },
       h('div', null, h('span', null, `Due this week, ${day(wk[0])} to ${day(wk[1])}`), h('b', null, `${done} of ${due.length} ready`)),
-      gauge({ value: done, max: due.length, thin: true, tone: done === due.length ? 'good' : '' })) : null);
+      gauge({ value: done, max: due.length, thin: true, tone: done === due.length ? 'good' : '' }))) : null];
 }
 
 const page = {
@@ -106,14 +106,11 @@ const page = {
     let pick = ctx.settingNow('production.filter', 'all');
     if (!FILTERS.some(f => f.id === pick)) pick = 'all';
     const slot = h('div');
-    const chips = h('div', { class: 'pd-chips', role: 'tablist' });
+    const chips = h('div', { class: 'pd-filt' });
     const draw = () => {
       const f = FILTERS.find(x => x.id === pick);
-      put(chips, ...FILTERS.map(x => {
-        const count = x.id === 'all' ? null : cards.filter(c => x.test(c, today, wk)).length;
-        return h('button', { type: 'button', role: 'tab', class: x.id === pick ? 'on' : '', 'aria-selected': x.id === pick,
-          onclick: () => { pick = x.id; ctx.saveSetting('production.filter', pick); draw(); } }, x.label, count == null ? null : h('span', null, count));
-      }));
+      put(chips, segmented(FILTERS.map(x => { const count = x.id === 'all' ? null : cards.filter(c => x.test(c, today, wk)).length; return { id: x.id, label: count == null ? x.label : x.label + ' ' + count }; }),
+        pick, id => { pick = id; ctx.saveSetting('production.filter', pick); draw(); }));
       const shown = cards.filter(c => f.test(c, today, wk));
       put(slot, shown.length ? board(shown, data, ctx, today, changed) : empty({ title: 'No cards match', text: 'Nothing is ' + f.label.toLowerCase() + ' right now.' }));
     };
@@ -122,14 +119,16 @@ const page = {
     draw();
     const pickFilter = id => { pick = id; ctx.saveSetting('production.filter', pick); draw(); chips.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); };
     const old = oldLocus(ctx, { label: 'New card in old ' + APP_NAME });
+    ctx.askWindow = 'Now';
+    ctx.askContext = `Production board for ${(ctx.brand && ctx.brand.name) || 'this brand'}: ${plural(cards.length, 'ad card')}, ${cards.filter(c => OPEN.includes(c.board)).length} not approved yet, ${cards.filter(c => c.late).length} late, ${cards.filter(c => c.needs_client).length} waiting on the client, ${cards.filter(c => c.board === 'live').length} live.`;
     put(el,
       pageTop([
         { title: 'What it is for', text: 'Every ad card for this brand, from brief to live, in five columns. Tap a card to see it large with its brief, files and notes.' },
         { title: 'What you can do here', text: canWrite(ctx) ? 'Open a card to move it, give it to someone, approve it, add a note, send it to the client or load it into Meta. New cards and uploads are still made in old ' + APP_NAME + '. Scheduled, Live and Off follow Meta by themselves.' : 'You can look here. Changes are made by the team.' },
         { title: 'The marks', text: 'Late: past its date and not approved. Client: waiting on the client for a yes. Scheduled: loaded into Meta with a start date. Ended: its ads are off. Nobody: no one has the card yet. Hover or tap any mark for its meaning.' },
       ], old ? teamTag() : null, old),
-      top(cards, today, pickFilter),
-      h('div', { class: 'pd-tools' }, chips),
+      ...top(cards, today, pickFilter),
+      h('div', { class: 'pd-tools' }, h('div', { class: 'pd-th' }, h('h2', null, 'The board'), h('p', null, 'Brief to live, now · tap a card to open it')), chips),
       slot);
   },
 };

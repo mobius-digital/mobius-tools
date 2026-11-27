@@ -1,0 +1,13 @@
+{
+  "weekend": false,
+  "counts": { "plan": 4, "out": 1, "none": 2 },
+  "people": [
+    { "name": "Alex Morgan", "state": "plan", "plan": { "at": "2026-11-26T14:05:00Z" }, "items": ["Black Friday check-ins for every brand", "Approve Harbor & Pine weekend budget"], "wrap": null, "need": [] },
+    { "name": "Jordan Lee", "state": "plan", "plan": { "at": "2026-11-26T13:40:00Z" }, "items": ["Turn on Black Friday ads at 6pm", "Northlake Golf budget step", "Copper Kettle Pets ad set review", "Summit Sticks new ads"], "wrap": { "done": 1, "of": 4 }, "need": [] },
+    { "name": "Sam Rivera", "state": "plan", "plan": { "at": "2026-11-26T15:10:00Z" }, "items": ["Cyber Monday briefs for Tallgrass Apparel"], "wrap": null, "need": ["photos from Northlake Golf"] },
+    { "name": "Riley Chen", "state": "plan", "plan": { "at": "2026-11-26T16:00:00Z" }, "items": ["Recut 3 creator videos", "Holiday gifting edits"], "wrap": null, "need": [] },
+    { "name": "Casey Brooks", "state": "none", "items": [], "need": [] },
+    { "name": "Morgan Patel", "state": "none", "items": [], "need": [] },
+    { "name": "Taylor Kim", "state": "out", "back": "Mon", "items": [], "need": [] }
+  ]
+}

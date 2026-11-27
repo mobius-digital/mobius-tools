@@ -7,9 +7,10 @@
    these dates, the split shows "no data", never $0. */
 
 import { put } from '../../kit.js';
-import { askWhy, helpBar, dl, rangeWords } from '../home/_biz.js';
-import { h, em, card, kpi, kpis, delta, takeaway, button, table, legend, lineChart, skeleton, money } from '../../kit.js';
-import { ok, usd, rate, sum, move, shortDate, inRange, noteAt, css, head, barCell, channelTag, kl, hubEmail, soft, notConnected, num, pct, openCampaign } from './_em.js';
+import { askWhy, dl, rangeWords } from '../home/_biz.js';
+import { headRow } from '../platforms/_ads.js';
+import { h, tiles, em, card, kpi, kpis, delta, takeaway, button, table, legend, lineChart, skeleton, money } from '../../kit.js';
+import { ok, usd, rate, sum, move, shortDate, inRange, noteAt, css, head, barCell, channelTag, kl, hubEmail, soft, notConnected, num, pct, openCampaign, goCell } from './_em.js';
 
 /* ---------- real mode: five reads, shaped like the fixture ---------- */
 function shape(ctx, hub, store, daily, camps, ov, ex) {
@@ -32,6 +33,7 @@ function shape(ctx, hub, store, daily, camps, ov, ex) {
     },
     days: (hub.series || []).map(r => ({ date: r.date, campaigns: r.campaigns, flows: r.flows, store: ok(storeBy[r.date]) ? storeBy[r.date] : null })),
     list_spark: klOk && ok(size) ? inWin.map(r => (run += (r.gained || 0) - (r.lost || 0))) : [],
+    list_dates: klOk && ok(size) ? inWin.map(r => r.date) : [],
     note: null,
     campaigns: sent.sort((a, b) => (b.conversion_value || 0) - (a.conversion_value || 0)).slice(0, 5)
       .map(x => ({ id: x.id, name: x.subject || x.name, subject: x.subject, preview_text: x.preview_text || null, sent: x.sent, channel: x.channel, sales: x.conversion_value, orders: x.conversions, recipients: x.recipients, open_rate: x.open_rate, click_rate: x.click_rate, unsub_rate: x.unsubscribe_rate, order_rate: x.conversion_rate, first_time: null })),
@@ -41,23 +43,26 @@ function shape(ctx, hub, store, daily, camps, ov, ex) {
 }
 
 /* ---------- parts ---------- */
-function figures(d) {
+function figures(d, W) {
   const t = d.totals || {}, isEx = (d.example || []).includes('returning');
   const dSales = move(t.sales, t.sales_prev), dShare = ok(t.share) && ok(t.share_prev) ? t.share - t.share_prev : null;
   const pts = v => Math.abs(Math.round(v * 100)) + ' pts';
   const splitOk = ok(t.campaigns) && ok(t.flows) && t.campaigns + t.flows > 0;
+  const ds = d.days || [], dd = ds.length > 1 ? ds.map(r => shortDate(r.date)) : null;
+  /* list size by day: one label per value; the sample carries no dates for it, so they are the last days of the window */
+  const ls = d.list_spark || [], ld = ls.length > 1 ? ((d.list_dates || []).length === ls.length ? d.list_dates.map(shortDate) : ds.length >= ls.length ? ds.slice(ds.length - ls.length).map(r => shortDate(r.date)) : null) : null;
   const daily = splitOk ? (d.days || []).map(r => (r.campaigns || 0) + (r.flows || 0)) : null;
-  const el = kpis([
-    kpi({ label: dl('Email & SMS sales', { name: 'Email & SMS sales', definition: 'Store sales Triple Whale credits to email and text, campaigns and flows together.', source: 'Triple Whale' }), size: 'lg', value: ok(t.sales) ? usd(t.sales) : 'no data',
-      delta: ok(dSales) ? delta(dSales, { bad: dSales < 0 }) : null, sub: ok(t.orders) ? num(t.orders) + ' orders' : ok(t.sales_prev) ? 'vs ' + usd(t.sales_prev) + ' before' : null, spark: daily }),
-    kpi({ label: 'Share of store sales', size: 'lg', value: ok(t.share) ? pct(t.share) : 'no data',
+  const el = tiles([
+    kpi({ label: dl('Email & SMS sales', { name: 'Email & SMS sales', definition: 'Store sales Triple Whale credits to email and text, campaigns and flows together.', source: 'Triple Whale' }), value: ok(t.sales) ? usd(t.sales) : 'no data', window: W, source: 'Triple Whale',
+      delta: ok(dSales) ? delta(dSales, { bad: dSales < 0 }) : null, sub: ok(t.orders) ? num(t.orders) + ' orders' : ok(t.sales_prev) ? 'vs ' + usd(t.sales_prev) + ' before' : null, spark: daily, sparkFormat: v => usd(v), sparkLabels: dd }),
+    kpi({ label: 'Share of store sales', value: ok(t.share) ? pct(t.share) : 'no data', window: W, source: 'Triple Whale',
       delta: ok(dShare) && Math.abs(dShare) >= 0.005 ? delta(dShare, { bad: dShare < 0, text: pts(dShare) }) : null, sub: 'of all store sales',
-      spark: splitOk ? (d.days || []).filter(r => r.store > 0).map(r => ((r.campaigns || 0) + (r.flows || 0)) / r.store) : null }),
-    ok(t.returning_share) ? kpi({ label: 'From returning buyers', size: 'lg', src: isEx ? 'Example' : null, value: pct(t.returning_share),
+      spark: splitOk ? ds.map(r => (r.store > 0 ? ((r.campaigns || 0) + (r.flows || 0)) / r.store : null)) : null, sparkFormat: v => pct(v), sparkLabels: dd }),
+    ok(t.returning_share) ? kpi({ label: 'From returning buyers', src: isEx ? 'Example' : null, value: pct(t.returning_share), window: W, source: 'Triple Whale',
       delta: ok(t.returning_move) ? delta(t.returning_move, { text: pts(t.returning_move) }) : null, sub: 'of email and SMS sales' }) : null,
-    kpi({ label: dl('List size', 'list_size'), size: 'lg', value: ok(t.list_size) ? num(t.list_size) : 'no data',
+    kpi({ label: dl('List size', 'list_size'), value: ok(t.list_size) ? num(t.list_size) : 'no data', window: 'Today', source: "Klaviyo's count",
       delta: ok(t.list_net) && t.list_net !== 0 ? delta(t.list_net, { bad: t.list_net < 0, text: num(Math.abs(t.list_net)) }) : null,
-      sub: ok(t.sms_size) ? num(t.sms_size) + ' on SMS' : ok(t.list_size) ? 'largest list' : 'needs the Klaviyo key', spark: d.list_spark }),
+      sub: ok(t.sms_size) ? num(t.sms_size) + ' on SMS' : ok(t.list_size) ? 'largest list' : 'needs the Klaviyo key', spark: d.list_spark, sparkLabels: ld, sparkFormat: v => num(v) }),
   ].filter(Boolean), { cols: 4 });
   el.classList.add('em-kpis');
   return el;
@@ -81,16 +86,16 @@ function chartCard(d) {
   const total = days.map(r => (r.campaigns || 0) + (r.flows || 0));
   const b = v => h('b', null, v);
   return card({ class: 'em-chart' },
-    head('Flows or campaigns: what brought the sales?', 'Sales by day, Triple Whale\'s count',
-      legend([{ name: 'Campaigns ' + (t.campaigns > 0 ? usd(t.campaigns) : 'no data'), square: true, color: 'var(--ink)' }, { name: 'Flows ' + (t.flows > 0 ? usd(t.flows) : 'no data'), square: true, color: 'var(--line-strong)' }])),
+    head('Sales by day, campaigns and flows', 'Triple Whale\'s count',
+      legend([{ name: 'Campaigns ' + (t.campaigns > 0 ? usd(t.campaigns) : 'no data'), square: true, color: 'var(--brand)' }, { name: 'Flows ' + (t.flows > 0 ? usd(t.flows) : 'no data'), square: true, color: 'var(--line-strong)' }])),
     lineChart({
       series: [
-        { type: 'bar', name: 'Campaigns', values: total },
+        { type: 'bar', tone: 'brand', name: 'Campaigns', values: total },
         { type: 'bar', tone: 'dim', name: 'Flows', values: days.map(r => r.flows || 0) },
       ],
       labels: days.map(r => shortDate(r.date)), fill: false,
       note: noteAt(days, d.note), format: v => money(v, { compact: true }), height: 340, phoneHeight: 290,
-      label: 'Email and SMS sales by day, campaigns and flows',
+      label: 'Email and SMS sales by day, campaigns and flows', windowLabel: 'Daily, ' + (d.range ? rangeWords(null, d.range) : ''), name: 'Email',
       hover: i => [b(shortDate(days[i].date)), h('span', null, 'Campaigns ', b(usd(days[i].campaigns))), h('span', null, 'Flows ', b(usd(days[i].flows))),
         days[i].store > 0 ? h('span', null, 'Share of store sales ', b(pct(total[i] / days[i].store))) : null],
     }));
@@ -105,7 +110,7 @@ function topCampaigns(d, ctx) {
       : { title: 'No campaigns went out in these dates', text: d.campaigns_error || 'Pick a longer range to see earlier sends.' }));
   }
   const max = Math.max(...rows.map(r => r.sales || 0), 1), first = rows.some(r => ok(r.first_time));
-  return card({ title, note: 'sorted by sales, Klaviyo\'s count, tap one to open it', flush: true, class: 'em-flush', action: all },
+  return card({ title, note: (d.range ? rangeWords(null, d.range) + ' · ' : '') + 'Klaviyo\'s count, sorted by sales, tap one to open it', flush: true, class: 'em-flush', action: all },
     table({ roomy: true, rows, onRow: r => openCampaign(r), cols: [
       { key: 'name', label: 'Campaign', class: 'name', render: r => h('span', { class: 'em-name' }, r.name, channelTag(r.channel)) },
       { key: 'sent', label: 'Sent', class: 'dim hide-sm', render: r => (r.sent ? shortDate(r.sent) : '') },
@@ -113,12 +118,12 @@ function topCampaigns(d, ctx) {
       first && { key: 'first_time', label: 'First-time buyers', num: true, class: 'hide-md', render: r => rate(r.first_time, 0) },
       { key: 'open_rate', label: dl('Open rate', 'open_rate'), num: true, class: 'hide-sm', render: r => (r.channel === 'sms' ? h('span', { class: 'em-none' }, 'text') : rate(r.open_rate)) },
       { key: 'click_rate', label: dl('Click rate', 'click_rate'), num: true, render: r => rate(r.click_rate, 2) },
-      { key: 'go', label: '', class: 'em-go', render: () => '>' },
+      { key: 'go', label: '', class: 'em-go', render: goCell },
     ].filter(Boolean) }));
 }
 
 export default {
-  title: ['What are email and texts ', em('bringing in?')],
+  title: 'Email & SMS',
   eyebrow: 'Email & SMS',
 
   async load(ctx) {
@@ -143,13 +148,15 @@ export default {
         teamText: 'No email or SMS sales came through Triple Whale for these dates and there is no Klaviyo key. Paste the brand\'s Klaviyo private key in Brand settings, Integrations.' }));
       return;
     }
-    const isEx = (d.example || []).length > 0;
+    const isEx = (d.example || []).length > 0, tt = d.totals || {};
+    ctx.askWindow = rangeWords(ctx, d.range) || null;
+    ctx.askContext = `Email and SMS for ${ctx.brand ? ctx.brand.name : 'this brand'}, ${rangeWords(ctx, d.range)}: sales ${ok(tt.sales) ? usd(tt.sales) : 'not read'} (Triple Whale)` + (ok(tt.share) ? `, ${pct(tt.share)} of store sales` : '') + (ok(tt.list_size) ? `, list size ${num(tt.list_size)} (Klaviyo)` : '') + '.';
     put(el, ...[
-      helpBar([
+      headRow({ help: [
         { title: 'What it is for', text: 'What email and texts bring in on the dates at the top, flows against campaigns, and the top campaigns. Tap a campaign to open it.' },
         { title: 'Where the numbers come from', text: 'Sales by day and the share of store sales are from Triple Whale. Orders, list size and campaign results are Klaviyo\'s own count.' + (isEx ? ' "From returning buyers" is an example until its data feed is built.' : '') },
-      ], h('span', { class: 'bz-chip' }, rangeWords(ctx, d.range))),
-      h('section', { class: 'lx-hero line' }, figures(d)),
+      ] }),
+      figures(d, rangeWords(ctx, d.range)),
       verdict(d, ctx),
       chartCard(d),
       topCampaigns(d, ctx),

@@ -1,6 +1,9 @@
 {
  "sample": true,
  "today": "2026-11-24",
+ "status": {
+  "brand_fairway_supply": "paused"
+ },
  "clients": [
   {
    "email": "pat@example.com",

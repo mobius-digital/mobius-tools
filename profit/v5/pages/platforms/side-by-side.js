@@ -6,7 +6,7 @@
 
 import { put } from '../../kit.js';
 import { def, defOn, headRow } from './_ads.js';
-import { h, em, svgNode, money, pct, x, button, platformChip, statusDot, delta, takeaway, card, legend, lineChart, gauge, table, empty, addStyles, handEm } from '../../kit.js';
+import { h, em, svgNode, money, pct, x, button, platformChip, statusDot, delta, takeaway, card, legend, lineChart, gauge, table, empty, addStyles, handEm, kpi, tiles } from '../../kit.js';
 import { icon, PLATFORM_NAME } from '../../icons.js';
 import { askWhy } from '../home/_biz.js';
 
@@ -73,6 +73,7 @@ async function load(ctx) {
     daily: {
       dates: rows.map(r => r.date),
       total: rows.map(r => r.spend ?? null),
+      sales: hasSales ? rows.map(r => r.sales ?? null) : null,
       meta: rows.some(r => r.meta_spend > 0) ? rows.map(r => r.meta_spend ?? null) : null,
       plan_day: planDay, note: null,
     },
@@ -122,7 +123,7 @@ const CSS = `
   .sbs-item .lx-gauge-ticks{margin-top:2px}
   .sbs-item.total .lx-gauge-track{background:var(--line-strong)}
   .sbs .lx-card.flush>.lx-sec{flex-wrap:wrap}
-  .sbs .lx-card.flush>.lx-sec .act{margin-left:0;width:100%}
+  .sbs .lx-card.flush>.lx-sec .act{margin-left:0;width:100%;order:4}
   .sbs .lx-card.flush>.lx-sec .act .lx-btn{width:100%;height:44px;justify-content:center}
   .sbs-chart{padding:18px 14px 12px}
 }`;
@@ -158,29 +159,33 @@ function render(el, data, ctx) {
   const sugHref = ctx.href((sug.find(v => v[1] > 0) || ['meta'])[0], 'suggestions');
   const costLabel = d.cost_kind === 'new_customer' ? def('New customer cost', 'ncpa') : def('Cost per sale', 'cpa');
 
-  /* --- the four figures --- */
+  /* --- the figures: every tile with its daily line, or none (one lone line stretches the row). The suggestion count is
+     the Platform by platform card's button, so it is not a tile of its own. --- */
   const over = d.plan_spend > 0 && d.spend != null ? d.spend / d.plan_spend - 1 : null;
-  const k = (label, value, sub, href) => h(href ? 'a' : 'div', { class: 'lx-kpi lg', href }, h('span', { class: 'l' }, label), value, h('span', { class: 's' }, sub));
-  const wl = windowText(d.window);
-  const big = text => h('span', { class: 'v' }, text);
+  const wl = windowText(d.window), TW = d.sales_source_name || 'Triple Whale';
+  const dl = d.daily || {}, nd = dl.dates ? dl.dates.length : 0, labels = nd > 1 ? dl.dates.map(shortDay) : null;
+  const ser = labels ? {
+    spend: dl.total && dl.total.length === nd ? dl.total : null,
+    mer: hasSales && dl.sales && dl.sales.length === nd ? dl.sales.map((v, i) => (v != null && dl.total[i] > 0 ? v / dl.total[i] : null)) : null,
+    share: top && top.id === 'meta' && dl.meta && dl.meta.length === nd ? dl.meta.map((v, i) => (v != null && dl.total[i] > 0 ? v / dl.total[i] : null)) : null,
+  } : {};
+  const all = !!(ser.spend && (ser.mer || !hasSales) && (ser.share || !top));
+  const sp = (key, fmt) => (all && ser[key] ? { spark: ser[key], sparkLabels: labels, sparkFormat: fmt } : {});
   const figures = [
-    k(def('Total ad spend' + (wl ? ', ' + wl : ''), 'ad_spend'), big(money(d.spend)),
-      over == null ? 'no spend plan set'
+    kpi({ label: 'Total ad spend', value: money(d.spend), href: ctx.href('month', 'pace'), window: wl, source: 'each platform',
+      sub: over == null ? 'no spend plan set'
         : Math.abs(over) < 0.005 ? `on plan ${money(d.plan_spend)}`
         : [delta(over, { bad: over > 0, plain: over < 0 }), `${over > 0 ? 'over' : 'under'} plan ${money(d.plan_spend)}`],
-      ctx.href('month', 'pace')),
-    h('a', { class: 'lx-kpi lg sbs-kpi', href: ctx.href('month', 'pace') },
-      h('span', { class: 'l' }, def('MER, whole store', 'mer')),
-      hasSales ? h('span', { class: 'lx-hero-num' }, x(d.mer)) : h('span', { class: 'v words' }, 'No sales source connected'),
-      h('span', { class: 's' }, hasSales && d.goal_mer != null ? statusDot(d.mer >= d.goal_mer ? 'good' : d.mer >= d.goal_mer * 0.6 ? 'warn' : 'bad', 'goal ' + x(d.goal_mer)) : hasSales ? 'no goal set' : '')),
-    top ? k(`${PLATFORM_NAME[top.id] || top.id} share of ad spend`, big(pct(share(top))),
-      second ? `${PLATFORM_NAME[second.id] || second.id} ${pct(share(second))}` : 'the only platform spending', ctx.href(top.id, 'overview')) : null,
-    team && sug.length ? k('Suggestions to decide', big(String(sugTotal)),
-      sug.map(v => `${PLATFORM_NAME[v[0]]} ${v[1]}`).join(', '), sugHref) : null,
+      ...sp('spend', v => money(v)) }),
+    kpi({ label: h('span', null, def('MER', 'mer'), ', whole store'), value: hasSales ? x(d.mer) : 'No sales source connected', href: ctx.href('month', 'pace'), window: wl, source: hasSales ? TW : null,
+      sub: hasSales && d.goal_mer != null ? statusDot(d.mer >= d.goal_mer ? 'good' : d.mer >= d.goal_mer * 0.6 ? 'warn' : 'bad', 'goal ' + x(d.goal_mer)) : hasSales ? 'no goal set' : '',
+      ...sp('mer', v => x(v)) }),
+    top ? kpi({ label: `${PLATFORM_NAME[top.id] || top.id} share of ad spend`, value: pct(share(top)), href: ctx.href(top.id, 'overview'), window: wl, source: 'each platform',
+      sub: second ? `${PLATFORM_NAME[second.id] || second.id} ${pct(share(second))}` : 'the only platform spending', ...sp('share', v => pct(v)) }) : null,
   ].filter(Boolean);
-  /* a seven figure spend is wider than a hand written row allows for: tell the row, so the tile keeps its number inside */
-  const hand = handEm([money(d.spend), hasSales ? x(d.mer) : '', top ? pct(share(top)) : '', String(sugTotal)]);
-  const heroBand = h('section', { class: 'lx-hero line' }, h('div', { class: 'lx-kpis', style: hand ? { '--cols': figures.length, '--kpi-hand': hand } : { '--cols': figures.length } }, figures));
+  const heroBand = tiles(figures, { cols: figures.length === 3 ? 3 : figures.length === 2 ? 2 : 4 });
+  ctx.askWindow = wl || null;
+  ctx.askContext = `All ad platforms for ${ctx.brand ? ctx.brand.name : 'this brand'}, ${wl}: total ad spend ${money(d.spend)}` + (hasSales ? `, whole store MER ${x(d.mer)} (Triple Whale)` : '') + '. ' + bySpend.map(p => `${PLATFORM_NAME[p.id] || p.id} spend ${money(p.spend)}${p.roas != null ? ', ROAS ' + x(p.roas) : ''}`).join('; ') + '.';
 
   /* --- the one sentence --- */
   const take = headRow({ ask: team ? askWhy(ctx, 'How do the ad platforms compare, and why?') : null, help: [
@@ -204,9 +209,9 @@ function render(el, data, ctx) {
     roomy: true, rowHeight: 68, total, sort: { key: 'spend', dir: 'desc' },
     cols: [
       { key: 'name', label: 'Platform', class: 'name', render: r => r.total ? r.name : chip(r) },
-      { key: 'spend', label: def('Spend, share', 'ad_spend'), num: true, sortable: true, value: r => r.spend ?? -1,
+      { key: 'spend', label: 'Spend, share', num: true, sortable: true, value: r => r.spend ?? -1,
         render: r => r.share == null ? cSpend(r) : h('span', { class: 'sbs-sp' }, h('span', null, cSpend(r)), h('span', { class: 'lx-cellbar', style: { '--v': (r.share * 100).toFixed(1) + '%' } }), h('small', null, pct(r.share) + ' of spend')) },
-      { key: 'sales', label: def('Sales from its ads', 'roas'), num: true, sortable: true, value: r => r.sales ?? -1, render: cSales },
+      { key: 'sales', label: 'Sales from its ads', num: true, sortable: true, value: r => r.sales ?? -1, render: cSales },
       { key: 'roas', label: def('ROAS', 'roas'), num: true, sortable: true, class: 'strong', value: r => r.roas ?? -1, render: cRoas },
       { key: 'goal', label: def(d.goal_roas != null ? 'Against goal ' + x(d.goal_roas) : 'Against goal', 'goal_roas'), class: 'g hide-md', render: r => r.email || !hasSales ? '' : against(r.roas, r.goal, r.tone) },
       { key: 'cost', label: costLabel, num: true, render: cCost },
@@ -221,7 +226,7 @@ function render(el, data, ctx) {
     h('div', { class: 'sbs-figs' }, fig('Spend', cSpend(r)), fig('Sales', cSales(r)), fig(r.total ? 'MER' : 'ROAS', r.total && hasSales && r.roas != null ? x(r.roas) : cRoas(r))),
     r.email || !hasSales || r.roas == null ? null : against(r.roas, r.goal, r.tone));
   const list = h('div', { class: 'sbs-list' }, [...rows].sort((a, b) => (b.spend ?? -1) - (a.spend ?? -1)).map(item), item(total));
-  const note = [windowText(d.window), hasSales ? `sales are ${d.sales_source_name || 'Triple Whale'}` : 'No sales source connected'].filter(Boolean).join(', ');
+  const note = [windowText(d.window), hasSales ? `spend each platform, sales and ROAS ${d.sales_source_name || 'Triple Whale'}, last click` : 'No sales source connected'].filter(Boolean).join(' · ');
   const platforms = card({
     title: 'Platform by platform', note, flush: true,
     action: team && sugTotal > 0 ? button(`Review ${sugTotal} suggestion${sugTotal === 1 ? '' : 's'}`, { primary: true, href: sugHref, icon: 'arrow' }) : null,
@@ -231,11 +236,11 @@ function render(el, data, ctx) {
   let chart = null;
   if (d.daily && d.daily.dates && d.daily.dates.length > 1) {
     const dl = d.daily, hasPlan = dl.plan_day != null;
-    const label = `Ad spend by day, ${shortDay(dl.dates[0])} to ${shortDay(dl.dates[dl.dates.length - 1])}, all platforms${dl.meta ? ' and Meta' : ''}${hasPlan ? ', against the daily plan' : ''}`;
+    const label = `Ad spend by day, ${windowText({ from: dl.dates[0], to: dl.dates[dl.dates.length - 1] })}, all platforms${dl.meta ? ' and Meta' : ''}${hasPlan ? ', against the daily plan' : ''}`;
     const bb = v => h('b', null, v);
     chart = h('section', { class: 'lx-card sbs-chart' },
       h('div', { class: 'lx-chart-h' },
-        h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, hasPlan ? 'Is ad spend on plan each day?' : 'Ad spend each day')), h('p', null, 'ad spend a day, all platforms')),
+        h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, 'Ad spend by day')), h('p', null, 'All platforms, each platform\'s own spend' + (hasPlan ? ', against the daily plan' : ''))),
         legend([{ name: 'All platforms', lead: true }, dl.meta && { name: 'Meta' }, hasPlan && { name: 'Plan a day', dashed: true }])),
       lineChart({
         series: [{ name: 'All platforms', lead: true, values: dl.total }, dl.meta && { name: 'Meta', values: dl.meta }],
@@ -243,7 +248,7 @@ function render(el, data, ctx) {
         goal: hasPlan ? { value: dl.plan_day, label: `Plan ${money(dl.plan_day)} a day`, at: 'start' } : null,
         note: dl.note ? { index: dl.dates.indexOf(dl.note.date), text: dl.note.text } : null,
         format: v => money(v, { compact: true }), endFormat: v => money(v),
-        height: 330, label, empty: 'No ad spend for these dates',
+        height: 330, label, empty: 'No ad spend for these dates', windowLabel: 'Daily, ' + windowText({ from: dl.dates[0], to: dl.dates[dl.dates.length - 1] }), name: 'Spend',
         hover: i => [bb(shortDay(dl.dates[i])), h('span', null, 'All platforms ', bb(money(dl.total[i]))), dl.meta ? h('span', null, 'Meta ', bb(money(dl.meta[i]))) : null],
       }));
   }
@@ -253,7 +258,7 @@ function render(el, data, ctx) {
 
 export default {
   /* the plain question, drawn by the shell above the tabs */
-  title: ['How do the ad platforms ', em('compare?')],
+  title: 'All platforms',
   eyebrow: 'All platforms',
   load, render,
 };

@@ -15,8 +15,8 @@
 
 import { put } from '../../kit.js';
 import { askWhy, helpBar, dl } from '../home/_biz.js';
-import { h, money, pct, x, card, hero, em, kpi, kpis, takeaway, button, statusDot, pill, gauge, legend, lineChart, table, platformChip, empty } from '../../kit.js';
-import { ok, asDate, iso, addDays, dayLabel, weekday, monthName, daysIn, span, b, soft, brandFacts, brandGoals, hasSource, pickBrand, noSource, styles } from './_m.js';
+import { h, money, pct, x, card, em, takeaway, button, statusDot, pill, gauge, legend, lineChart, table, platformChip, empty, sourceLine } from '../../kit.js';
+import { ok, asDate, iso, addDays, dayLabel, weekday, monthName, daysIn, span, b, soft, brandFacts, brandGoals, hasSource, pickBrand, noSource, styles, tileRow, tipRows, chartCap, pageStamp, isPhone, TW } from './_m.js';
 
 /** The one line a month with no goal of its own shows (same words as the client daily and the reports). */
 const noGoalLine = ym => 'No goal set for ' + monthName(ym);
@@ -89,15 +89,15 @@ function heroBlock(data, ctx, f) {
     : data.no_goal ? (cost ? null : noGoalLine(data.month)) : (cost ? 'no budget set' : 'no goal set');
   const gm = data.goal_mer, merTone = ok(f.mer) && gm ? (f.mer >= gm ? 'good' : f.mer >= gm * 0.8 ? 'warn' : 'bad') : null;
   const list = [
-    { label: h('span', null, dl('Sales', 'sales'), when ? ', ' + when : ''), value: money(t.sales), sub: planSub(t.sales, f.planSales, g.sales), spark: days.map(d => d.sales), href: ctx.href('sales', 'by-day') },
-    { label: h('span', null, dl('Ad spend', 'ad_spend'), when ? ', ' + when : ''), value: money(t.spend), sub: planSub(t.spend, f.planSpend, g.spend, true), spark: days.map(d => d.spend), href: ctx.href('platforms', 'side-by-side') },
+    { label: 'Sales', value: money(t.sales), unit: 'money', sub: planSub(t.sales, f.planSales, g.sales), spark: days.map(d => d.sales), href: ctx.href('sales', 'by-day') },
+    { label: 'Ad spend', value: money(t.spend), unit: 'money', sub: planSub(t.spend, f.planSpend, g.spend, true), spark: days.map(d => d.spend), href: ctx.href('platforms', 'side-by-side'), source: 'All ad platforms' },
     { label: h('span', null, dl('Store MER', 'mer'), gm ? ', goal ' + x(gm) : ''), value: x(f.mer), sub: merTone ? statusDot(merTone, f.mer >= gm ? 'At goal' : x(gm - f.mer) + ' under goal') : null,
-      spark: days.map(d => (d.spend > 0 && ok(d.sales) ? d.sales / d.spend : null)) },
+      spark: days.map(d => (d.spend > 0 && ok(d.sales) ? d.sales / d.spend : null)), sparkFormat: v => x(v) },
     data.profit_withheld
-      ? { label: dl('Profit after ads', 'profit_after_ads'), value: 'held back', sub: 'the cost numbers need a check first', href: ctx.href('month', 'profit') }
-      : { label: dl('Profit after ads', 'profit_after_ads'), value: money(t.profit), sub: ok(t.profit) && t.sales > 0 ? pct(t.profit / t.sales) + ' of sales' : null, spark: days.map(d => d.profit), href: ctx.href('month', 'profit') },
-  ].map(k => kpi({ ...k, size: 'lg' }));
-  return hero({}, kpis(list, { cols: 4 }));
+      ? { label: dl('Profit after ads', 'profit_after_ads'), value: 'held back', sub: 'the cost numbers need a check first', href: ctx.href('month', 'profit'), source: TW + ' costs' }
+      : { label: dl('Profit after ads', 'profit_after_ads'), value: money(t.profit), unit: 'money', sub: ok(t.profit) && t.sales > 0 ? pct(t.profit / t.sales) + ' of sales' : null, spark: days.map(d => d.profit), href: ctx.href('month', 'profit'), source: TW + ' costs' },
+  ];
+  return tileRow(list, { cols: 4, window: when, source: TW, labels: days.map(d => dayLabel(d.date)) });
 }
 
 /* One sentence, only for a warning the tiles do not show: ads running over budget leave less a day for the rest
@@ -122,11 +122,13 @@ function chartCard(data, f) {
   const verdict = !ok(f.landing) ? null : !ok(g.sales) ? pill('', 'Heading for ' + money(Math.round(f.landing)))
     : pill(f.landing >= g.sales ? 'good' : f.landing >= g.sales * 0.9 ? 'warn' : 'bad', 'On course for ' + money(Math.round(f.landing)));
   const head = h('div', { class: 'lx-chart-h' },
-    h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, ok(g.sales) ? `Will ${name} hit its sales goal?` : `Where is ${name} heading?`)), h('p', null, 'running total of sales, by day')),
+    h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, ok(g.sales) ? `Will ${name} hit its sales goal?` : `Where is ${name} heading?`)), h('p', null, 'Sales added up day by day, whole store · ' + TW)),
     legend([{ name: 'Sales so far', lead: true }, course && { name: f.fromForecast ? 'On course' : 'At this pace' }, plan && { name: 'Plan to goal', dashed: true }]));
   if (done < 2) return card({ class: 'mo-chart' }, head, empty({ title: 'Not enough days yet', text: 'The chart draws once the month has two days of numbers.' }));
   const short = v => money(v, { compact: true });
-  const notes = (data.notes || []).map(nt => ({ index: dates.indexOf(nt.date), text: nt.text })).filter(nt => nt.index >= 0);
+  let notes = (data.notes || []).map(nt => ({ index: dates.indexOf(nt.date), text: nt.text })).filter(nt => nt.index >= 0);
+  /* on a phone the dated notes stack over the line: keep only the one nearest today */
+  if (isPhone() && notes.length > 1) notes = [notes.reduce((m, nt) => (Math.abs(nt.index - last) < Math.abs(m.index - last) ? nt : m), notes[0])];
   return card({ class: 'mo-chart' }, head, verdict ? h('div', { class: 'mo-row', style: { marginBottom: '10px' } }, verdict, ok(g.sales) ? h('span', { class: 'mo-goal' }, 'month goal ' + money(g.sales)) : null) : null,
     lineChart({
       series: [
@@ -136,9 +138,10 @@ function chartCard(data, f) {
       ],
       labels: dates.map(dayLabel), now: last, notes,
       marks: [{ index: last, value: so, text: money(so) }],
+      windowLabel: `Added up by day, ${span(dates[0], dates[dim - 1])}`, format: short,
       height: 380, label: `Running total of sales for ${name}, against the plan`,
-      hover: i => [b(dayLabel(dates[i])), ok(cum[i]) ? h('span', null, 'Sales so far ', b(money(cum[i]))) : course && ok(course[i]) ? h('span', null, 'On course ', b(money(Math.round(course[i])))) : null,
-        plan ? h('span', null, 'Plan by then ', b(money(Math.round(plan[i])))) : null],
+      hover: i => tipRows(dayLabel(dates[i]), [ok(cum[i]) ? ['Sales so far', money(cum[i]), 'lead'] : course && ok(course[i]) ? ['On course', money(Math.round(course[i])), 'slate'] : null,
+        plan ? ['Plan by then', money(Math.round(plan[i])), 'dash'] : null]),
     }));
 }
 
@@ -159,6 +162,7 @@ function needCard(data, ctx, f) {
   const last = data.month + '-' + String(dim).padStart(2, '0'), firstDate = data.month + '-' + String(first).padStart(2, '0');
   const named = (data.notes || []).filter(nt => nt.date >= firstDate && nt.date <= last);
   return card({ title: 'What each day left needs', note: `${left} ${left === 1 ? 'day' : 'days'} left, the same each day`, flush: true },
+    h('div', { class: 'mo-src' }, sourceLine(`Month goal and budget, ${monthName(data.month)}`, 'sales ' + TW + ', spend from the ad platforms')),
     h('div', { class: 'mo-need' },
       ok(needSales) ? h('div', null, h('small', null, 'Sales a day to hit the month goal'), h('span', { class: 'lx-big' }, met ? 'Goal met' : money(Math.round(needSales))), h('span', null, soFar(t.sales))) : null,
       ok(needSpend) ? h('div', null, h('small', null, 'Ad budget a day that is left'), h('span', { class: 'lx-big' }, spent ? 'Spent' : money(Math.round(needSpend))), h('span', null, soFar(t.spend))) : null),
@@ -173,23 +177,24 @@ function budgetCard(data, f) {
   const over = ok(f.planSpend) ? t.spend - f.planSpend : null;
   const shareCell = r => h('span', { class: 'mo-share' }, h('b', null, pct(r.share)), h('span', { class: 'lx-cellbar', style: { '--v': Math.round(r.share * 100) + '%' } }));
   const span = days.length ? `${dayLabel(days[0].date)} to ${asDate(days[days.length - 1].date).getDate()}` : '';
-  return card({ title: 'Where the ad budget went', note: span, flush: true,
+  return card({ title: 'Where the ad budget went', note: span + ' · spend from each platform', flush: true,
     action: over != null ? statusDot(over > 1 ? 'bad' : 'good', Math.abs(over) < 1 ? 'on plan' : money(Math.abs(over)) + (over > 0 ? ' over plan so far' : ' under plan so far')) : null },
     ok(g.spend) ? h('div', { class: 'mo-budget' }, gauge({ value: t.spend, max: Math.max(g.spend, t.spend), goal: f.planSpend, tone: over > 1 ? 'bad' : '',
       ticks: [{ side: 'l', text: 'spent ' + money(t.spend) }, { side: 'r', text: 'month budget ' + money(g.spend) }] })) : null,
     rows.length ? table({
       cols: [
         { key: 'id', label: 'Platform', class: 'name', render: r => (r.total ? 'All ads' : r.id === 'other' ? 'Other ads' : platformChip(r.id)) },
-        { key: 'spend', label: 'Spend', num: true, render: r => money(r.spend) },
-        { key: 'share', label: 'Share of spend', width: 260, render: shareCell },
+        { key: 'spend', label: 'Spend', num: true, sortable: true, render: r => money(r.spend) },
+        { key: 'share', label: 'Share of spend', width: 260, sortable: true, render: shareCell },
       ],
-      rows, total: { total: true, spend: t.spend, share: 1 },
+      rows, sort: { key: 'spend', dir: 'desc' }, total: { total: true, spend: t.spend, share: 1 },
     }) : null);
 }
 
 export default {
   title: (ctx, data) => (ctx.brand ? ['Is ' + ctx.brand.name + ' on pace for ', em(monthName((data && data.month) || iso(new Date()).slice(0, 7)) + '?')] : 'This month'),
   eyebrow: 'This month',
+  stamp: false,                     /* Home's stamp with a refresh button sits in the help bar */
   ranges: false,                    // the page is the month in progress; the plan is agreed per month
 
   /* ?sample=1&nogoal=1: the same month with no goal typed (what load makes of /api/plan planned: false) */
@@ -206,12 +211,14 @@ export default {
     if (!data.source) return put(el, noSource(ctx, 'sales against the plan'));
     const f = facts(data), say = sentence(f);
     const name = monthName(data.month);
+    ctx.askWindow = `${name}, day ${f.done} of ${f.dim}`;
+    ctx.askContext = `${ctx.brand.name} pace for ${name}, day ${f.done} of ${f.dim}: sales ${money(f.t.sales)}${ok(f.g.sales) ? ' against a month goal of ' + money(f.g.sales) + ' (plan to date ' + money(Math.round(f.planSales)) + ')' : ', no goal set'}, ad spend ${money(f.t.spend)}${ok(f.g.spend) ? ' of a ' + money(f.g.spend) + ' budget' : ''}, store MER ${x(f.mer)}${data.goal_mer ? ' against ' + x(data.goal_mer) : ''}.` + (ok(f.landing) ? ` Heading for ${money(Math.round(f.landing))}.` : '');
     put(el, h('div', { class: 'mo' }, [
       helpBar([
         { title: 'What it is for', text: `Is ${name} on course for its sales goal? The month so far against the plan, where the month is heading, and what each day left needs.` },
         { title: 'How it is counted', text: 'Sales are store sales less tax (Triple Whale). Store MER is whole store sales over all ad spend. The plan splits evenly across the days of the month, so plan to date is the month goal times the share of days gone.' },
         { title: 'The line on the chart', text: f.fromForecast ? 'On course is the forecast if the rest of the ad budget is spent.' : 'At this pace carries the daily average so far to the end of the month.' },
-      ], h('span', { class: 'bz-chip' }, `${name}, day ${f.done} of ${f.dim}`)),
+      ], h('span', { class: 'bz-chip' }, `${name}, day ${f.done} of ${f.dim}`), pageStamp(ctx)),
       heroBlock(data, ctx, f),
       say ? takeaway(say, { action: ctx.isClient ? null : askWhy(ctx, `Is ${ctx.brand.name} on pace for ${name}?`) }) : null,
       chartCard(data, f),

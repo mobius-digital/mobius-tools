@@ -49,8 +49,8 @@ function render(el, d, ctx) {
 async function sample() { const w = await world(); return { as_of: w.suggestions.as_of, rows: w.suggestions.google }; }
 
 export default {
-  title: ['Where is Google ', em('wasting money?')],
-  eyebrow: 'Google, all brands, last 30 days',
+  title: 'Suggestions for Google, all brands',
+  eyebrow: 'Google · last 30 days',
   ranges: false,
   asOf: d => (d && d.parts ? Object.values(d.parts).reduce((m, p) => (p && p.as_of && (!m || p.as_of > m) ? p.as_of : m), null) : d && d.as_of),
   load, sample,

@@ -9,7 +9,7 @@
    The video file: GET /api/trybe/video?act=&sub= (a read; the link lasts 20 minutes, so it is asked for on play).
    Falling behind (2026-11-26, a45): GET /api/trybe/asks, this morning's asks the creator post made (_asks.js). */
 
-import { h, hero, kpi, kpis, em, button, statusDot, empty, skeleton, sheet, addStyles } from '../../kit.js';
+import { h, kpi, tiles, em, button, statusDot, empty, skeleton, sheet, addStyles } from '../../kit.js';
 import { SAMPLE } from '../../data.js';
 import { legacyUrl, APP_NAME } from '../../config.js';
 import { put, css, plural, day, pageTop, oldLocus } from '../production/_ui.js';
@@ -60,7 +60,7 @@ const AC_CSS = `
 .ac-group{display:grid;gap:16px;min-width:0}
 .ac-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-top:18px;border-top:1px solid var(--line)}
 .ac-group:first-of-type .ac-head{border-top:0;padding-top:0}
-.ac-head h2{font-size:18px;font-weight:600;letter-spacing:-.02em;display:flex;align-items:center;gap:10px;min-width:0}
+.ac-head h2{font-size:var(--fs-section,17px);font-weight:600;letter-spacing:-.015em;display:flex;align-items:center;gap:10px;min-width:0}
 .ac-head h2 i{width:11px;height:11px;border-radius:4px;flex:none}
 .ac-head>span{font-size:13px;color:var(--muted)}
 .ac-sheet .cr-play{display:grid;gap:12px}
@@ -163,18 +163,18 @@ export default {
     const people = new Set(groups.flatMap(g => g.items.map(i => g.act_id + '|' + i.creator))).size;
     const worst = groups[0];
     const late = groups.filter(g => g.oldest != null && g.oldest >= 3);
-    put(el,
-      hero({ line: true },
-        kpis([
-          kpi({ label: 'Waiting for a yes', value: String(all.length), sub: plural(people, 'creator') + ', ' + plural(groups.length, 'brand') }),
+    const tilesRow = tiles([
+          kpi({ label: 'Waiting for a yes', value: String(all.length), sub: plural(people, 'creator') + ', ' + plural(groups.length, 'brand'), window: 'Now', source: 'Creator platform' }),
           kpi({ label: 'Oldest', value: worst.oldest != null ? plural(worst.oldest, 'day') : 'no date',
-            sub: worst.oldest == null ? null : worst.oldest >= 3 ? statusDot('bad', ((brandOf(ctx, worst.act_id) || {}).name || worst.name || 'A brand') + ', over the 3 day line') : statusDot('good', 'inside the 3 day line') }),
-          kpi({ label: 'Brands waiting 3 days or more', value: String(late.length), sub: late.length ? statusDot('bad', 'review these first') : statusDot('good', 'none') }),
-        ], { cols: 3 })),
+            sub: worst.oldest == null ? null : worst.oldest >= 3 ? statusDot('bad', ((brandOf(ctx, worst.act_id) || {}).name || worst.name || 'A brand') + ', over the 3 day line') : statusDot('good', 'Inside the 3 day line'), window: 'Now', source: 'Creator platform' }),
+          kpi({ label: 'Brands waiting 3 days or more', value: String(late.length), sub: late.length ? statusDot('bad', 'Review these first') : statusDot('good', 'None'), window: 'Now', source: 'Creator platform' }),
+        ], { cols: 3 });
+    put(el,
       pageTop([
         { title: 'What it is for', text: 'Every creator video waiting for a yes on any brand, grouped by brand, the longest wait on top and oldest first inside a brand. A wait of 3 days or more is over the line.' },
         { title: 'Why approving is not here', text: 'Approving pays the creator and tells them, so it is done in old ' + APP_NAME + ' or the creator platform. Tap a video to watch it; the sheet has the button. A brand with no creator platform connected is not listed.' },
       ]),
+      tilesRow,
       behind,
       groups.map(g => {
         const b = brandOf(ctx, g.act_id), to = brandPage(ctx, g.act_id, 'to-review');

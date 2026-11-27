@@ -5,8 +5,8 @@
    mode only test lessons show. */
 
 import { put } from '../../kit.js';
-import { h, card, kpi, kpis, hero, takeaway, segmented, pill, avatar, gauge, em, money, num, skeleton, empty } from '../../kit.js';
-import { css, gate, loadBrand, loadAds, sampleAds, art, findingButton, def, helpBar, figs } from './_ww.js';
+import { h, card, kpi, takeaway, segmented, pill, avatar, gauge, em, money, num, skeleton, empty } from '../../kit.js';
+import { css, gate, loadBrand, loadAds, sampleAds, art, findingButton, def, chipDef, helpBar, figs, tileRow, adThumb } from './_ww.js';
 
 const STRENGTH_DEF = { proven: { name: 'Proven', definition: 'A test settled it.' }, likely: { name: 'Likely', definition: 'A pattern across several ads, not yet tested.' }, hunch: { name: 'A hunch', definition: 'Too few ads or orders to say.' } };
 import { fixture } from '../../data.js';
@@ -41,7 +41,7 @@ async function load(ctx) {
 
 function openTests(d) {
   if (!d.open.length) return card({ class: 'ww-cd', title: 'Open questions', note: 'Tests running now' }, h('p', { class: 'ww-cp-n' }, 'No tests are running. A brief made from any finding shows here once its ads spend.'));
-  return card({ class: 'ww-cd', title: 'Open questions', note: `${num(d.open.length)} tests running, judged after ${d.open[0].need ? money(d.open[0].need) : 'the brand\'s rule'} or ${num(d.judge_days)} days` },
+  return card({ class: 'ww-cd', title: 'Open questions', note: `${num(d.open.length)} tests running, judged after ${d.open[0].need ? money(d.open[0].need) : 'the brand\'s rule'} or ${num(d.judge_days)} days · since each test first spent · spend Meta, orders Triple Whale, last click` },
     h('div', { class: 'ww-rows', style: { marginTop: '8px' } }, d.open.map(t => {
       const share = t.need ? Math.min(1, t.spend / t.need) : null;
       return h('div', { class: 'ww-l' },
@@ -49,7 +49,7 @@ function openTests(d) {
           h('div', { class: 'ww-txt' }, (t.num ? '#' + t.num + ' ' : '') + t.title, h('small', null, [t.angle, t.first ? 'first spent ' + day(t.first) : null].filter(Boolean).join(', '))),
           share != null ? (() => { const g = gauge({ value: share, max: 1, thin: true, tone: t.call ? 'good' : '' }); g.title = `${money(t.spend)} of the ${money(t.need)} judge line spent` + (t.call ? ': ready for a call' : ''); return h('div', { style: { marginTop: '10px', maxWidth: '520px' } }, h('span', { class: 'ww-cp-n', style: { display: 'block', margin: '0 0 4px' } }, `Spend toward the ${money(t.need)} judge line`), g); })() : null,
           h('div', { style: { marginTop: '10px', maxWidth: '300px' } }, figs([['Spent', money(t.spend)], ['Orders', num(t.orders)]], 2))),
-        h('div', { class: 'side' }, t.call ? def(pill('good', 'Ready for a call'), { name: 'Ready for a call', definition: 'It has spent past the judge line (or run the days the brand\'s rule asks for), so the media buyer makes the call. The bar turns green.' }) : pill('', 'Still running')));
+        h('div', { class: 'side' }, t.call ? chipDef(pill('good', 'Ready for a call'), { name: 'Ready for a call', definition: 'It has spent past the judge line (or run the days the brand\'s rule asks for), so the media buyer makes the call. The bar turns green.' }) : pill('', 'Still running')));
     })));
 }
 
@@ -60,15 +60,15 @@ function lessonRow(l, d, ctx) {
     h('div', null,
       h('div', { class: 't' + (l.overturned ? ' off' : '') }, l.text),
       h('div', { class: 'm', style: { marginTop: '8px' } },
-        def(pill(tone, word), STRENGTH_DEF[l.strength] || STRENGTH_DEF.likely), l.num ? h('span', null, 'From test #' + l.num) : h('span', null, 'From: ' + (HOW[l.how] || 'Pattern').toLowerCase()),
+        chipDef(pill(tone, word), STRENGTH_DEF[l.strength] || STRENGTH_DEF.likely), l.num ? h('span', null, 'From test #' + l.num) : h('span', null, 'From: ' + (HOW[l.how] || 'Pattern').toLowerCase()),
         l.angle ? h('span', null, 'Angle: ' + l.angle) : null,
-        l.orders != null ? h('span', null, `Proof: ${num(l.orders)} orders${l.cpa ? ' at ' + money(l.cpa) : ''}`) : null,
+        l.orders != null ? h('span', { title: 'Orders and cost per sale: Triple Whale, last platform click, over the test\'s own days. Spend: Meta.' }, `Proof: ${num(l.orders)} orders${l.cpa ? ' at ' + money(l.cpa) + ' a sale' : ''}, Triple Whale last click, over the test`) : null,
         l.note ? h('span', null, l.note) : null,
         !ctx.isClient && l.by ? h('span', { class: 'lx-row', style: { gap: '6px' } }, 'Called by', avatar(l.by, { size: 20 }), l.by.name) : null,
         h('span', null, 'On ' + day(l.date)),
         l.overturned ? pill('bad', 'Overturned ' + day(l.overturned)) : null,
         !ctx.isClient && l.led ? h('span', null, l.led) : null),
-      ads.length ? h('div', { class: 'ww-thumbs', style: { marginTop: '12px' } }, ads.map(a => h('div', null, art(a), h('small', null, a.name)))) : null),
+      ads.length ? h('div', { class: 'ww-thumbs', style: { marginTop: '12px' } }, ads.map(a => adThumb(ctx, d, a, a.name))) : null),
     h('div', { class: 'side' }, l.overturned ? null : findingButton(ctx, () => ({
       say: l.text, measure: l.how === 'test' ? 'test result' : 'pattern',
       proof: ads.slice(0, 3).map(a => ({ value: a.ctr || 0.01, text: a.ctr ? (100 * a.ctr).toFixed(1) + '%' : a.name, name: a.name, sub: a.kind === 'video' ? 'video' : 'still' })),
@@ -92,15 +92,18 @@ function view(d, ctx) {
       rows.length > cut.length ? h('div', { style: { padding: '16px 0' } }, h('button', { class: 'lx-btn', type: 'button', onclick: () => { ST.more = true; paint(); } }, `Show all ${rows.length}`)) : '');
   };
   paint();
+  ctx.askWindow = 'All time';
+  ctx.askContext = `What works, Learned: ${num(lessons.filter(l => !l.overturned).length)} lessons logged, ${num(proven.length)} proven by a test, ${num(thisMonth.length)} this month; ${num((d.open || []).length)} tests running, ${num((d.open || []).filter(t => t.call).length)} ready for a call.`
+    + (latest ? ` Latest lesson: ${latest.text.slice(0, 140)}` : '');
   return [
     helpBar([{ title: 'What it is for', text: 'Every lesson this brand has learned, newest first, with the tests still running on top. A lesson is never deleted, only marked overturned.' },
       { title: 'How strong a lesson is', text: 'Proven: a test settled it. Likely: a pattern across several ads. A hunch: too few ads or orders to say.' + (d.source === 'live' ? ' Lessons come from the learning filed with each test call; patterns, rules and competitor lessons are kept here once their store is built.' : '') }],
       { src: 'Spend from Meta. Orders and cost per sale from Triple Whale, last platform click. Tests, calls and learnings come from the brand\'s test library.' }),
-    hero({ line: true }, kpis([
-      kpi({ label: 'Lessons logged', value: num(lessons.filter(l => !l.overturned).length), sub: `${num(proven.length)} proven by a test` }),
-      kpi({ label: 'Learned this month', value: num(thisMonth.length), sub: 'filter Every lesson by This month' }),
-      kpi({ label: 'Tests running', value: num((d.open || []).length), sub: `${num((d.open || []).filter(t => t.call).length)} ready for a call` }),
-    ], { cols: 3 })),
+    tileRow([
+      kpi({ label: 'Lessons logged', value: num(lessons.filter(l => !l.overturned).length), sub: `${num(proven.length)} proven by a test`, window: 'All time', source: 'Test library' }),
+      kpi({ label: 'Learned this month', value: num(thisMonth.length), sub: 'Filed with a test call', window: new Date(month + '-15T12:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }), source: 'Test library' }),
+      kpi({ label: 'Tests running', value: num((d.open || []).length), sub: `${num((d.open || []).filter(t => t.call).length)} ready for a call`, window: 'Now', source: 'Test library, spend Meta' }),
+    ], 3),
     latest ? takeaway(['The latest lesson: ', h('b', null, latest.text)]) : null,
     openTests(d),
     card({ class: 'ww-cd', title: 'Every lesson', note: 'Newest first. Never deleted, only marked overturned.' },

@@ -2,8 +2,8 @@
  "sample": true,
  "window": {
   "from": "2026-11-01",
-  "to": "2026-11-23",
-  "label": "Nov 1 to 23"
+  "to": "2026-11-24",
+  "label": "Nov 1 to 24"
  },
  "connected": true,
  "client_view": false,

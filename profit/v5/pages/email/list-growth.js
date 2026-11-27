@@ -4,9 +4,10 @@
    No route yet: where the new subscribers came from. That card shows in sample mode only, never on a real brand. */
 
 import { put } from '../../kit.js';
-import { h, em, card, kpi, kpis, table, legend, lineChart, skeleton } from '../../kit.js';
-import { ok, sum, shortDate, inRange, noteAt, css, head, barCell, split, exampleChip, kl, notConnected, num, pct } from './_em.js';
-import { helpBar, dl, rangeWords } from '../home/_biz.js';
+import { h, tiles, em, card, kpi, kpis, table, legend, lineChart, skeleton, sheet } from '../../kit.js';
+import { ok, sum, shortDate, inRange, noteAt, css, head, barCell, split, exampleChip, kl, notConnected, num, pct, kv } from './_em.js';
+import { dl, rangeWords } from '../home/_biz.js';
+import { headRow } from '../platforms/_ads.js';
 
 function shape(ctx, daily, ov, ex) {
   if (daily.error) return { connected: false, klaviyo: false, klaviyo_error: daily.error };
@@ -20,15 +21,16 @@ function shape(ctx, daily, ov, ex) {
   };
 }
 
-function figures(d) {
+function figures(d, W) {
   const days = d.days || [], joined = sum(days, 'joined'), left = sum(days, 'left'), net = joined - left;
   const sj = sum(days, 'sms_joined'), sl = sum(days, 'sms_left');
   let run = 0;
-  const el = kpis([
-    kpi({ label: 'Net new subscribers', size: 'lg', value: (net > 0 ? '+' : '') + num(net), sub: 'email, in these dates', spark: days.map(r => (run += r.joined - r.left)) }),
-    kpi({ label: 'Joined', size: 'lg', value: num(joined), sub: sj > 0 ? `${num(joined)} email, ${num(sj)} text` : days.length ? num(joined / days.length) + ' a day' : null }),
-    kpi({ label: 'Left', size: 'lg', value: num(left), sub: joined > 0 ? pct(left / joined) + ' of those who joined' : null }),
-    kpi({ label: dl('List size, ' + ((d.lists && d.lists[0] && d.lists[0].name) || 'main list') + ', today', 'list_size'), size: 'lg', value: ok(d.list_size) ? num(d.list_size) : 'no data',
+  const labels = days.length > 1 ? days.map(r => shortDate(r.date)) : null;
+  const el = tiles([
+    kpi({ label: 'Net new subscribers', value: (net > 0 ? '+' : '') + num(net), window: W, source: 'Klaviyo', sub: 'email, in these dates, the line adds up by day', spark: days.map(r => (run += r.joined - r.left)), sparkLabels: labels, sparkFormat: v => (v > 0 ? '+' : '') + num(v) }),
+    kpi({ label: 'Joined', value: num(joined), window: W, source: 'Klaviyo', sub: sj > 0 ? `${num(joined)} email, ${num(sj)} text` : days.length ? num(joined / days.length) + ' a day' : null }),
+    kpi({ label: 'Left', value: num(left), window: W, source: 'Klaviyo', sub: joined > 0 ? pct(left / joined) + ' of those who joined' : null }),
+    kpi({ label: dl('List size, ' + ((d.lists && d.lists[0] && d.lists[0].name) || 'main list'), 'list_size'), value: ok(d.list_size) ? num(d.list_size) : 'no data', window: 'Today', source: 'Klaviyo',
       sub: ok(d.sms_size) ? num(d.sms_size) + ' on SMS' : sj + sl > 0 ? `${sj - sl >= 0 ? '+' : ''}${num(sj - sl)} on SMS` : 'largest list' }),
   ], { cols: 4 });
   el.classList.add('em-kpis');
@@ -40,11 +42,11 @@ function chartCard(d) {
   if (days.length < 2) return null;
   const b = v => h('b', null, v);
   return card({ class: 'em-chart' },
-    head('Who joined and who left?', 'Email subscribers by day', legend([{ name: 'Joined', lead: true }, { name: 'Left' }])),
+    head('Joined and left by day', 'Email subscribers, Klaviyo', legend([{ name: 'Joined', lead: true }, { name: 'Left' }])),
     lineChart({
       series: [{ name: 'Joined', lead: true, values: days.map(r => r.joined) }, { name: 'Left', values: days.map(r => r.left) }],
       labels: days.map(r => shortDate(r.date)), note: noteAt(days, d.note), format: v => num(v), height: 340, phoneHeight: 290,
-      label: 'Email subscribers who joined and who left, by day',
+      label: 'Email subscribers who joined and who left, by day', windowLabel: 'Daily, ' + (d.range ? rangeWords(null, d.range) : ''), name: 'Subscribers',
       hover: i => [b(shortDate(days[i].date)), h('span', null, 'Joined ', b(num(days[i].joined))), h('span', null, 'Left ', b(num(days[i].left))),
         days[i].sms_joined ? h('span', null, 'Text joined ', b(num(days[i].sms_joined))) : null],
     }));
@@ -54,26 +56,30 @@ function channels(d) {
   const days = d.days || [], e = sum(days, 'joined'), s = sum(days, 'sms_joined');
   if (!(s > 0)) return null;
   return card({ title: 'Email or text?', note: 'new subscribers in these dates' },
-    split([{ name: 'Joined by email', value: e, text: num(e), color: 'var(--ink)' }, { name: 'Joined by text', value: s, text: num(s), color: 'var(--icon)' }], 'New subscribers, email against text'));
+    split([{ name: 'Joined by email', value: e, text: num(e), color: 'var(--brand)' }, { name: 'Joined by text', value: s, text: num(s), color: 'var(--icon)' }], 'New subscribers, email against text'));
 }
+
+/* one row, its figures */
+const rowSheet = (title, note, pairs) => sheet({ title, side: 'center', body: h('div', { class: 'em-sheet' }, h('p', { class: 'em-best' }, note), kv(pairs.filter(p => p[1] != null))) });
 
 function listsCard(d) {
   const rows = d.lists || [];
   if (!rows.length) return null;
   const max = Math.max(...rows.map(r => r.profiles || 0), 1);
-  return card({ title: 'Biggest lists', note: 'people on each list now', flush: true, class: 'em-flush' },
-    table({ roomy: true, rows, sort: { key: 'profiles', dir: 'desc' }, cols: [
+  const all = rows.reduce((t, r) => t + (r.profiles || 0), 0);
+  return card({ title: 'Biggest lists', note: "people on each list now · today · Klaviyo's count", flush: true, class: 'em-flush' },
+    table({ roomy: true, rows, sort: { key: 'profiles', dir: 'desc' }, onRow: r => rowSheet(r.name, "Today · Klaviyo's count", [['People on it now', num(r.profiles)], ['Of the lists shown', all ? pct(r.profiles / all) : null]]), cols: [
       { key: 'name', label: 'List', class: 'name', render: r => h('span', { class: 'em-name' }, r.name) },
       { key: 'profiles', label: 'People', num: true, sortable: true, render: r => barCell(h('span', { class: 'strong' }, num(r.profiles)), r.profiles / max) },
     ] }));
 }
 
-function sourcesCard(d) {
+function sourcesCard(d, W) {
   const rows = d.sources || [];
   if (!rows.length) return null;
   const isEx = (d.example || []).includes('sources'), max = Math.max(...rows.map(r => r.joined || 0), 1);
-  return card({ title: 'Where did they sign up?', note: isEx ? exampleChip() : 'new subscribers by sign-up form', flush: true, class: 'em-flush' },
-    table({ roomy: true, rows, sort: { key: 'joined', dir: 'desc' }, cols: [
+  return card({ title: 'Sign-up forms', note: [W, 'new subscribers by form', 'Klaviyo'].filter(Boolean).join(' · '), action: isEx ? exampleChip() : null, flush: true, class: 'em-flush' },
+    table({ roomy: true, rows, sort: { key: 'joined', dir: 'desc' }, onRow: r => rowSheet(r.name, [W, 'Klaviyo'].filter(Boolean).join(' · '), [['Joined', num(r.joined)], ['Bought since', ok(r.bought) ? pct(r.bought, { digits: r.bought < 0.1 ? 1 : 0 }) : null]]), cols: [
       { key: 'name', label: 'Sign-up form', class: 'name', render: r => h('span', { class: 'em-name' }, r.name) },
       { key: 'bought', label: dl('Bought since', 'bought_since'), num: true, sortable: true, class: 'hide-sm', render: r => (ok(r.bought) ? pct(r.bought, { digits: r.bought < 0.1 ? 1 : 0 }) : '') },
       { key: 'joined', label: 'Joined', num: true, sortable: true, render: r => barCell(h('span', { class: 'strong' }, num(r.joined)), r.joined / max) },
@@ -81,7 +87,7 @@ function sourcesCard(d) {
 }
 
 export default {
-  title: ['Is the list ', em('growing?')],
+  title: 'Email list growth',
   eyebrow: 'Email & SMS',
 
   async load(ctx) {
@@ -103,14 +109,14 @@ export default {
     }
     const isEx = (d.example || []).includes('sources');
     put(el, ...[
-      helpBar([
+      headRow({ help: [
         { title: 'What it is for', text: 'Is the email and text list growing on the dates at the top: who joined, who left, the biggest lists and the sign-up forms.' },
         { title: 'Where the numbers come from', text: 'Joined and left are Klaviyo\'s subscribe and unsubscribe events, by the day they happened. List size is today.' + (isEx ? ' The sign-up forms are an example until that data feed is built.' : '') },
-      ], h('span', { class: 'bz-chip' }, rangeWords(ctx, d.range))),
-      h('section', { class: 'lx-hero line' }, figures(d)),
+      ] }),
+      figures(d, rangeWords(ctx, d.range)),
       chartCard(d),
       listsCard(d),
-      sourcesCard(d),
+      sourcesCard(d, rangeWords(ctx, d.range)),
     ].filter(Boolean));
   },
 };

@@ -28,11 +28,11 @@ export const longDay = ymd => { const d = day(ymd); return `${d.toLocaleDateStri
 
 /* ---------- reading against the goal ---------- */
 const ok = n => n != null && isFinite(n);
-/** lightOf(1.14, 2.5) { tone: 'bad', text: 'Off goal', at: 2 }. No goal or no number: null. */
+/** lightOf(1.14, 2.5) { tone: 'bad', text: 'Under goal', at: 2 }. No goal or no number: null. */
 export function lightOf(mer, goal) {
   if (!ok(mer) || !ok(goal) || !(goal > 0)) return null;
   const r = mer / goal;
-  return r >= 1 ? { tone: 'good', text: 'On goal', at: 0 } : r >= 0.9 ? { tone: 'warn', text: 'Close', at: 1 } : { tone: 'bad', text: 'Off goal', at: 2 };
+  return r >= 1 ? { tone: 'good', text: 'On goal', at: 0 } : r >= 0.9 ? { tone: 'warn', text: 'Close', at: 1 } : { tone: 'bad', text: 'Under goal', at: 2 };
 }
 
 /* ---------- live data ----------
@@ -129,7 +129,7 @@ function brandOf(b, merGoal) {
     const ch = r && (r.channels || []).find(k => k.id === id);
     if (!ch || !ch.cur) continue;
     const l = lightOf(ch.cur.roas, goal);
-    rows.push({ id, icon: id, label: id === 'meta' ? 'Meta' : 'Google', big: x(ch.cur.roas), sub: ok(goal) ? `ROAS, goal ${x(goal)}` : 'ROAS',
+    rows.push({ id, icon: id, label: id === 'meta' ? 'Meta' : 'Google', big: x(ch.cur.roas), sub: ok(goal) ? `ROAS, Triple Whale last click. Store goal ${x(goal)}` : 'ROAS, Triple Whale last click',
       tone: l ? l.tone : 'off', status: l ? (l.tone === 'good' ? 'On goal' : l.tone === 'warn' ? 'Close' : 'Under goal') : 'No goal set', go: [id, 'overview'],
       detail: { cols: [{ label: 'Week' }, { label: 'Spend', num: true }, { label: 'Sales', num: true }, { label: 'ROAS', num: true }],
         rows: [['Last week', money(ch.cur.spend, { cur }), money(ch.cur.revenue, { cur }), x(ch.cur.roas)], ...(ch.prev ? [['The week before', money(ch.prev.spend, { cur }), money(ch.prev.revenue, { cur }), x(ch.prev.roas)]] : [])] } });
@@ -152,7 +152,7 @@ function brandOf(b, merGoal) {
 
 /* ---------- local parts ---------- */
 /** Where MER stands against its goal: one status pill, its rule in the tooltip (the old three dot light was
-    never explained). lightOf: at or over the goal = On goal, within 10% under = Close, more than 10% under = Off goal. */
+    never explained). lightOf: at or over the goal = On goal, within 10% under = Close, more than 10% under = Under goal. */
 export const LIGHT_RULE = { good: 'Store MER at or over its goal', warn: 'Store MER under its goal by 10% or less', bad: 'Store MER under its goal by more than 10%' };
 export function trafficLight(light) {
   if (!light) return h('span', { class: 'lx-pill', title: 'No MER goal is set for this brand' }, 'No goal set');
@@ -178,7 +178,8 @@ export function merChart(weeks, goal) {
     series: [{ name: 'MER', lead: true, points: true, values: pts.map(p => p.mer), end: v => x(v) }],
     labels: pts.map(p => p.label || ''),
     goal: ok(goal) ? { value: goal, at: 'end' } : null,
-    format: v => v.toFixed(1) + 'x', yMax: max, yTicks: max > 5 ? 4 : max, pad: 20, height: 336, phoneHeight: 300, empty: 'Not enough weeks yet',
+    format: v => v.toFixed(1) + 'x', yMax: max, pad: 20, height: 336, phoneHeight: 300, empty: 'Not enough weeks yet',
+    windowLabel: pts.length ? 'Weekly, week of ' + (pts[0].label || '') + ' to week of ' + (pts[pts.length - 1].label || '') + ' · Triple Whale' : 'Weekly',
     label: pts.length ? `MER by week for ${pts.length} weeks${ok(goal) ? ' against the ' + x(goal) + ' goal' : ''}. Last week ${x(pts[pts.length - 1].mer)}.` : 'MER by week',
     hover: i => [h('b', null, 'Week of ' + (pts[i].label || '')), h('span', null, 'MER ', h('b', null, x(pts[i].mer)), ok(goal) ? ', goal ' + x(goal) : '')],
   });
@@ -220,7 +221,13 @@ export { ok, money, x, num };
 
 /* ---------- the page CSS, once ---------- */
 const CSS = `
-.mt-page{display:grid;gap:44px;min-width:0}
+.mt-page{display:grid;gap:var(--gap-5,24px);min-width:0}
+.mt-heads{display:grid;gap:var(--gap-4,16px);min-width:0}
+.mt-vcard .mt-hero-top{align-items:center}
+.mt-vcard p.mt-verdict{margin:0;max-width:860px;font-size:var(--fs-section,17px);line-height:1.45;letter-spacing:-.012em;color:var(--ink-2)}
+.mt-vcard p.mt-verdict.quiet{color:var(--muted);font-size:var(--fs-body,14px)}
+.mt-card{display:grid;gap:8px;min-width:0}
+.mt-card .mt-prom:first-of-type{border-top:0}
 .mt-pick{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap}
 .mt-chips{display:flex;gap:6px;flex-wrap:wrap;min-width:0}
 .mt-chip{height:32px;padding:0 13px;border:0;border-radius:999px;background:var(--bg-sunk);color:var(--ink-2);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
@@ -248,8 +255,8 @@ const CSS = `
 .mt-three .none{font-size:20px;font-weight:600;letter-spacing:-.02em;line-height:1.3;color:var(--ink-2);margin-top:6px}
 .mt-panel{padding:30px 36px 22px}
 .mt-h{display:flex;align-items:baseline;gap:6px 12px;flex-wrap:wrap;margin:0 0 4px}
-.mt-h h3{margin:0;font-size:19px;font-weight:600;letter-spacing:-.022em}
-.mt-h>span{color:var(--muted);font-size:13.5px}
+.mt-h h3{margin:0;font-size:var(--fs-section,17px);font-weight:600;letter-spacing:-.015em}
+.mt-h>span{color:var(--muted);font-size:var(--fs-small,12.5px)}
 .mt-h .lx-legend{margin-left:auto}
 .mt-goal{fill:var(--ink);font-size:12.5px;font-weight:600}
 .mt-pt{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round;fill:var(--ink-2);font-size:12.5px;font-weight:500;text-anchor:middle;font-variant-numeric:tabular-nums}
@@ -315,20 +322,21 @@ const CSS = `
 .mt-col{padding:0 36px;border-left:1px solid var(--line);display:grid;gap:22px;align-content:start;min-width:0}
 .mt-col:first-child{border-left:0;padding-left:0}
 .mt-col:last-child{padding-right:0}
-.mt-col h2{margin:6px 0 0;font-size:var(--num-l);font-weight:600;letter-spacing:-.035em;line-height:1.1}
+.mt-col h2{margin:6px 0 0;font-size:var(--fs-section,17px);font-weight:600;letter-spacing:-.015em;line-height:var(--lh-head,1.25)}
 .mt-step{display:flex;gap:14px;align-items:flex-start}
 .mt-step .n{flex:none;width:28px;height:28px;border-radius:50%;background:var(--bg-sunk);display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
 .mt-step b{display:block;font-size:15.5px;font-weight:500;letter-spacing:-.01em;line-height:1.35;padding-top:3px}
 .mt-step small{display:block;font-size:13px;color:var(--muted);margin-top:2px}
-.mt-ex{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:16px;background:var(--band);font-size:13.5px;margin-top:4px}
+.mt-ex{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:var(--r-tbl,12px);background:var(--band);font-size:13.5px;margin-top:4px}
 .mt-ex b{font-weight:600}
 .mt-ex small{display:block;color:var(--muted);font-size:12.5px}
 .mt-faces{display:inline-flex;flex:none}
 .mt-faces>*{margin-left:-8px;box-shadow:0 0 0 2px var(--band)}
 .mt-faces>*:first-child{margin-left:0}
 .mt-faces .no{display:inline-block;width:30px;height:30px;border-radius:50%;background:var(--bg-sunk);box-shadow:0 0 0 2px var(--band),inset 0 0 0 1.5px var(--line-strong)}
-.mt-db{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:56px}
-.mt-db a{display:grid;gap:4px;color:inherit;text-decoration:none;min-width:0}
+.mt-db{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--gap-4,16px)}
+.mt-db a{display:grid;gap:4px;color:inherit;text-decoration:none;min-width:0;padding:16px 18px;border-radius:var(--r-tbl,12px);box-shadow:inset 0 0 0 1px var(--line)}
+.mt-db a:hover{background:var(--row-hover)}
 .mt-db .nm{font-size:15px;font-weight:600}
 .mt-db .n{font-size:var(--num-l);font-weight:600;letter-spacing:-.04em;line-height:1.05;font-variant-numeric:tabular-nums}
 .mt-db .n small{font-size:13px;font-weight:500;letter-spacing:0;color:var(--muted);margin-left:8px}
@@ -350,6 +358,11 @@ const CSS = `
   .mt-sent{margin-left:0;white-space:normal}
   .mt-hero{padding:22px 18px;gap:24px}
   .mt-hero-top{flex-direction:column;gap:14px}
+  .mt-vcard .mt-hero-top{align-items:flex-start;gap:12px}
+  .mt-vcard .mt-hero-top>.lx-pill{order:-1;align-self:flex-start}
+  .mt-vcard .mt-hero-top>.lx-sp{display:none}
+  .mt-btns{grid-template-columns:1fr}
+  .mt-quiet{text-align:left}
   .mt-hero p.mt-verdict{font-size:17px}
   .mt-three{grid-template-columns:1fr;gap:26px}
   .mt-three .lx-kpi .v{font-size:var(--num-l)}.mt-three .lx-hero-num{font-size:var(--num-xl)}

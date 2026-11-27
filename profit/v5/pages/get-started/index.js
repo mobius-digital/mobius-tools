@@ -20,7 +20,8 @@
    Sample mode (?sample=1): _sample/index.json (client view) or _sample/team.json (team view); every click changes
    the page on this device only and nothing is sent. */
 
-import { h, button, pill, statusDot, toast, sheet, field, em, empty, segmented, toggle, put, svgNode, money, kpis, kpi, hero } from '../../kit.js';
+import { h, button, pill, statusDot, toast, sheet, field, em, empty, segmented, toggle, put, svgNode, money } from '../../kit.js';
+import { countTiles } from '../a-settings/_look.js';
 import { icon } from '../../icons.js';
 import { APP_NAME, ORG_SHORT, OWNER_FIRST, workers, token } from '../../config.js';
 import { dropSaved } from '../../data.js';
@@ -430,14 +431,18 @@ function teamTop(D, ctx) {
       : button('Mark finished', { ghost: true, onclick: () => write('/api/onboard/finish', 'POST', {}, d => { d.finished_at = new Date().toISOString(); d.steps.forEach(s => { s.done = true; }); }).then(() => toast('Marked finished. Their app is open now.')).catch(fail) }),
   ].filter(Boolean);
   const lines = T.lines || [];
+  /* the tile names what is blocking: the first step not done, and who it waits on */
+  const nextStep = (D.steps || []).find(st => !st.done);
+  const nextWho = st => st.waiting_on === 'us' ? 'waiting on us' : 'waiting on ' + ((st.holder && st.holder.name) || 'the client');
   return [
-    hero({ line: true }, kpis([
-      kpi({ label: 'Steps done', value: pr.done + ' of ' + pr.total, sub: D.finished_at ? statusDot('good', 'Finished ' + dateOf(D.finished_at)) : D.gated ? statusDot('warn', 'App held on Get started') : 'App open' }),
-      kpi({ label: 'Accounts connected', value: (C.done || 0) + ' of ' + (C.total || 0), sub: missingWord(C) }),
-      kpi({ label: 'Brief', value: (B.answered || 0) + ' of ' + (B.total || 0), sub: 'questions answered' }),
+    countTiles([
+      { label: 'Steps done', value: pr.done + ' of ' + pr.total, sub: D.finished_at ? statusDot('good', 'Finished ' + dateOf(D.finished_at)) : nextStep ? statusDot('warn', 'Next: ' + nextStep.label + ', ' + nextWho(nextStep)) : 'App open', window: 'Right now', source: 'Their checklist' },
+      { label: 'Accounts connected', value: (C.done || 0) + ' of ' + (C.total || 0), sub: missingWord(C), window: 'Right now', source: 'Their connections' },
+      { label: 'Ten questions', value: (B.answered || 0) + ' of ' + (B.total || 0), sub: 'questions answered', window: 'Right now', source: 'Their answers' },
     ], { cols: 3 }),
-      h('p', { class: 'gs-sent' }, sent == null ? 'The invite has not been sent yet.' : 'Invite sent ' + (sent === 0 ? 'today' : days(sent) + ' ago') + (T.contact ? ' to ' + T.contact.name : '') + '.'),
-      h('div', { class: 'gs-acts', style: { marginTop: '14px' } }, acts)),
+    h('section', { class: 'lx-card gs-invite' }, h('div', { class: 'lx-sec' }, h('h3', null, 'Their invite'),
+      h('span', { class: 'note' }, sent == null ? 'Not sent yet' : 'Sent ' + (sent === 0 ? 'today' : days(sent) + ' ago') + (T.contact ? ' to ' + T.contact.name : ''))),
+      h('div', { class: 'gs-acts', style: { marginTop: '12px' } }, acts)),
     lines.length ? h('section', { class: 'lx-card' }, h('div', { class: 'lx-sec' }, h('h3', null, 'Needs a person'), h('span', { class: 'note' }, lines.length + (lines.length === 1 ? ' line' : ' lines') + ', also on My day')),
       h('div', { class: 'gs-lines' }, lines.map(l => h('div', { class: 'gs-line' }, h('div', null, h('b', null, l.text), l.detail ? h('small', null, l.detail) : l.when && !String(l.text).includes(l.when) ? h('small', null, l.when) : null),
         h('div', { class: 'gs-acts' }, lineButtons(ctx, l, { onDone: () => (ctx.sample ? null : reread_().catch(() => {})) }).filter(b => !(b.tagName === 'A' && /get-started/.test(b.getAttribute('href') || '')))))))) : null,
@@ -456,7 +461,7 @@ function budgetCard(D, ctx) {
   /* a money box: $ in front, thousands separated; the saved body is the same { amount, open } */
   const input = h('input', { class: 'gs-num', type: 'text', inputmode: 'decimal', value: b.amount != null ? fmtMoney(b.amount) : '', placeholder: '15,000', disabled: open || null, 'aria-label': 'Monthly ad budget in dollars' });
   input.addEventListener('blur', () => { input.value = fmtMoney(input.value); });
-  const f = h('label', { class: 'lx-field gs-money' }, h('span', { class: 'l' }, 'Monthly ad budget'), h('span', { class: 'gs-box' }, h('i', null, '$'), input, h('i', null, 'a month')));
+  const f = h('label', { class: 'lx-field gs-money' }, h('span', { class: 'l', hidden: true }, 'Monthly ad budget'), h('span', { class: 'gs-box' }, h('i', null, '$'), input, h('i', null, 'a month')));
   f.input = input;
   const t = toggle({ label: 'Client agreed to this budget', checked: !open, onchange: v => { open = !v; f.input.disabled = open; } });
   const save = button('Save the budget', { onclick: async () => {
@@ -464,8 +469,8 @@ function budgetCard(D, ctx) {
     if (!open && !(amount > 0)) return toast('Type the monthly budget, or switch off Client agreed to this budget.', { tone: 'bad' });
     try { await write('/api/onboard/budget', 'PUT', { amount, open }, d => { d.team.budget = { amount, open }; }); toast('Saved. The brand budget is updated too.'); } catch (e) { fail(e); }
   } });
-  return h('section', { class: 'lx-card' }, h('div', { class: 'lx-sec' }, h('h3', null, 'Ad budget'), h('span', { class: 'note' }, 'Also sets the brand budget')),
-    h('div', { class: 'gs-budget' }, f, t, h('span', { class: 'lx-sp' }), save));
+  return h('section', { class: 'lx-card' }, h('div', { class: 'lx-sec' }, h('h3', null, 'Their monthly ad budget'), h('span', { class: 'note' }, 'Also sets the brand budget')),
+    h('div', { class: 'gs-budget', style: { marginTop: '12px' } }, f, t, h('span', { class: 'lx-sp' }), save));
 }
 async function readSite(ctx, btn) {
   if (ctx.sample) return toast(SAMPLE_SAID);
@@ -526,6 +531,7 @@ export default {
   title: (ctx, d) => titleOf(ctx, d),
   eyebrow: (ctx, d) => (d && !teamView(ctx) ? null : 'Get started'),
   ranges: false,
+  stamp: false,                  /* a form or a conversation, not numbers: no "updated" stamp in the head */
   async load(ctx) {
     if (!ctx.brand) return null;
     try { return await ctx.api('/api/onboard?act=' + encodeURIComponent(ctx.brand.id), { worker: 'ah', signal: ctx.signal }); }

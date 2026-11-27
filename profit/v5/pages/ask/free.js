@@ -121,13 +121,14 @@ const CSS = `
 .lx-fl-card.err .lx-fl-a{color:var(--bad)}
 .lx-fl-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-top:14px;border-top:1px solid var(--line)}
 .lx-fl-foot .src{font-size:12.5px;color:var(--muted)}
-.lx-fl-open{font-size:13px;font-weight:600;color:var(--ink)}
+.lx-fl-open{font-size:13px;font-weight:600;color:var(--ink);text-decoration:none}
+.lx-fl-open:hover{text-decoration:underline}
 .lx-fl-why:empty{display:none}
 .lx-fl-why{display:grid;gap:8px;font-size:15px;line-height:1.5;color:var(--ink-2);padding-top:14px;border-top:1px solid var(--line)}
 .lx-fl-why .by{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--brand-ink)}
 .lx-fl-list>button{display:flex;gap:16px;align-items:baseline;width:100%;border:0;border-top:1px solid var(--line);background:transparent;cursor:pointer;padding:13px 28px;text-align:left;font-size:14px;color:var(--ink)}
 .lx-fl-list>button:first-child{border-top:0}
-.lx-fl-list>button:hover{background:var(--surface-2)}
+.lx-fl-list>button:hover{background:var(--row-hover)}
 .lx-fl-list .t{flex:none;width:min(280px,42%);font-weight:600}
 .lx-fl-list .ex{flex:1;min-width:0;color:var(--muted);overflow-wrap:anywhere}
 @media (max-width:759px){
@@ -145,6 +146,7 @@ export default {
   title: ['Quick ', em('lookups')],
   eyebrow: ctx => (ctx.brand ? ctx.brand.name : 'Every brand'),
   ranges: false,
+  stamp: false,                  /* a form or a conversation, not numbers: no "updated" stamp in the head */
   async load(ctx) {
     const r = await ctx.api('/api/lookups', { worker: 'ah', signal: ctx.signal }).catch(e => { if (e && e.name === 'AbortError') throw e; return null; });
     return r ? { on: !!r.on, lookups: r.lookups || [], revenue: r.revenue || '', share: r.share || null } : { on: null, lookups: [] };

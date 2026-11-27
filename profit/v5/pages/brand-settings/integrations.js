@@ -5,6 +5,11 @@
 import { put } from '../../kit.js';
 import { h, em, empty, card, statusDot } from '../../kit.js';
 import { css, stateDot } from './_set.js';
+import { addStyles } from '../../kit.js';
+addStyles('bi-css', `.bi-ag-link{font-size:13px;font-weight:600;color:var(--ink);text-decoration:none}
+.bi-ag-link:hover{text-decoration:underline}
+.bi-ag-foot{display:none;padding:12px 18px 2px}
+@media (max-width:759px){.bi-ag-foot{display:block}}`);
 import { conGroups, conHero, conHead } from './_con.js';
 import { pageHelp } from '../../defs.js';
 
@@ -20,11 +25,14 @@ function draw(el, data, ctx) {
       { title: 'What it is for', text: 'Every tool this brand is connected to, one row each: whether it works, what was last read, and what it gives the app.' },
       { title: 'How a connection is made', text: 'By the client giving access, or by the agency once for every brand. Nothing on this page changes a connection; a row that is not connected says how to connect it.' },
     ] })),
-    conHero(items, 'connected for ' + (ctx.brand ? ctx.brand.name : 'this brand')),
+    conHero(items, 'tools for ' + (ctx.brand ? ctx.brand.name : 'this brand'), data.as_of),
     ...conGroups(items, ORDER, it => it.gives || ''),
     agency.length ? card({ title: 'Agency connections this brand rides on', note: 'Made once for every brand', flush: true, class: 'lx-st-card',
-      action: ctx.isClient ? null : h('a', { href: '#/agency/all/a-settings/integrations' }, 'Open agency integrations') },
-      h('div', { class: 'lx-st-rows' }, agency.map(a => h('div', { class: 'lx-st-row inline' }, h('div', { class: 't' }, h('div', { class: 'k' }, a.name), a.brands ? h('div', { class: 'hint' }, a.brands + (a.brands === 1 ? ' brand' : ' brands')) : null), h('div', { class: 'c' }, stateDot(a.state)))))) : null));
+      /* the link sits in the card head on a wide screen; on a phone it drops under the list instead of floating
+         between the title and its note */
+      action: ctx.isClient ? null : h('a', { class: 'bi-ag-link hide-sm', href: '#/agency/all/a-settings/integrations' }, 'Open agency integrations') },
+      h('div', { class: 'lx-st-rows' }, agency.map(a => h('div', { class: 'lx-st-row inline' }, h('div', { class: 't' }, h('div', { class: 'k' }, a.name), a.brands ? h('div', { class: 'hint' }, a.brands + (a.brands === 1 ? ' brand' : ' brands')) : null), h('div', { class: 'c' }, stateDot(a.state))))),
+      ctx.isClient ? null : h('a', { class: 'bi-ag-link bi-ag-foot', href: '#/agency/all/a-settings/integrations' }, 'Open agency integrations')) : null));
 }
 
 export default {

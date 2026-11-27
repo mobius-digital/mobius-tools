@@ -7,7 +7,7 @@
    count today, because Triple Whale sales per Google campaign are not read yet, and the page says so. */
 
 import { put } from '../../kit.js';
-import { h, em, card, button, pill, empty, gauge, money, x } from '../../kit.js';
+import { h, em, card, button, pill, empty, gauge, money, x, kpi, tiles } from '../../kit.js';
 import { def, defOn, headRow, levelChip } from '../platforms/_ads.js';
 import { styles, gate, loadSuggestions, sampleGoogle, strip } from './_g.js';
 
@@ -20,14 +20,14 @@ const KIND_WORDS = { block: 'Stop paying for it: block the search terms or produ
   watch: 'Not a change yet: keep an eye on it this week.', feed: 'A product feed problem in Merchant Center keeps a product from showing.', fix: 'Something is set up wrong and needs fixing.' };
 const LEVEL_OF = { 'Merchant Center': 'Product feed' };
 /** the measure against its goal, when the row carries one: { value, goal, unit: 'cpa' | 'roas' } */
-function measure(m) {
+function measure(m, onTw) {
   if (!m || m.value == null) return h('div', { class: 'gg-sm' });
   const cost = m.unit === 'cpa', bad = cost ? m.value > m.goal : m.value < m.goal;
   return h('div', { class: 'gg-sm' }, h('div', { class: 'v' }, h('b', { class: bad ? 'bad' : 'good' }, cost ? money(Math.round(m.value)) : x(m.value)), h('span', null, cost ? 'a new customer' : 'ROAS')),
     m.goal ? gauge({ value: m.value, max: Math.max(m.value * 1.1, m.goal * (cost ? 2 : 1.6)), goal: m.goal, thin: true, tone: bad ? 'bad' : 'good', ticks: [{ side: 'l', text: cost ? '$0' : '0' }, { at: m.goal, text: 'goal ' + (cost ? money(m.goal) : x(m.goal)), on: true }] }) : null,
-    h('span', { class: 'per' }, 'last 30 days'));
+    h('span', { class: 'per' }, onTw ? 'Last 30 days · Triple Whale' : "Last 30 days · Google's own count"));
 }
-function row(s, ctx) {
+function row(s, ctx, onTw) {
   const k = KIND[s.kind] || ['', 'Look'];
   return h('div', { class: 'gg-sug' },
     defOn(pill(k[0], k[1]), { title: k[1], body: KIND_WORDS[s.kind] || 'Look closer.' }),
@@ -36,13 +36,13 @@ function row(s, ctx) {
       s.where ? h('span', { class: 'o' }, levelChip(LEVEL_OF[s.where] || (s.level || 'Campaign')), ' Google, ', s.where) : null,
       s.why ? h('span', null, s.why) : null,
       s.fix ? h('span', null, s.fix) : null),
-    measure(s.measure),
+    measure(s.measure, onTw),
     s.open ? button(s.open_label || 'Open', { href: ctx.href('google', s.open), icon: 'arrow' }) : null);
 }
 
 export default {
-  title: ['What should the Google buyer ', em('change this week?')],
-  eyebrow: 'Google, last 30 days',
+  title: 'Suggestions for Google',
+  eyebrow: 'Google',
   ranges: false,
   load: loadSuggestions,
   sample: sampleGoogle,
@@ -66,10 +66,13 @@ export default {
     }
     put(el, ...[
       headRow({ help }),
-      h('div', { class: 'gg-n' }, h('b', null, String(decide.length)), h('span', null, 'to decide'),watching.length ? h('span', null, '· ' + watching.length + ' watching') : null),
+      tiles([
+        kpi({ label: 'To decide', value: String(decide.length), window: 'Last 30 days', source: onTw ? 'Triple Whale, Locus ad rules' : "Google's own count, Locus ad rules", sub: 'biggest money first' }),
+        kpi({ label: 'Watching', value: String(watching.length), window: 'Last 30 days', source: 'Locus ad rules', sub: 'not a change yet' }),
+      ], { cols: 2 }),
       !onTw ? strip({ ic: 'google', title: 'Google’s count, not Triple Whale', text: judged + (s.note ? ' ' + s.note : '') }) : null,
-      decide.length ? card({ title: 'To decide', note: 'Google, last 30 days, biggest money first' }, decide.map(r => row(r, ctx))) : null,
-      watching.length ? card({ title: 'Watching', note: 'not a change yet' }, watching.map(r => row(r, ctx))) : null,
+      decide.length ? card({ title: 'To decide', note: 'Google, last 30 days, biggest money first' }, decide.map(r => row(r, ctx, onTw))) : null,
+      watching.length ? card({ title: 'Watching', note: 'not a change yet' }, watching.map(r => row(r, ctx, onTw))) : null,
     ].filter(Boolean));
   },
 };

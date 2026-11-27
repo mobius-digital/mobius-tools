@@ -6,9 +6,9 @@
 
 import { APP_NAME } from '../../config.js';
 import { put, safeHref } from '../../kit.js';
-import { h, hero, kpis, kpi, statusDot, pill, button, segmented, sheet, em, empty, toast, addStyles } from '../../kit.js';
+import { h, tiles, kpi, statusDot, pill, button, segmented, sheet, em, empty, toast, addStyles } from '../../kit.js';
 import { fixture } from '../../data.js';
-import { css, short, dayOf, away, between, todayYmd, heading, row, list, brandTag, colorOf, helpBar, searchBox, selectBox, filterNote } from '../calendar/_cr.js';
+import { css, short, dayOf, away, between, todayYmd, heading, row, list, box, sortRows, flipSort, brandTag, colorOf, helpBar, searchBox, selectBox, filterNote } from '../calendar/_cr.js';
 
 const RQ_CSS = `.rq-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .rq-facts{margin:0;font-size:13px;color:var(--muted)}
@@ -26,9 +26,12 @@ const RQ_CSS = `.rq-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap
 .rq-old{font-size:13px;color:var(--muted)}`;
 const safeImg = u => typeof u === 'string' && /^(https:\/\/|data:image\/)/i.test(u) ? u : null;
 
-const KIND = { approval: 'For approval', ask: 'We asked', request: 'They asked' };
+/* who asked, from the reader's side: a client reads "You asked" on their own request */
+const KIND_TEAM = { approval: 'For approval', ask: 'We asked', request: 'They asked' };
+const KIND_CLIENT = { approval: 'For approval', ask: 'The team asked', request: 'You asked' };
+let KIND = KIND_TEAM;
 const WHAT = { studio: 'Ads', link: 'Link or file', offer: 'Offer', date: 'Calendar date' };
-const view = { filter: 'open', q: '', brand: '' };
+const view = { filter: 'open', q: '', brand: '', sort: null };
 
 /** Who the item waits on, from the team's side or the client's. */
 function waitsOn(it) {
@@ -108,6 +111,7 @@ function detail(it, ctx, agency, redraw) {
 }
 
 function draw(el, d, ctx, agency) {
+  KIND = ctx.isClient ? KIND_CLIENT : KIND_TEAM;
   css();
   if (!d || !Array.isArray(d.items)) return put(el, empty({ title: 'Requests did not answer', text: 'Nothing was read. Try again in a minute.' }));
   const today = todayYmd();
@@ -118,19 +122,19 @@ function draw(el, d, ctx, agency) {
   const us = items.filter(i => i.wait === 'us'), them = items.filter(i => i.wait === 'client'), done = items.filter(i => i.wait === 'done');
   const oldest = [...us].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))[0];
 
-  const head = hero({ line: true }, kpis([
+  const head = tiles([
     kpi({ label: ctx.isClient ? 'With the team' : 'Waiting for us', value: String(us.length), size: 'lg',
       sub: us.length ? statusDot(between(String(oldest.created_at).slice(0, 10), today) > 2 ? 'bad' : 'warn', 'oldest opened ' + away(today, String(oldest.created_at).slice(0, 10))) : 'nothing open' }),
     kpi({ label: ctx.isClient ? 'Waiting for you' : 'Waiting for the client', value: String(them.length), sub: them.filter(i => i.kind === 'approval').length + ' to approve' }),
     kpi({ label: 'Done in the last 60 days', value: String(done.length), sub: done.filter(i => i.status === 'approved').length + ' approved' }),
-  ], { cols: 3 }));
+  ], { cols: 3 });
 
   const listBox = h('div'), noteBox = h('span');
   const redrawAll = () => draw(el, d, ctx, agency);
   const clear = () => { view.q = ''; view.brand = ''; redrawAll(); };
   const brandsIn = [...new Map(items.filter(i => i.act_id).map(i => [i.act_id, i.brand || i.act_id])).entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1])));
   const tools = h('div', { class: 'cr-tools' },
-    segmented([{ id: 'open', label: 'Open ' + (us.length + them.length) }, { id: 'done', label: 'Done ' + done.length }, { id: 'all', label: 'All ' + items.length }], view.filter, id => { view.filter = id; paint(); }),
+    segmented([{ id: 'open', label: 'Open ' + (us.length + them.length) }, { id: 'done', label: 'Done ' + done.length }, { id: 'all', label: 'All ' + items.length }], view.filter, id => { view.filter = id; redrawAll(); }),
     agency ? searchBox(view.q, v => { view.q = v; paint(); }, 'Search title, brand or person') : null,
     agency ? selectBox('Brand', [{ id: '', label: 'All brands' }, ...brandsIn.map(([id, name]) => ({ id, label: name }))], view.brand, v => { view.brand = v; paint(); }) : null,
     noteBox, h('span', { class: 'sp', style: { flex: '1' } }),
@@ -141,8 +145,11 @@ function draw(el, d, ctx, agency) {
     const pick = base.filter(it => (!view.brand || it.act_id === view.brand) && (!q || [it.title, it.brand, it.by, it.body].some(t => String(t || '').toLowerCase().includes(q))));
     const on = !!(q || view.brand);
     put(noteBox, filterNote(pick.length, base.length, on, clear));
+    /* the page's own order (waiting for us first, then the newest reply) until a column is picked */
     pick.sort((a, b) => (a.wait === b.wait ? 0 : a.wait === 'us' ? -1 : b.wait === 'us' ? 1 : 0) || String(lastAt(b)).localeCompare(String(lastAt(a))));
-    const rows = pick.map(it => row({
+    const W = { us: 0, client: 1, done: 2 };
+    const sorted = sortRows(pick, view.sort, (it, k) => k === 'title' ? it.title : k === 'brand' ? it.brand : k === 'by' ? it.by : k === 'last' ? String(lastAt(it) || '') : k === 'status' ? W[it.wait] * 10 + (it.status === 'changes' ? 0 : 1) : null);
+    const rows = sorted.map(it => row({
       title: it.title,
       sub: [KIND[it.kind], it.what ? WHAT[it.what] : null, it.ads && it.ads.length ? it.ads.length + ' ads' : null, (it.thread || []).length ? it.thread.length + (it.thread.length === 1 ? ' reply' : ' replies') : null].filter(Boolean).join('. '),
       cells: [
@@ -154,7 +161,8 @@ function draw(el, d, ctx, agency) {
       onclick: () => detail(it, ctx, agency, patch => { Object.assign(d.items.find(x => x.id === it.id) || {}, patch); draw(el, d, ctx, agency); }),
     }));
     put(listBox, list(rows, on ? h('span', null, 'Nothing matches. ', h('button', { type: 'button', class: 'cr-clear', onclick: clear }, 'Clear the filters.')) : view.filter === 'open' ? 'Nothing open. Everything is answered.' : 'Nothing here.',
-      { head: [agency ? { label: 'Brand', w: 160 } : null, { label: 'Opened by', w: 120, class: 'hide-sm' }, { label: 'Last reply', w: 96, class: 'hide-md' }, { label: 'Status', w: 170 }], first: 'Request' }));
+      { head: [agency ? { label: 'Brand', w: 160, sort: 'brand' } : null, { label: 'Opened by', w: 120, class: 'hide-sm', sort: 'by' }, { label: 'Last reply', w: 96, class: 'hide-md', sort: 'last' }, { label: 'Status', w: 170, sort: 'status' }],
+        first: 'Request', firstSort: 'title', sort: view.sort, onSort: k => { view.sort = flipSort(view.sort, k, k === 'last' ? 'desc' : 'asc'); paint(); } }));
   };
   paint();
   put(el, helpBar(ctx.isClient ? [
@@ -164,7 +172,8 @@ function draw(el, d, ctx, agency) {
     { title: 'What it is for', text: 'Everything between the team and ' + (agency ? 'every client' : 'this client') + ': approvals we sent, things we asked them for, and things they asked us for, with the conversation under each one.' },
     { title: 'Waiting for us and for them', text: 'Waiting for us: they asked for something, or sent ads back with changes. Waiting for the client: an approval or a question we sent that they have not answered. Done lists the last 60 days.' },
     { title: 'Replying', text: 'Replies and sending something new for approval still open old ' + APP_NAME + '.' },
-  ]), head, h('section', { class: 'cr-sect' }, tools, listBox));
+  ]), head, box({ title: view.filter === 'open' ? 'Open requests' : view.filter === 'done' ? 'Done in the last 60 days' : 'Every request', note: 'Tap one for the conversation' + (ctx.isClient ? ' and to answer it' : '') }, tools, listBox));
+  ctx.askContext = (agency ? 'Requests between the team and every client. ' : 'Requests between the team and ' + ((ctx.brand && ctx.brand.name) || 'this client') + '. ') + us.length + ' waiting for the team, ' + them.length + ' waiting for the client, ' + done.length + ' done in the last 60 days.';
 }
 
 /** requestsPage({ agency }) : the page module for pages/requests/index.js and pages/a-requests/index.js */

@@ -21,8 +21,8 @@
    "name": "Brightside Patch"
   },
   {
-   "id": "brand_harbor_candle",
-   "name": "Harbor Candle Co"
+   "id": "brand_harbor_and_pine",
+   "name": "Harbor & Pine"
   }
  ],
  "meetings": [
@@ -43,7 +43,7 @@
     "brand_fairway_supply",
     "brand_tallgrass_apparel",
     "brand_brightside_patch",
-    "brand_harbor_candle"
+    "brand_harbor_and_pine"
    ],
    "counts": {
     "team": 6,
@@ -81,7 +81,7 @@
   },
   {
    "id": "m_1123_hc",
-   "title": "Harbor Candle Co weekly call",
+   "title": "Harbor & Pine weekly call",
    "date": "2026-11-23",
    "at": "2026-11-23T18:00:00.000Z",
    "duration": 28,
@@ -94,7 +94,7 @@
     "Morgan"
    ],
    "brand_ids": [
-    "brand_harbor_candle"
+    "brand_harbor_and_pine"
    ],
    "counts": {
     "team": 2,
@@ -233,7 +233,7 @@
     "brand_fairway_supply",
     "brand_tallgrass_apparel",
     "brand_brightside_patch",
-    "brand_harbor_candle"
+    "brand_harbor_and_pine"
    ],
    "counts": {
     "team": 7,
@@ -334,8 +334,8 @@
    ]
   },
   {
-   "brand_id": "brand_harbor_candle",
-   "name": "Harbor Candle Co",
+   "brand_id": "brand_harbor_and_pine",
+   "name": "Harbor & Pine",
    "items": [
     {
      "id": "ac_s03",
@@ -476,7 +476,7 @@
       "need_from_client": []
      },
      {
-      "brand_id": "brand_harbor_candle",
+      "brand_id": "brand_harbor_and_pine",
       "decisions": [
        "Agree a real December plan before month end."
       ],
@@ -585,7 +585,7 @@
     "summary": "A strong week on flat spend. Video keeps beating images, so more video goes live by December 1. A December plan gets agreed before month end.",
     "brands": [
      {
-      "brand_id": "brand_harbor_candle",
+      "brand_id": "brand_harbor_and_pine",
       "decisions": [
        "Hold spend through Black Friday weekend.",
        "More money behind video, with new cuts live by December 1."
@@ -648,8 +648,8 @@
    "result": {
     "brands": [
      {
-      "brand_id": "brand_harbor_candle",
-      "name": "Harbor Candle Co",
+      "brand_id": "brand_harbor_and_pine",
+      "name": "Harbor & Pine",
       "tasks": [
        {
         "id": "ac_s03",

@@ -12,7 +12,7 @@
 import { put } from '../../kit.js';
 import { h, em, card, segmented, table, barChart, legend, statusDot, money, num, pct, x, sheet } from '../../kit.js';
 import { def, headRow } from '../platforms/_ads.js';
-import { styles, sampleGoogle, fig, say, ok, usd, exampleChip, isEx, rangeLabel } from './_g.js';
+import { styles, sampleGoogle, fig, figs, TWS, GADS, say, ok, usd, exampleChip, isEx, rangeLabel } from './_g.js';
 import videos from './ads-videos.js';
 
 const VIEWS = [{ id: 'products', label: 'Products' }, { id: 'videos', label: 'Videos' }, { id: 'text', label: 'Text and images' }];
@@ -22,41 +22,42 @@ function productsView(d) {
   const p = d.products;
   if (!p || !p.rows || !p.rows.length) return [h('div', { class: 'lx-empty' }, h('h3', null, 'No product numbers yet'), h('p', null, 'Products show here once Google’s shopping report is read for this brand.'))];
   const ex = isEx(d, 'products'), cur = ex ? 'USD' : d.currency, g = (ex ? d.example_goals : d.goals) || {}, s = p.summary, rows = p.rows;
-  const figs = h('div', { class: 'gg-figs three' },
-    fig({ label: 'Products that carry the spend', value: num(s.carry), small: 'of ' + rows.length + ' with spend', sub: pct(s.carry_share) + ' of Shopping and Performance Max spend' }),
-    fig({ label: 'Clicks and no sale', value: num(s.no_sale), small: s.no_sale === 1 ? 'product' : 'products', sub: [statusDot('bad', usd(s.no_sale_spend, cur) + ' spent')] }),
-    fig({ label: 'Feed health', src: 'Merchant Center', value: num(s.feed.approved), small: 'approved', sub: [s.feed.limited ? statusDot('warn', s.feed.limited + ' limited') : null, s.feed.disapproved ? statusDot('bad', s.feed.disapproved + ' disapproved') : null] }));
+  const W = d.window ? d.window.label : '';
+  const top = figs([
+    fig({ label: 'Products that carry the spend', win: W, source: GADS, value: num(s.carry), small: 'of ' + rows.length + ' with spend', sub: pct(s.carry_share) + ' of Shopping and Performance Max spend' }),
+    fig({ label: 'Clicks and no sale', win: W, source: GADS, value: num(s.no_sale), small: s.no_sale === 1 ? 'product' : 'products', sub: [statusDot('bad', usd(s.no_sale_spend, cur) + ' spent')] }),
+    fig({ label: 'Feed health', win: 'Right now', source: 'Merchant Center', value: num(s.feed.approved), small: 'approved', sub: [s.feed.limited ? statusDot('warn', s.feed.limited + ' limited') : null, s.feed.disapproved ? statusDot('bad', s.feed.disapproved + ' disapproved') : null] })]);
   const sold = r => r.sales > 0;
   const chart = card({ class: 'gg-chart' },
     h('div', { class: 'lx-chart-h' },
-      h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, 'Where the product spend goes'), ex ? exampleChip() : null), h('p', null, 'Shopping and Performance Max, by product')),
-      legend([{ name: 'Spend, it sold', square: true, color: 'var(--ink)' }, { name: 'Spend, no sale', square: true, color: 'var(--line-strong)' }])),
-    barChart({ values: rows.map(r => r.spend), labels: rows.map(r => r.short || r.name), dim: i => !sold(rows[i]), format: v => money(v, { cur, compact: true }), valueLabels: true, height: 300,
+      h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, 'Where the product spend goes'), ex ? exampleChip() : null), h('p', null, 'Shopping and Performance Max, by product · spend Google Ads, sold or not Triple Whale')),
+      legend([{ name: 'Spend, it sold', square: true, color: 'var(--brand)' }, { name: 'Spend, no sale', square: true, color: 'var(--line-strong)' }])),
+    barChart({ values: rows.map(r => r.spend), labels: rows.map(r => r.short || r.name), dim: i => !sold(rows[i]), format: v => money(v, { cur, compact: true }), valueLabels: true, height: 300, windowLabel: 'By product, ' + W,
       label: 'Spend by product, ' + rows.map(r => `${r.name} ${usd(r.spend, cur)}`).join(', ') }));
-  const tbl = card({ title: 'Each product', note: 'Sales and ROAS are Triple Whale', flush: true, class: 'gg-prod', action: ex ? exampleChip() : null },
+  const tbl = card({ title: 'Each product', note: W + ' · sales and ROAS Triple Whale, last click', flush: true, class: 'gg-prod', action: ex ? exampleChip() : null },
     table({ roomy: true, rows, sort: { key: 'spend', dir: 'desc' }, onRow: r => productSheet(r, d, cur, g), cols: [
       { key: 'name', label: 'Product', render: r => h('span', { class: 'name' }, r.name, h('span', { class: 'sub' }, [ok(r.price) ? usd(r.price, cur) : null, r.feed_why].filter(Boolean).join('. '))) },
       { key: 'feed', label: 'Feed', class: 'hide-sm', render: r => (FEED[r.feed] ? statusDot(FEED[r.feed][0], FEED[r.feed][1]) : '') },
       { key: 'shown', label: def('Times shown', 'impressions'), num: true, class: 'hide-md', sortable: true, render: r => num(r.shown) },
       { key: 'ctr', label: def('Click rate', 'click_rate'), num: true, class: 'hide-md', sortable: true, render: r => pct(r.ctr, { digits: 1 }) },
-      { key: 'spend', label: def('Spend', 'ad_spend'), num: true, sortable: true, render: r => usd(r.spend, cur) },
-      { key: 'sales', label: def('Sales', 'roas'), num: true, class: 'hide-sm', sortable: true, render: r => usd(r.sales, cur) },
+      { key: 'spend', label: 'Spend', num: true, sortable: true, render: r => usd(r.spend, cur) },
+      { key: 'sales', label: 'Sales', num: true, class: 'hide-sm', sortable: true, render: r => usd(r.sales, cur) },
       { key: 'roas', label: def(g.roas ? 'ROAS, goal ' + x(g.roas) : 'ROAS', 'roas'), num: true, class: 'strong', sortable: true, render: r => (sold(r) ? x(r.roas) : h('span', { class: 'neg' }, 'no sale')) },
       { key: 'google_roas', label: def('Google says', 'google_says'), num: true, class: 'gg-says hide-sm', sortable: true, render: r => x(r.google_roas) },
       { key: 'page_rate', label: def('Page buys', 'page_buys'), num: true, class: 'hide-md', sortable: true, render: r => pct(r.page_rate, { digits: 1 }) },
     ] }));
-  return [figs, chart, tbl].filter(Boolean);
+  return [top, chart, tbl].filter(Boolean);
 }
 /* one product, every figure */
 function productSheet(r, d, cur, g) {
-  const kv = (l, k, v) => v == null || v === '' ? null : h('div', null, h('span', { class: 'l' }, def(l, k)), h('b', null, v));
+  const kv = (l, k, v) => v == null || v === '' ? null : h('div', null, h('span', { class: 'l' }, k ? def(l, k) : l), h('b', null, v));
   sheet({ title: r.name, body: h('div', { class: 'gg-sh' },
     h('p', { class: 'gg-says' }, 'Google Shopping and Performance Max, ' + (d.window ? d.window.label : 'these dates')),
     h('div', { class: 'g' },
       kv('Price', { title: 'Price', body: 'The price in the product feed.' }, ok(r.price) ? usd(r.price, cur) : null),
       kv('Feed', { title: 'Feed status', body: 'What Merchant Center says about the product: approved, limited or disapproved.', source: 'Merchant Center' }, FEED[r.feed] ? FEED[r.feed][1] : null),
       kv('Times shown', 'impressions', ok(r.shown) ? num(r.shown) : null), kv('Click rate', 'click_rate', ok(r.ctr) ? pct(r.ctr, { digits: 1 }) : null),
-      kv('Spend', 'ad_spend', usd(r.spend, cur)), kv('Sales', 'roas', usd(r.sales, cur)), kv('ROAS', 'roas', r.sales > 0 ? x(r.roas) + (g.roas ? ', goal ' + x(g.roas) : '') : 'no sale'),
+      kv('Spend', null, usd(r.spend, cur)), kv('Sales, Triple Whale', null, usd(r.sales, cur)), kv('ROAS', 'roas', r.sales > 0 ? x(r.roas) + (g.roas ? ', goal ' + x(g.roas) : '') : 'no sale'),
       kv('Google says', 'google_says', ok(r.google_roas) ? x(r.google_roas) : null), kv('Page buys', 'page_buys', ok(r.page_rate) ? pct(r.page_rate, { digits: 1 }) : null)),
     r.feed_why ? h('p', null, statusDot(FEED[r.feed] ? FEED[r.feed][0] : 'warn', 'Feed: ' + r.feed_why)) : null,
     r.feed && r.feed !== 'approved' ? h('a', { href: 'https://merchants.google.com/', target: '_blank', rel: 'noopener noreferrer' }, 'Open Merchant Center to fix it') : null) });
@@ -74,7 +75,7 @@ function creativeView(d, ctx, which) {
 }
 
 export default {
-  title: ['Which products and ads ', em('carry Google?')],
+  title: 'Products and creative',
   eyebrow: 'Google',
 
   async load(ctx) {

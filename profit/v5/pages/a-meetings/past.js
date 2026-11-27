@@ -7,8 +7,8 @@
 
 import { APP_NAME } from '../../config.js';
 import { put, noDash } from '../../kit.js';
-import { h, em, button, avatar, statusDot, pill, dateBlock, segmented, toggle, sheet, empty, addStyles } from '../../kit.js';
-import { defined, defLabel, pageHelp } from '../../defs.js';
+import { h, em, button, avatar, statusDot, dateBlock, segmented, toggle, sheet, empty, addStyles, tiles, kpi } from '../../kit.js';
+import { pageHelp } from '../../defs.js';
 import { pullButton } from './_pull.js';
 
 /* what the states mean: shown on hover or tap wherever the word appears (no footer) */
@@ -18,7 +18,8 @@ const DEF = {
   skipped: { name: 'Skipped', definition: 'Nobody filed this meeting, on purpose. Nothing from it became a task.' },
   open: { name: 'Still open', definition: 'Tasks made from filed meetings that are not done yet, in Asana.' },
 };
-const stDot = st => defined(st.id === 'waiting' ? pill('warn', st.text) : statusDot(st.tone, st.text), DEF[st.id] || null);
+/* a state is a plain status (no dotted mark on a status word): what it means is in its native hover and in "What is this page?" */
+const stDot = st => { const n = statusDot(st.tone, st.text); if (DEF[st.id]) n.title = DEF[st.id].definition; return n; };
 
 const ui = { kind: 'all', skipped: false, allOpen: false };
 
@@ -105,7 +106,7 @@ function openMeeting(m, data, ctx, world) {
       return world.openIds.has(row.id) ? 'open' : 'done';
     };
     const PILL = { unfiled: () => statusDot('off', st.id === 'waiting' ? 'Not filed yet' : 'Not filed'), asked: () => statusDot('off', 'Asked of the client'),
-      brief: () => statusDot('good', 'Brief made'), made: () => statusDot('good', 'Task made'), open: () => defined(pill('warn', 'Still open'), DEF.open), done: () => statusDot('good', 'Done') };
+      brief: () => statusDot('good', 'Brief made'), made: () => statusDot('good', 'Task made'), open: () => { const n = statusDot('warn', 'Still open'); n.title = DEF.open.definition; return n; }, done: () => statusDot('good', 'Done') };
     const brands = notes.brands || [];
     let nDec = 0, nTasks = 0, nOpen = 0;
     for (const b of brands) {
@@ -169,12 +170,13 @@ function draw(el, data, ctx) {
   const openFrom = id => openItems ? openItems.filter(i => i.source_id === id).length : 0;
 
   /* the four counts */
-  const fig = (label, value, sub, tone) => h('div', { class: 'mp-fig' }, h('span', { class: 'l' }, label), h('span', { class: 'v' + (tone ? ' ' + tone : '') }, value), sub && h('span', { class: 's' }, sub));
-  const figs = h('div', { class: 'mp-figs' },
-    fig('Meetings', String(all.length), 'recorded in the last 60 days'),
-    fig(defLabel('Filed', DEF.filed), String(filed.length), 'decisions and tasks made'),
-    fig(defLabel('Waiting to be filed', DEF.waiting), String(waiting.length), waiting.length ? 'newest ' + shortDay(waiting[0].m.date) : 'nothing waiting'),
-    openItems ? fig(defLabel('Tasks still open', DEF.open), String(openItems.length), late ? plural(late, 'is', 'are') + ' late' : 'none late', late ? 'bad' : '') : null);
+  const figs = tiles([
+    kpi({ label: 'Meetings', value: String(all.length), sub: 'recorded in the last 60 days' }),
+    kpi({ label: 'Filed', value: String(filed.length), sub: 'notes confirmed, tasks made' }),
+    kpi({ label: 'Waiting to be filed', value: String(waiting.length), sub: waiting.length ? statusDot('warn', 'newest ' + shortDay(waiting[0].m.date)) : 'nothing waiting' }),
+    openItems ? kpi({ label: 'Tasks still open', value: String(openItems.length), sub: late ? statusDot('bad', plural(late, 'is', 'are') + ' late') : 'none late' }) : null,
+  ].filter(Boolean), { cols: openItems ? 4 : 3 });
+  ctx.askContext = 'Past meetings, last 60 days: ' + all.length + ' recorded, ' + filed.length + ' filed, ' + waiting.length + ' waiting to be filed' + (openItems ? ', ' + openItems.length + ' tasks still open (' + late + ' late)' : '') + '.';
 
   /* what is still open */
   let openCard = null;
@@ -184,11 +186,13 @@ function draw(el, data, ctx) {
     openCard = h('section', { class: 'mp-sec' },
       h('div', { class: 'mp-h' }, h('h3', null, 'What is still open?'), h('span', null, 'every open task, oldest due date first')),
       h('div', { class: 'lx-card flush' }, h('div', { class: 'mp-o mp-head', 'aria-hidden': 'true' }, h('span', { class: 'av' }), h('span', { class: 'what' }, 'Task'), h('span', { class: 'who' }, 'Owner and due date'), h('span', { class: 'st' }, 'Status')),
-        shown.map(i => h('div', { class: 'mp-o' },
+        shown.map(i => { const m = all.find(k => k.id === i.source_id); const kids = [
         i.owner ? avatar({ name: i.owner }, { size: 36 }) : h('span', { class: 'mp-nobody', role: 'img', 'aria-label': 'No owner' }),
         h('span', { class: 'what' }, noDash(i.text || i.name), h('small', null, i.brand)),
         h('span', { class: 'who' }, [i.owner || 'No owner', i.due ? 'due ' + shortDay(i.due) : 'no due date'].join(', ')),
-        i.late ? pill('bad', 'Late') : statusDot('off', 'Open')))),
+        i.late ? statusDot('bad', 'Late') : statusDot('off', 'Open')];
+          /* a task opens the meeting it came from; one whose meeting is not in the list is a plain row (no hover) */
+          return m ? h('button', { type: 'button', class: 'mp-o go', onclick: () => openMeeting(m, data, ctx, world), 'aria-label': 'Open the meeting this task came from: ' + (m.title || 'meeting') }, kids) : h('div', { class: 'mp-o' }, kids); })),
       sorted.length > 6 ? button(ui.allOpen ? 'Show fewer' : `Show all ${sorted.length}`, { ghost: true, onclick: () => { ui.allOpen = !ui.allOpen; draw(el, data, ctx); } }) : null);
   } else if (openItems) {
     openCard = h('section', { class: 'mp-sec' }, h('div', { class: 'mp-h' }, h('h3', null, 'What is still open?'), h('span', null, 'No task is open. Everything filed has been done.')));
@@ -210,6 +214,7 @@ function draw(el, data, ctx) {
       h('span', { class: 'wh' }, whatOf(m, st), stillOpen ? h('small', null, plural(stillOpen, 'task') + ' still open') : null),
       stDot(st));
   };
+  const firstWeek = [...weeks.keys()][0];
   const listHead = () => h('div', { class: 'mp-m mp-head', 'aria-hidden': 'true' }, h('span'), h('span', null, 'Meeting'), h('span', { class: 'br' }, 'Brands'), h('span', null, 'What came out of it'), h('span', null, 'Status'));
   const filters = h('div', { class: 'mp-filters' },
     segmented([{ id: 'all', label: 'All' }, { id: 'team', label: 'Monday team' }, { id: 'client', label: 'Client calls' }, { id: 'other', label: 'Other' }], ui.kind, id => { ui.kind = id; draw(el, data, ctx); }),
@@ -219,7 +224,7 @@ function draw(el, data, ctx) {
     filters,
     vis.length ? [...weeks.entries()].map(([w, list]) => h('div', { class: 'mp-wk' },
       h('span', { class: 'lx-eyebrow' }, 'Week of ' + shortDay(w)),
-      h('div', { class: 'lx-card flush' }, listHead(), list.map(row))))
+      h('div', { class: 'lx-card flush' }, w === firstWeek ? listHead() : null, list.map(row))))
       : h('p', { class: 'mp-quiet' }, 'No meeting matches. Try All, or show the skipped ones.'));
 
   put(el, h('div', { class: 'mp' }, h('div', { class: 'mp-bar' }, pageHelp({ body: [
@@ -242,8 +247,8 @@ export default {
 const CSS = `
 .mp{display:grid;gap:32px;min-width:0}
 .mp-bar{display:flex;align-items:center;gap:12px;margin-bottom:-12px}
-.mp-head{min-height:32px!important;padding-top:0!important;padding-bottom:0!important;cursor:default!important;background:none!important;font-size:11.5px!important;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.mp-head .what,.mp-head .who,.mp-head .st{font-size:11.5px!important;font-weight:600!important;color:var(--muted)!important;letter-spacing:.06em}
+.mp-head{min-height:32px!important;padding-top:0!important;padding-bottom:0!important;cursor:default!important;background:none!important;font-size:var(--fs-colhead,11.5px)!important;font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted)}
+.mp-head .what,.mp-head .who,.mp-head .st,.mp-head .br{font-size:var(--fs-colhead,11.5px)!important;font-weight:600!important;color:var(--muted)!important;letter-spacing:0}
 .mp-head+.mp-m,.mp-head+.mp-o{border-top:1px solid var(--line)}
 .mp-o .av{width:36px;flex:none}
 .mp-o.mp-head .st{width:70px;flex:none}
@@ -272,13 +277,13 @@ const CSS = `
 .mp-sec{display:grid;gap:14px;min-width:0;justify-items:stretch}
 .mp-sec>.lx-btn{justify-self:start}
 .mp-h{display:flex;align-items:baseline;gap:6px 12px;flex-wrap:wrap}
-.mp-h h3{margin:0;font-size:19px;font-weight:600;letter-spacing:-.022em}
+.mp-h h3{margin:0;font-size:var(--fs-section,17px);font-weight:600;letter-spacing:-.015em}
 .mp-h>span{font-size:13.5px;color:var(--muted)}
 .mp-filters{display:flex;align-items:center;gap:12px 22px;flex-wrap:wrap}
 .mp-wk{display:grid;gap:10px;margin-top:10px}
 .mp-m{display:grid;grid-template-columns:46px minmax(0,1.5fr) minmax(0,1fr) minmax(0,1.4fr) 160px;gap:20px;align-items:center;width:100%;min-height:76px;padding:12px 26px;border:0;border-top:1px solid var(--line);background:none;text-align:left;font:inherit;color:inherit;cursor:pointer}
 .mp-m:first-child{border-top:0}
-.mp-m:hover{background:var(--surface-2)}
+.mp-m:hover{background:var(--row-hover)}
 .mp-m.off .ti b,.mp-m.off .wh{color:var(--muted)}
 .mp-m .ti{display:grid;gap:2px;min-width:0}
 .mp-m .ti b{font-size:15.5px;font-weight:600;letter-spacing:-.012em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -286,13 +291,16 @@ const CSS = `
 .mp-m .br{font-size:13.5px;color:var(--ink-2);min-width:0}
 .mp-m .wh{display:grid;gap:2px;font-size:14px;min-width:0}
 .mp-m .wh small{color:var(--warn);font-weight:500}
-.mp-m>.lx-stat,.mp-m>.lx-pill{justify-self:start}
+.mp-m>.lx-stat{justify-self:start}
 .mp-o{display:flex;align-items:center;gap:14px;min-height:64px;padding:10px 26px;border-top:1px solid var(--line)}
 .mp-o:first-child{border-top:0}
 .mp-o .what{flex:1;min-width:0;font-size:15px;font-weight:500;letter-spacing:-.01em}
 .mp-o .what small{display:block;font-size:12.5px;font-weight:500;color:var(--muted)}
 .mp-o .who{width:200px;font-size:13px;color:var(--muted)}
-.mp-o>.lx-stat,.mp-o>.lx-pill{width:70px;flex:none}
+.mp-o>.lx-stat{flex:none;min-width:70px}
+button.mp-o{width:100%;border:0;border-top:1px solid var(--line);background:none;text-align:left;font:inherit;color:inherit;cursor:pointer}
+button.mp-o:first-child{border-top:0}
+button.mp-o.go:hover{background:var(--row-hover)}
 .mp-nobody{flex:none;width:36px;height:36px;border-radius:50%;background:var(--bg-sunk);box-shadow:inset 0 0 0 1.5px var(--line-strong)}
 .mp-quiet{margin:0;font-size:13.5px;color:var(--muted)}
 .mp-sheet{display:grid;gap:22px;min-width:0}

@@ -3,7 +3,8 @@
    "Example" chip for a part that has no data feed yet, a share bar and a stacked split bar. */
 
 import { exampleChip as kitExampleChip } from '../../kit.js';
-import { h, money, num, pct, button, empty, statusDot, addStyles, tipShow, tipHide, sheet, safeHref } from '../../kit.js';
+import { h, money, num, pct, button, empty, statusDot, addStyles, tipShow, tipHide, sheet, safeHref, svgNode } from '../../kit.js';
+import { icon } from '../../icons.js';
 import { dl } from '../home/_biz.js';
 
 export const ok = n => n != null && isFinite(n);
@@ -33,7 +34,7 @@ const CSS = `
 .em-big>span:last-child{color:var(--muted);font-size:13.5px}
 .em-name{display:block;min-width:0;max-width:44ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .em-name small{display:block;font-size:12px;font-weight:400;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
-.em-ch{margin-left:8px;font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 7px;vertical-align:1px}
+.em-ch{margin-left:8px;font-size:11px;font-weight:600;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 7px;vertical-align:1px}
 .em-bar{display:inline-flex;align-items:center;gap:10px;justify-content:flex-end}
 .em-bar .lx-cellbar{margin-left:0;width:72px}
 .em-split{display:flex;gap:3px;height:18px;margin:6px 0 14px}
@@ -76,7 +77,11 @@ const CSS = `
 .em-camps .lx-table td .sub{display:block;font-size:11.5px;color:var(--muted);font-weight:400}
 .em-lab{font-size:13.5px;font-weight:500;color:var(--ink-2)}
 .em-num{font-size:var(--num-l);font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
-.lx-table td.em-go{width:28px;color:var(--faint);text-align:right}
+.lx-table td.em-go{width:36px;color:var(--faint);text-align:right}
+.em-go .lx-ic{width:16px;height:16px;stroke-width:2;transform:rotate(-90deg);vertical-align:middle}
+.em-when-s{display:none}
+.em-best{font-size:var(--fs-small,12.5px);color:var(--muted)}
+@media (max-width:759px){.em-when-l{display:none}.em-when-s{display:inline}}
 .lx-table tr.click:hover td.em-go{color:var(--ink)}
 .em-sheet{display:grid;gap:18px}
 .em-sheet .kv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px}
@@ -142,7 +147,7 @@ export function split(parts, label) {
     h('div', { class: 'em-keys' }, parts.map(p => h('div', null, h('b', null, p.text), h('span', null, h('em', { style: { '--c': p.color } }), p.name)))),
   ];
 }
-export const channelTag = ch => (ch === 'sms' ? h('span', { class: 'em-ch' }, 'TEXT') : null);
+export const channelTag = ch => (ch === 'sms' ? h('span', { class: 'em-ch' }, 'Text') : null);
 export const flowStatus = s => (s === 'live' ? statusDot('good', 'Live') : s === 'manual' ? statusDot('warn', 'Switched off') : s === 'draft' ? statusDot('off', 'Draft') : statusDot('off', s ? String(s) : 'Unknown'));
 
 /* ---------- readers (real mode only) ---------- */
@@ -172,6 +177,8 @@ export function notConnected(ctx, { title, text, teamText }) {
     action: team && ctx.brand ? button('Open integrations', { href: ctx.href('brand-settings', 'integrations') }) : null });
 }
 export { num, pct };
+/** The row chevron (the same icon as All platforms > Side by side), for a row that opens. */
+export const goCell = () => svgNode(icon('chevron'));
 
 /** A labeled horizontal bar list: every row named, with its value, and a hover bubble.
     rows: [{ name, value, text, tip: [nodes] }] */

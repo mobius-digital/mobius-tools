@@ -10,6 +10,7 @@ import { defined, defLabel } from '../../defs.js';
 import { SAMPLE, putSaved } from '../../data.js';
 import { ORG_SHORT, APP_NAME } from '../../config.js';
 import { picture, day, daysFrom, todayOf, plural, oldLocus } from '../production/_ui.js';
+import { openAdDetail } from '../_addetail.js';
 
 /** /api/trybe for this brand, with "no key" turned into a plain answer instead of an error. */
 export async function loadCreators(ctx) {
@@ -61,8 +62,8 @@ const fig = (label, key, value) => h('div', null, defLabel(label, CR_DEF[key] ||
 export function crFigs(v, acct) {
   if (v.spend == null && v.orders == null) return null;
   return h('div', { class: 'cr-figs' },
-    fig('Spend', 'spend', money(v.spend || 0)), fig('Sales', 'orders', num(v.orders || 0)),
-    fig('Cost per sale', 'cpa', v.cpa == null ? 'none' : money(v.cpa)), fig('ROAS', 'roas', v.roas == null ? 'none' : x(v.roas)));
+    fig('Spend', 'spend', money(Math.round(v.spend || 0))), fig('Sales', 'orders', num(v.orders || 0)),
+    fig('Cost per sale', 'cpa', v.cpa == null ? 'none' : money(Math.round(v.cpa))), fig('ROAS', 'roas', v.roas == null ? 'none' : x(v.roas)));
 }
 
 /** One video, opened: the player (or the picture in sample mode) on top, then its figures and facts.
@@ -87,6 +88,30 @@ export async function play(ctx, v, { acct, primary } = {}) {
   } catch (e) { put(box, h('div', { class: 'cr-pic' }, clip(v)), h('p', { class: 'cr-quiet' }, (e && e.message) || 'This video could not play.')); }
   return sh;
 }
+/** The Meta ad id behind a video that ran: the worker's ad_id (its top ad), else the first of ad_ids. */
+export const adIdOf = v => (v && (v.ad_id || v.meta_ad_id || (Array.isArray(v.ad_ids) && v.ad_ids[0]))) || null;
+/** A video that ran as a Meta ad with spend opens the shared ad detail (the same one Creative review shows), with the
+    creator facts under it. A video not in Meta yet (To review, Approved not running) opens play(). */
+export function openVideo(ctx, v, o = {}) {
+  const id = adIdOf(v);
+  if (!id || !(v.spend > 0)) return play(ctx, v, o);
+  const to = ctx.sample ? '2026-11-22' : todayOf(null);
+  const from = new Date(Date.parse(to + 'T12:00:00Z') - 29 * 864e5).toISOString().slice(0, 10);
+  const name = v.creator + (v.product ? ', ' + v.product : '');
+  const ref = openAdDetail(ctx, { id: String(id), name, media_type: v.media === 'image' ? 'image' : 'video', thumb: v.thumb || null, art: v.art || null,
+    campaign: v.campaign || null, adset: v.adset || null, spend: v.spend, revenue: v.revenue, purchases: v.orders, roas: v.roas, cpa: v.cpa },
+    { window: { from, to, label: 'Last 30 days' }, goals: { cpa: o.acct || null } });
+  const box = ref && ref.el && ref.el.querySelector('.adx');
+  if (!box) return ref;
+  crCss();
+  const facts = [['Creator', v.creator], ['Product', v.product], ['Angle', v.angle], ['What they said', v.line ? '"' + v.line + '"' : null],
+    ['Ads with this video', v.on != null ? num(v.on) + ' on' + (v.ads != null ? ' of ' + num(v.ads) : '') : null]].filter(f => f[1]);
+  box.append(h('section', { class: 'cr-more' }, h('h3', null, 'The creator video'),
+    h('div', { class: 'cr-hd' }, h('span', { class: 'cr-quiet' }, 'Every ad with this video, last 30 days: spend Meta, sales Triple Whale, last click'), cpaDot(v.cpa, o.acct)),
+    crFigs(v, o.acct),
+    facts.length ? h('dl', { class: 'cr-facts' }, facts.map(([k, val]) => h('div', null, h('dt', null, k), h('dd', null, val)))) : null));
+  return ref;
+}
 /** The primary button in a review sheet: approve in old Locus (approving pays the creator). Team only. */
 export const approveOld = (ctx, href) => oldLocus(ctx, { label: 'Approve in old ' + APP_NAME, href, primary: true });
 
@@ -98,7 +123,9 @@ export function cpaDot(cpa, acct) {
   if (cpa == null) return statusDot('off', 'No sales yet');
   if (acct == null) return null;
   const d = { name: cpa <= acct ? 'Under the account' : 'Over the account', definition: `Its cost per sale against the account's ${money(acct)} cost per sale (every Meta ad, last 30 days). Under is better.` };
-  return defined(cpa <= acct ? statusDot('good', 'Under the account') : statusDot('bad', 'Over the account'), d);
+  const el = defined(cpa <= acct ? statusDot('good', 'Under the account ' + money(Math.round(acct))) : statusDot('bad', 'Over the account ' + money(Math.round(acct))), d);
+  if (el && el.classList) el.classList.add('cr-nodef');   /* the dot marks it: no dotted underline as well */
+  return el;
 }
 
 export { todayOf, day, plural };
@@ -107,19 +134,26 @@ const CSS = `
 .cr-grid{display:grid;grid-template-columns:repeat(var(--cols,6),minmax(0,1fr));gap:18px}
 .cr-tile{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;min-width:0;align-content:start}
 .cr-tile>button{padding:0;border:0;background:none;cursor:pointer;display:block;width:100%;text-align:left}
-.cr-tile .pd-pic{border-radius:14px;box-shadow:0 0 0 1px var(--line)}
+.cr-tile .pd-pic{border-radius:var(--r-tbl,12px);box-shadow:0 0 0 1px var(--line)}
+.cr-tile>button:hover .pd-pic{box-shadow:0 0 0 1px var(--line),var(--sh-2)}
 .cr-tile b{display:block;font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cr-tile small{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:12.5px;color:var(--muted);overflow:hidden}
 .cr-tile q{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:12.5px;line-height:1.4;color:var(--ink-2);quotes:none}
 .cr-nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding-top:8px;border-top:1px solid var(--line)}
 .cr-nums span{display:grid;gap:1px;min-width:0}
-.cr-nums em{font-style:normal;font-size:11.5px;font-weight:500;white-space:nowrap;color:var(--muted)}
+.cr-nums em{font-style:normal;font-size:var(--fs-colhead,11.5px);font-weight:500;white-space:nowrap;color:var(--muted)}
 .cr-nums b{font-size:14px;font-variant-numeric:tabular-nums}
 .cr-q .pd-line{padding-left:20px;padding-right:20px}
 .cr-mini{display:block;width:34px}
 .cr-mini .pd-pic{border-radius:7px}
 .cr-mini .pd-play{display:none}
 .cr-quiet{color:var(--muted);font-size:13px}
+.cr-w,.cr-nums span.cr-w,.cr-nums span.cr-full{display:inline}
+.cr-nums span.cr-cmp,.cr-cmp{display:none}
+@media (max-width:759px){.cr-nums span.cr-full,.cr-full{display:none}.cr-nums span.cr-cmp,.cr-cmp{display:inline}}
+.cr-nodef.lx-def,.cr-nodef.lx-def:hover,.cr-nodef.lx-def.open{text-decoration:none}
+.cr-more{display:grid;gap:12px;min-width:0;padding-top:var(--gap-5,24px);border-top:1px solid var(--line)}
+.cr-more h3{font-size:var(--fs-section,17px);font-weight:600;margin:0}
 .cr-play{display:grid;gap:12px}
 .cr-one{display:grid;gap:18px;min-width:0}
 .cr-pic{max-width:220px}
@@ -140,7 +174,7 @@ const CSS = `
 .cr-sortl{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
 .cr-sortl select{height:34px;width:auto;min-width:170px;font-size:13.5px}
 @media (max-width:759px){.cr-figs{grid-template-columns:1fr 1fr}}
-.cr-play video{width:100%;max-height:70vh;border-radius:12px;background:#000}
+.cr-play video{width:100%;max-height:70vh;border-radius:var(--r-tbl,12px);background:#000}
 .cr-who{display:flex;align-items:center;gap:10px;min-width:0}
 .cr-who>div{min-width:0}
 .cr-who b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

@@ -1,8 +1,9 @@
 /* Connection rows, shared by Brand settings > Integrations and Agency settings > Integrations.
    One row per tool: its name, a clear connected or not state, one line on what was read, and who uses it. */
 
-import { h, card, hero, platformChip, statusDot } from '../../kit.js';
+import { h, card, platformChip, statusDot } from '../../kit.js';
 import { stateDot } from './_set.js';
+import { countTiles } from '../a-settings/_look.js';
 
 const GLYPH = { meta: 'meta', google: 'google', google_ads: 'google', ga4: 'google', gsc: 'google', tiktok: 'tiktok', amazon: 'amazon', klaviyo: 'email', email: 'email' };
 const text = v => (typeof v === 'string' ? v : Array.isArray(v) ? v.join(' ') : '');
@@ -36,13 +37,21 @@ export function conGroups(items, order, useOf, last) {
     h('div', { class: 'lx-st-rows' }, conHead(last), groups.get(g).map(it => conRow(it, useOf ? useOf(it) : null)))));
 }
 
-/** The band at the top: how many are connected, and what needs a look. */
-export function conHero(items, what) {
+/** "9:02am" today, else "Nov 24": when the connections were last checked. */
+function checkedAt(asOf) {
+  const t = asOf ? new Date(asOf) : null; if (!t || isNaN(t)) return null;
+  return t.toDateString() === new Date().toDateString() ? t.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).replace(' ', '').toLowerCase()
+    : t.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+/** The tiles at the top: how many are connected, and what needs a look (names under each count).
+    asOf (the read's as_of) gives every tile "Checked 9:02am · Connections". */
+export function conHero(items, what, asOf) {
   const ok = items.filter(i => i.state === 'ok').length, look = items.filter(i => i.state === 'warn' || i.state === 'bad'), off = items.filter(i => i.state === 'off');
-  return hero({ line: true }, h('div', { class: 'lx-st-sum' },
-    h('span', { class: 'lx-big' }, ok + ' of ' + items.length, h('small', null, what)),
-    h('span', { class: 'lx-sp' }),
-    look.length ? statusDot('warn', look.length + (look.length === 1 ? ' needs a look: ' : ' need a look: ') + look.map(i => i.name).join(', ')) : null,
-    off.length ? statusDot('off', off.length + ' not connected: ' + off.map(i => i.name).join(', ')) : null,
-    !look.length && !off.length ? statusDot('good', 'Everything is connected') : null));
+  const at = checkedAt(asOf), win = at ? 'Checked ' + at : 'Last check', source = 'Connections';
+  return countTiles([
+    { label: 'Connected', value: ok + ' of ' + items.length, sub: what, window: win, source },
+    { label: 'Needs a look', value: String(look.length), sub: look.length ? statusDot('warn', look.map(i => i.name).join(', ')) : statusDot('good', 'nothing'), window: win, source },
+    { label: 'Not connected', value: String(off.length), sub: off.length ? off.map(i => i.name).join(', ') : 'everything is connected', window: win, source },
+  ], { cols: 3 });
 }

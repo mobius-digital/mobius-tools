@@ -4,7 +4,7 @@
   "goal_cpa": 40,
   "goal_roas": 3,
   "has_sales": true,
-  "to": "2026-11-23",
+  "to": "2026-11-22",
   "read": [
     "Three ads that started journeys are now off and nothing live replaces them. ",
     {
@@ -37,7 +37,7 @@
       "lc": 7310,
       "roas": 2.1,
       "cpa": 52.73,
-      "last_day": "2026-11-23",
+      "last_day": "2026-11-22",
       "live": true,
       "tone": "#3B2F1E",
       "over": "NO HOLES. NO PROBLEM.",
@@ -49,7 +49,18 @@
       "age": 40,
       "atc": 305,
       "visits": 1803,
-      "campaign": "Black Friday 2026"
+      "campaign": "Black Friday 2026",
+      "art": {
+        "kind": "ad",
+        "brand": "Northlake Golf",
+        "kicker": "Black Friday",
+        "text": "No holes. No problem.",
+        "foot": "northlakegolf.example",
+        "cta": "Shop now",
+        "c1": "#E9E4DA",
+        "c2": "#C9A45C",
+        "bg": "#3B2F1E"
+      }
     },
     {
       "id": "ad_102",
@@ -71,7 +82,7 @@
       "lc": 6120,
       "roas": 2.32,
       "cpa": 50.77,
-      "last_day": "2026-11-23",
+      "last_day": "2026-11-22",
       "live": true,
       "tone": "#14304A",
       "over": "BUY 2, SAVE 20%",
@@ -83,7 +94,13 @@
       "age": 40,
       "atc": 250,
       "visits": 1257,
-      "campaign": "Black Friday 2026"
+      "campaign": "Black Friday 2026",
+      "art": {
+        "kind": "box",
+        "c1": "#14304A",
+        "c2": "#C9A45C",
+        "bg": "#E6EAF3"
+      }
     },
     {
       "id": "ad_103",
@@ -105,7 +122,7 @@
       "lc": 5410,
       "roas": 2.83,
       "cpa": 40.64,
-      "last_day": "2026-11-23",
+      "last_day": "2026-11-22",
       "live": true,
       "tone": "#1E4A38",
       "over": "WATCH THIS CLICK",
@@ -122,7 +139,13 @@
       "age": 33,
       "atc": 250,
       "visits": 1782,
-      "campaign": "Black Friday 2026"
+      "campaign": "Black Friday 2026",
+      "art": {
+        "kind": "golfer",
+        "c1": "#14532D",
+        "c2": "#1F2937",
+        "bg": "#E6EDE4"
+      }
     },
     {
       "id": "ad_104",
@@ -161,7 +184,13 @@
       "age": 21,
       "atc": 210,
       "visits": 1877,
-      "campaign": "Black Friday 2026"
+      "campaign": "Black Friday 2026",
+      "art": {
+        "kind": "belt",
+        "c1": "#8A6A3B",
+        "c2": "#1F2937",
+        "bg": "#F1E7DA"
+      }
     },
     {
       "id": "ad_105",
@@ -183,7 +212,7 @@
       "lc": 2950,
       "roas": 2.09,
       "cpa": 52.22,
-      "last_day": "2026-11-23",
+      "last_day": "2026-11-22",
       "live": true,
       "tone": "#3E4A5E",
       "over": "THE GOLFER GIFT",
@@ -195,7 +224,13 @@
       "age": 26,
       "atc": 107,
       "visits": 597,
-      "campaign": "Black Friday 2026"
+      "campaign": "Black Friday 2026",
+      "art": {
+        "kind": "box",
+        "c1": "#9B2C2C",
+        "c2": "#C9A45C",
+        "bg": "#F1E7DA"
+      }
     },
     {
       "id": "ad_106",
@@ -217,7 +252,7 @@
       "lc": 1340,
       "roas": 1.14,
       "cpa": 98.33,
-      "last_day": "2026-11-23",
+      "last_day": "2026-11-22",
       "live": true,
       "tone": "#1E4A38",
       "over": "my belt has no holes",
@@ -234,7 +269,13 @@
       "age": 19,
       "atc": 81,
       "visits": 960,
-      "campaign": "Creator ads"
+      "campaign": "Creator ads",
+      "art": {
+        "kind": "golfer",
+        "c1": "#1F2937",
+        "c2": "#C9A45C",
+        "bg": "#E9E4DA"
+      }
     },
     {
       "id": "ad_107",
@@ -268,7 +309,13 @@
       "age": 61,
       "atc": 59,
       "visits": 389,
-      "campaign": "Evergreen sales"
+      "campaign": "Evergreen sales",
+      "art": {
+        "kind": "belt",
+        "c1": "#1F2937",
+        "c2": "#9CA3AF",
+        "bg": "#ECEDEF"
+      }
     },
     {
       "id": "ad_108",
@@ -307,7 +354,13 @@
       "age": 17,
       "atc": 41,
       "visits": 593,
-      "campaign": "Creator ads"
+      "campaign": "Creator ads",
+      "art": {
+        "kind": "green",
+        "c1": "#14532D",
+        "c2": "#C9A45C",
+        "bg": "#E6EDE4"
+      }
     },
     {
       "id": "ad_109",
@@ -341,7 +394,18 @@
       "age": 24,
       "atc": 91,
       "visits": 448,
-      "campaign": "Early sale 2026"
+      "campaign": "Early sale 2026",
+      "art": {
+        "kind": "ad",
+        "brand": "Northlake Golf",
+        "kicker": "Early sale",
+        "text": "Ends tonight",
+        "foot": "northlakegolf.example",
+        "cta": "Shop now",
+        "c1": "#E9E4DA",
+        "c2": "#C9A45C",
+        "bg": "#14532D"
+      }
     },
     {
       "id": "ad_110",
@@ -363,7 +427,7 @@
       "lc": 420,
       "roas": 0.66,
       "cpa": 160,
-      "last_day": "2026-11-23",
+      "last_day": "2026-11-22",
       "live": true,
       "tone": "#8A6A3B",
       "over": "magnetic ball marker",
@@ -380,7 +444,13 @@
       "age": 48,
       "atc": 16,
       "visits": 277,
-      "campaign": "Evergreen sales"
+      "campaign": "Evergreen sales",
+      "art": {
+        "kind": "belt",
+        "c1": "#1E3A8A",
+        "c2": "#C9A45C",
+        "bg": "#E6EAF3"
+      }
     },
     {
       "id": "ad_111",
@@ -402,7 +472,7 @@
       "lc": 310,
       "roas": 0.6,
       "cpa": 173.33,
-      "last_day": "2026-11-23",
+      "last_day": "2026-11-22",
       "live": true,
       "tone": "#3E4A5E",
       "over": "FOR DAD",
@@ -414,7 +484,13 @@
       "age": 12,
       "atc": 17,
       "visits": 159,
-      "campaign": "Black Friday 2026"
+      "campaign": "Black Friday 2026",
+      "art": {
+        "kind": "box",
+        "c1": "#3E4A5E",
+        "c2": "#C9A45C",
+        "bg": "#E9E4DA"
+      }
     },
     {
       "id": "ad_112",
@@ -453,7 +529,13 @@
       "age": 45,
       "atc": 21,
       "visits": 272,
-      "campaign": "Evergreen sales"
+      "campaign": "Evergreen sales",
+      "art": {
+        "kind": "belt",
+        "c1": "#5F6368",
+        "c2": "#8A6A3B",
+        "bg": "#F1E7DA"
+      }
     },
     {
       "id": "ad_113",
@@ -492,7 +574,13 @@
       "age": 29,
       "atc": 6,
       "visits": 129,
-      "campaign": "Creator ads"
+      "campaign": "Creator ads",
+      "art": {
+        "kind": "box",
+        "c1": "#14532D",
+        "c2": "#C9A45C",
+        "bg": "#EAF0E6"
+      }
     },
     {
       "id": "ad_114",
@@ -514,7 +602,7 @@
       "lc": 0,
       "roas": 0,
       "cpa": null,
-      "last_day": "2026-11-23",
+      "last_day": "2026-11-22",
       "live": true,
       "tone": "#1E4A38",
       "over": null,
@@ -531,7 +619,13 @@
       "age": 11,
       "atc": 2,
       "visits": 55,
-      "campaign": "Evergreen sales"
+      "campaign": "Evergreen sales",
+      "art": {
+        "kind": "green",
+        "c1": "#1E4A38",
+        "c2": "#C9A45C",
+        "bg": "#E6EDE4"
+      }
     }
   ]
 }

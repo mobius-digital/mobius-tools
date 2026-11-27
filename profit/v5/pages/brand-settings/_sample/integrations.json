@@ -1,5 +1,5 @@
 {
- "as_of": null,
+ "as_of": "2026-11-26T15:02:00Z",
  "items": [
   { "key": "shopify", "name": "Shopify store", "group": "Store", "state": "ok", "note": "northlake-golf.example.com, orders in up to 6:00am today.", "gives": "Sales, orders, products, stock" },
   { "key": "tw", "name": "Triple Whale", "group": "Store", "state": "ok", "note": "Shop linked. Attribution in up to yesterday.", "gives": "Which ad each sale came from" },

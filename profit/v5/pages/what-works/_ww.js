@@ -6,9 +6,11 @@
    - the "From a finding to new ads" sheet, opened from a button on any finding. Read only for now. */
 
 import { exampleChip as kitExampleChip } from '../../kit.js';
-import { h, s, addStyles, button, sheet, gauge, empty, statusDot, avatar, platformChip, barChart, money, num, pct, x } from '../../kit.js';
+import { h, s, addStyles, button, sheet, gauge, empty, statusDot, avatar, platformChip, barChart, money, num, pct, x, tiles } from '../../kit.js';
+import { openAdDetail } from '../_addetail.js';
 import { AI_NAME, legacyUrl, APP_NAME } from '../../config.js';
-import { fixture } from '../../data.js';
+import { fixture, datesLabel } from '../../data.js';
+import { picture, css as pdCss } from '../production/_ui.js';
 import { defined, defLabel, pageHelp } from '../../defs.js';
 
 /* ---------- words used on every tab ---------- */
@@ -59,9 +61,11 @@ export const GLOSS = {
 /** defLabel with the Creative words above first, then the app glossary. */
 export const dl = (text, key, o) => defLabel(text, GLOSS[key] || key, o);
 export const def = (node, key) => defined(node, GLOSS[key] || key);
+/** A status chip or dot that explains itself on hover, with no dotted underline (the chip already marks it). */
+export const chipDef = (node, key) => { const n = def(node, key); if (n && n.classList) n.classList.add('ww-nodef'); return n; };
 /** The one "What is this page?" help at the top of a Creative page. body: text or [{ title, text }]. src: false leaves the sources out. */
 export function helpBar(body, { src = SRC_NOTE } = {}, ...right) {
-  return h('div', { class: 'ww-help' }, pageHelp({ body: [].concat(body, src ? [{ title: 'Where the numbers come from', text: src }] : []) }), h('span', { class: 'sp' }), ...right);
+  return h('div', { class: 'ww-help' }, h('div', { class: 'l' }, ...right), h('span', { class: 'sp' }), pageHelp({ body: [].concat(body, src ? [{ title: 'Where the numbers come from', text: src }] : []) }));
 }
 /** The small "Team only" tag (the same look as the kit tabs). */
 export const teamTag = () => defined(h('span', { class: 'lx-team-tag' }, 'Team only'), 'team_only');
@@ -72,11 +76,12 @@ export const figs = (list, n) => h('div', { class: 'ww-figs', style: { '--n': n 
 const CSS = `
 .ww-stack{display:grid;gap:var(--sp-8);min-width:0}
 .ww-help{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}
+.ww-help>.l{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;min-width:0}
 .ww-help .sp{flex:1 1 auto}
 .ww-help .note{font-size:13px;color:var(--muted)}
 .ww-figs{display:grid;grid-template-columns:repeat(var(--n,3),minmax(0,1fr));gap:10px 14px;min-width:0}
 .ww-figs>div{display:grid;gap:2px;min-width:0;align-content:start}
-.ww-figs .k{font-size:12px;color:var(--muted)}
+.ww-figs .k{font-size:var(--fs-colhead,11.5px);color:var(--muted)}
 .ww-figs b{font-size:var(--num-s);font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .ww-figs b.dim{color:var(--faint);font-weight:500}
 .ww-figs b.bad{color:var(--bad)}
@@ -89,10 +94,14 @@ const CSS = `
 .ww-note{gap:7px}
 .ww-note::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--watch);flex:none}
 .ww-note.ex::before{background:var(--slate)}
-.ww-art{position:relative;display:block;width:100%;aspect-ratio:var(--ar,4/5);max-height:var(--art-max,none);border-radius:12px;overflow:hidden;background:var(--tone,var(--bg-sunk));color:#fff;box-shadow:inset 0 0 0 1px var(--line)}
+.ww-art{position:relative;display:block;width:100%;aspect-ratio:var(--ar,4/5);max-height:var(--art-max,none);border-radius:var(--r-tbl,12px);overflow:hidden;background:var(--tone,var(--bg-sunk));color:#fff;box-shadow:inset 0 0 0 1px var(--line)}
 .ww-art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.ww-art svg{position:absolute;left:50%;top:50%;width:34px;height:34px;margin:-17px 0 0 -17px;opacity:.9}
+.ww-art>svg{position:absolute;left:50%;top:50%;width:34px;height:34px;margin:-17px 0 0 -17px;opacity:.9}
 .ww-art.plain{color:var(--icon)}
+.ww-art.art>svg{display:none}
+.ww-art>.pd-pic{position:absolute;inset:0;width:100%;height:100%;aspect-ratio:auto!important;border-radius:0}
+.ww-art>.pd-pic>svg,.ww-art>.pd-pic .pd-admock svg{width:100%;height:100%}
+.ww-nodef.lx-def,.ww-nodef.lx-def:hover,.ww-nodef.lx-def.open{text-decoration:none}
 .ww-art .cap{position:absolute;left:8px;top:8px;right:44px;font-size:11px;font-weight:500;line-height:1.25;text-shadow:0 1px 2px rgba(0,0,0,.35)}
 .ww-art .len{position:absolute;right:8px;top:8px;font-size:11px;font-weight:600;background:rgba(0,0,0,.45);border-radius:6px;padding:1px 6px}
 .ww-art .over{position:absolute;left:8px;right:8px;bottom:10px;text-align:center;font-size:12.5px;font-weight:700;line-height:1.2;text-shadow:0 1px 3px rgba(0,0,0,.5)}
@@ -100,24 +109,31 @@ const CSS = `
 .ww-art .pc{position:absolute;left:6px;bottom:6px;font-size:11px;font-weight:700;background:rgba(0,0,0,.5);border-radius:5px;padding:0 5px}
 .ww-thumbs{display:flex;gap:8px;flex-wrap:wrap}
 .ww-thumbs>*{width:56px;flex:none}
-.ww-thumbs .ww-art{border-radius:8px}
+.ww-thumbs .ww-art{border-radius:var(--r-chip,6px)}
+.ww-tb{display:block;padding:0;border:0;background:none;font:inherit;color:inherit;text-align:left;cursor:pointer;min-width:0}
+.ww-tb:hover .ww-art{box-shadow:inset 0 0 0 1px var(--line),0 0 0 2px var(--line-strong)}
+.ww-tb:focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:var(--r-chip,6px)}
 .ww-thumbs .ww-art .over,.ww-thumbs .ww-art .len,.ww-thumbs .ww-art .cap{display:none}
-.ww-thumbs .ww-art svg{width:18px;height:18px;margin:-9px 0 0 -9px}
+.ww-thumbs .ww-art>svg{width:18px;height:18px;margin:-9px 0 0 -9px}
+.ww-thumbs .ww-art .pd-play,.ww-thumbs .ww-art .pd-badge{display:none}
 .ww-thumbs small{display:block;margin-top:4px;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ww-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;min-width:0}
-.ww-c{display:flex;flex-direction:column;gap:10px;min-width:0;padding:10px 10px 12px;border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--sh-1);--ar:1/1;--art-max:180px}
+.ww-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:var(--gap-4,16px);min-width:0}
+.ww-c{display:flex;flex-direction:column;gap:12px;min-width:0;padding:0 0 16px;border-radius:var(--r-card,16px);background:var(--surface);box-shadow:var(--sh-1);overflow:hidden;--ar:1/1}
+.ww-c>*:not(.ww-art){margin-left:16px;margin-right:16px}
+.ww-c>.ww-art{border-radius:0;box-shadow:none}
+.ww-c>.ww-art img{object-fit:contain}
 .ww-c.open{cursor:pointer;transition:box-shadow var(--t) var(--ease),transform var(--t) var(--ease)}
-.ww-c.open:hover{box-shadow:var(--sh-2);transform:translateY(-1px)}
+.ww-c.open:hover{box-shadow:var(--sh-2)}
 .ww-c.open:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .ww-c .ww-art{width:100%}
-.ww-c .nm{display:flex;align-items:flex-start;gap:8px;font-size:14px;font-weight:600;line-height:1.3;min-width:0}
-.ww-c .nm span:first-child{min-width:0;overflow-wrap:anywhere}
+.ww-c .nm{display:flex;align-items:center;gap:8px;font-size:var(--fs-card,14px);font-weight:600;line-height:1.3;min-width:0}
+.ww-c .nm span:first-child{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ww-c .nm .lx-cap{margin-left:auto;padding-top:3px}
-.ww-c .sub{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
-.ww-st{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px}
+.ww-c .sub{font-size:var(--fs-small,12.5px);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ww-st{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:12px;padding-top:var(--gap-3,12px);border-top:1px solid var(--line)}
 .ww-st>div{min-width:0}
-.ww-st span{display:block;font-size:10.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
-.ww-st b{display:block;font-size:var(--num-s);font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.ww-st span{display:block;font-size:var(--fs-colhead,11.5px);color:var(--muted);white-space:nowrap}
+.ww-st b{display:block;font-size:16px;font-weight:600;letter-spacing:-.02em;line-height:1.15;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ww-st b.dim{color:var(--faint);font-weight:500}
 .ww-st b.bad{color:var(--bad)}
 .ww-st small{display:block;font-size:11.5px;color:var(--muted)}
@@ -125,7 +141,7 @@ const CSS = `
 .ww-3 .r{display:grid;grid-template-columns:78px 1fr auto;gap:8px;align-items:center;font-size:12px;color:var(--ink-2)}
 .ww-3 .r b{font-weight:600;font-variant-numeric:tabular-nums;min-width:44px;text-align:right}
 .ww-3 .t{height:5px;border-radius:999px;background:var(--bg-sunk);position:relative}
-.ww-3 .t i{position:absolute;left:0;top:0;bottom:0;width:var(--v,0%);border-radius:999px;background:var(--ink)}
+.ww-3 .t i{position:absolute;left:0;top:0;bottom:0;width:var(--v,0%);border-radius:999px;background:var(--brand)}
 .ww-3 .t i.s{background:var(--slate)}
 .ww-3 .cnt{display:flex;gap:6px 14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
 .ww-3 .cnt b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
@@ -133,12 +149,13 @@ const CSS = `
 .ww-say .lx-cap{color:var(--brand-ink);margin-right:6px}
 .ww-ft{display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:10px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
 .ww-ft .lx-stat{margin-left:auto}
-.ww-c .lx-btn{width:100%}
+.ww-c .lx-btn{width:auto;max-width:none}
+.ww-c>.lx-btn{align-self:stretch;justify-content:center}
 .ww-q{display:grid;grid-template-columns:220px minmax(0,1fr);gap:24px}
-.ww-q h3{font-size:16px;font-weight:600;letter-spacing:-.015em}
+.ww-q h3{margin:0;font-size:var(--fs-section,17px);font-weight:600;letter-spacing:-.015em;line-height:1.25;color:var(--ink)}
 .ww-q .meta{display:grid;gap:6px;align-content:start;font-size:13px;color:var(--muted)}
 .ww-q .meta b{color:var(--ink);font-variant-numeric:tabular-nums}
-.ww-q .care{font-size:12.5px;color:var(--ink-2);padding:10px 12px;border-radius:10px;background:var(--surface-2)}
+.ww-q .care{font-size:12.5px;color:var(--ink-2);padding:10px 12px;border-radius:var(--r-chip,6px);background:var(--surface-2)}
 .ww-gs{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:24px;min-width:0}
 .ww-g{display:grid;gap:8px;align-content:start;min-width:0}
 .ww-g .hd{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600}
@@ -156,25 +173,25 @@ const CSS = `
 .ww-row .big.dim{color:var(--faint)}
 .ww-row .mid small{display:block;margin-top:5px;font-size:12px;color:var(--muted)}
 .ww-row .side{font-size:13px;font-variant-numeric:tabular-nums;color:var(--ink-2)}
-.ww-row .side small{display:block;font-size:10.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+.ww-row .side small{display:block;font-size:var(--fs-colhead,11.5px);color:var(--muted)}
 .ww-row .ww-thumbs>*{width:44px}
 .ww-find{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px}
-.ww-f{display:grid;gap:12px;align-content:start;padding:18px 20px;border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--sh-1);min-width:0}
+.ww-f{display:grid;gap:12px;align-content:start;padding:18px 20px;border-radius:var(--r-tbl,12px);background:var(--surface-2);min-width:0}
 .ww-f .say{font-size:15px;line-height:1.4;color:var(--ink)}
 .ww-f .ft{font-size:12px;color:var(--muted)}
 .ww-f .lx-btn{justify-self:start}
 .ww-l{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 24px;padding:20px 0;border-top:1px solid var(--line)}
 .ww-l:first-child{border-top:0}
-.ww-l .t{font-size:17px;font-weight:500;line-height:1.35;letter-spacing:-.01em}
+.ww-l .t{font-size:15px;font-weight:500;line-height:1.4;letter-spacing:-.01em}
 .ww-l .t.off{color:var(--muted);text-decoration:line-through}
 .ww-l .m{display:flex;gap:8px 14px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--muted)}
 .ww-l .side{display:grid;gap:10px;justify-items:end;align-content:start}
 .ww-shelf{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:8px 0 -8px}
-.ww-shelf h3{font-size:15px;font-weight:600}
+.ww-shelf h3{font-size:var(--fs-section,17px);font-weight:600}
 .ww-shelf span{font-size:13px;color:var(--muted)}
 .ww-hk .q{font-size:14px;font-weight:600;line-height:1.3;overflow-wrap:anywhere}
 .ww-hk .q.none{color:var(--muted);font-weight:500}
-.ww-hk .hr{display:flex;align-items:baseline;gap:8px}
+.ww-hk .hr{display:flex;align-items:baseline;gap:4px 8px;flex-wrap:wrap}
 .ww-hk .hr b{font-size:var(--num-m);font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 .ww-hk .hr span{font-size:12px;color:var(--muted)}
 .ww-hk .hr .lx-def{white-space:nowrap}
@@ -183,13 +200,13 @@ const CSS = `
 .ww-pg:hover{background:var(--row-hover)}
 .ww-pg .hs{border:0;background:none;padding:0;font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;cursor:pointer;text-align:right}
 .ww-pg .hs.on{color:var(--ink)}
-.ww-h3{font-size:15px;font-weight:600;margin-bottom:10px}
+.ww-h3{font-size:var(--fs-card,14px);font-weight:600;margin-bottom:10px}
 .ww-fun{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.ww-fun-s{display:grid;gap:3px;padding:12px 14px;border-radius:12px;background:var(--surface-2);min-width:0}
+.ww-fun-s{display:grid;gap:3px;padding:12px 14px;border-radius:var(--r-tbl,12px);background:var(--surface-2);min-width:0}
 .ww-fun-s .k{font-size:12px;color:var(--muted)}
 .ww-fun-s b{font-size:var(--num-m);font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .ww-fun-s small{font-size:12px;color:var(--muted)}
-.ww-fun-s i{display:block;height:6px;border-radius:99px;background:var(--ink);width:var(--v);margin-top:6px}
+.ww-fun-s i{display:block;height:6px;border-radius:99px;background:var(--brand);width:var(--v);margin-top:6px}
 .ww-pg.hd{cursor:default;padding-top:6px;padding-bottom:8px;border-top:0}
 .ww-pg.hd:hover{background:none}
 .ww-pg .n{text-align:right;font-variant-numeric:tabular-nums}
@@ -216,15 +233,15 @@ const CSS = `
 .ww-cmp{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:18px}
 .ww-cmp .ww-c{padding:10px 10px 12px;gap:8px}
 .ww-watch{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
-.ww-watch>div{padding:14px 16px;border-radius:14px;background:var(--surface-2);min-width:0}
+.ww-watch>div{padding:14px 16px;border-radius:var(--r-tbl,12px);background:var(--surface-2);min-width:0}
 .ww-watch b{display:block;font-size:14.5px}
 .ww-watch small{display:block;font-size:12px;color:var(--muted);overflow-wrap:anywhere}
 .ww-watch .k{display:flex;gap:16px;margin-top:10px;font-size:12px;color:var(--muted)}
 .ww-watch .k b{display:inline;font-size:16px;margin-right:4px;font-variant-numeric:tabular-nums}
 .ww-test{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:24px}
-.ww-test h4{margin:0 0 10px;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.ww-test h4{margin:0 0 10px;font-size:var(--fs-card,14px);font-weight:600;color:var(--ink)}
 .ww-test .ab{display:grid;gap:10px}
-.ww-test .ab div{padding-left:12px;border-left:2px solid var(--ink);font-size:13px;line-height:1.4}
+.ww-test .ab div{padding-left:12px;border-left:2px solid var(--brand);font-size:13px;line-height:1.4}
 .ww-test .ab div+div{border-left-color:var(--slate)}
 .ww-test .ab small{display:block;font-size:12px;color:var(--muted)}
 .ww-test ol{margin:0;padding-left:18px;display:grid;gap:8px;font-size:13px;color:var(--ink-2)}
@@ -241,22 +258,22 @@ const CSS = `
 .ww-bars{display:flex;align-items:flex-end;gap:14px;height:220px;margin-top:16px}
 .ww-bars>div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%;min-width:0;text-align:center}
 .ww-bars b{font-size:var(--num-m);font-weight:600;letter-spacing:-.03em}
-.ww-bars i{display:block;border-radius:8px 8px 0 0;background:var(--ink);height:var(--v,10%);min-height:6px;margin-top:4px}
+.ww-bars i{display:block;border-radius:6px 6px 0 0;background:var(--brand);height:var(--v,10%);min-height:6px;margin-top:4px}
 .ww-bars .n i{background:var(--slate-soft)}
 .ww-bars .n b{color:var(--muted)}
 .ww-bars span{display:block;margin-top:8px;font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ww-bars small{display:block;font-size:11.5px;color:var(--muted)}
-.ww-bf{padding:16px 18px;border-radius:var(--r-lg);box-shadow:inset 0 0 0 1px var(--line);background:var(--surface)}
+.ww-bf{padding:16px 18px;border-radius:var(--r-tbl,12px);box-shadow:inset 0 0 0 1px var(--line);background:var(--surface)}
 .ww-bf h3{font-size:17px;font-weight:600;letter-spacing:-.02em;margin:8px 0 6px}
 .ww-bf .by{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
 .ww-bf .by .lx-gem{width:18px;height:18px}
 .ww-bf dl{margin:0}
 .ww-bf dl div{display:grid;grid-template-columns:86px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--line);font-size:14px}
-.ww-bf dt{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding-top:3px}
+.ww-bf dt{font-size:var(--fs-small,12.5px);color:var(--muted);padding-top:1px}
 .ww-bf dd{margin:0;font-weight:500;overflow-wrap:anywhere}
-.ww-bd{padding:16px;border-radius:var(--r-lg);background:var(--band);display:grid;gap:10px}
+.ww-bd{padding:16px;border-radius:var(--r-tbl,12px);background:var(--band);display:grid;gap:10px}
 .ww-bd .col{font-size:12.5px;font-weight:600;color:var(--ink-2)}
-.ww-bd .k{padding:12px 14px;border-radius:12px;background:var(--surface);box-shadow:var(--sh-1);font-size:13.5px;font-weight:500}
+.ww-bd .k{padding:12px 14px;border-radius:var(--r-chip,6px);background:var(--surface);box-shadow:var(--sh-1);font-size:13.5px;font-weight:500}
 .ww-bd .k small{display:block;font-size:12px;font-weight:400;color:var(--muted);margin-top:2px}
 .ww-bd .k.new{box-shadow:var(--sh-2)}
 .ww-bd .k.new .lx-pill{float:right;background:var(--ink);color:#fff}
@@ -270,12 +287,12 @@ const CSS = `
   .ww-row{grid-template-columns:minmax(0,1fr) auto;gap:8px 14px}.ww-row .mid{grid-column:1/-1}.ww-row .ww-thumbs{grid-column:1/-1}.ww-row .side{display:none}
   .ww-pg{grid-template-columns:minmax(0,1fr) auto auto auto;padding-left:20px;padding-right:20px}.ww-pg .hm{display:none}}
 @media (max-width:759px){.ww-cd>.lx-sec{flex-wrap:wrap;row-gap:4px}.ww-cd>.lx-sec h3{flex:1 1 100%}.ww-cd>.lx-sec .act{margin-left:0}
-  .ww-grid{grid-template-columns:1fr;gap:16px}.ww-grid .ww-art{--ar:16/10}.ww-grid.two{grid-template-columns:1fr 1fr;gap:12px}.ww-grid.two .ww-art{--ar:4/5}
+  .ww-grid{grid-template-columns:1fr;gap:16px}.ww-grid .ww-art{--ar:4/3}.ww-grid.two{grid-template-columns:1fr 1fr;gap:12px}.ww-grid.two .ww-art{--ar:4/5}
   .ww-l{grid-template-columns:1fr}.ww-l .side{justify-items:start}.ww-cmp{grid-template-columns:1fr 1fr;gap:12px}
   .ww-pg{grid-template-columns:minmax(0,1fr) auto auto;gap:12px;padding-left:16px;padding-right:16px}.ww-pg .ww-mini,.ww-pg .go{display:none}
   .ww-gs{grid-template-columns:1fr}.ww-bar .sp{display:none}}
 `;
-export const css = () => addStyles('ww-css', CSS);
+export const css = () => { addStyles('ww-css', CSS); addStyles('ww-css2', CSS2); };
 
 /* ---------- small parts ---------- */
 const PLAY = () => s('svg', { viewBox: '0 0 34 34', 'aria-hidden': 'true' }, s('circle', { cx: 17, cy: 17, r: 15, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.6 }), s('path', { d: 'M14 11.5L23 17L14 22.5Z', fill: 'currentColor' }));
@@ -286,21 +303,24 @@ const PIC = () => s('svg', { viewBox: '0 0 34 34', 'aria-hidden': 'true' }, s('r
 export function art(a = {}, o = {}) {
   const el = h('span', { class: 'ww-art' + (a.tone ? '' : ' plain'), style: { '--tone': a.tone || null, '--ar': o.ratio || null }, role: 'img', 'aria-label': (a.kind === 'video' ? 'Video: ' : 'Picture: ') + (a.name || 'ad') });
   el.append(a.kind === 'video' ? PLAY() : PIC());
+  /* sample mode: the same stand-in drawing the Meta fixtures use (production/_ui.js picture), never a flat block */
+  if (!a.thumb && a.art && typeof a.art === 'object') { pdCss(); el.append(picture({ art: a.art, video: a.kind === 'video', ratio: 'auto' })); el.classList.add('art'); el.classList.remove('plain'); }
   if (a.thumb) {
     const img = h('img', { src: a.thumb, alt: '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' });
     img.addEventListener('error', () => img.remove(), { once: true });
     el.append(img);
   }
+  const drawn = el.classList.contains('art');   /* the sample drawing carries its own words: no white caption over it */
   if (o.kind) el.append(h('span', { class: 'kind' }, o.kind));
-  else if (a.cap) el.append(h('span', { class: 'cap' }, a.cap));
+  else if (a.cap && !drawn) el.append(h('span', { class: 'cap' }, a.cap));
   if (a.len) el.append(h('span', { class: 'len' }, a.len));
-  if (a.over) el.append(h('span', { class: 'over' }, a.over));
+  if (a.over && !drawn) el.append(h('span', { class: 'over' }, a.over));
   if (o.pc) el.append(h('span', { class: 'pc' }, o.pc));
   return el;
 }
 /** A short row of small pictures, each with a word or figure under it. */
-export function thumbs(list = [], label = a => a.name) {
-  return h('div', { class: 'ww-thumbs' }, list.slice(0, 4).map(a => h('div', null, art(a), label(a) != null && h('small', null, label(a)))));
+export function thumbs(list = [], label = a => a.name, ctx, d) {
+  return h('div', { class: 'ww-thumbs' }, list.slice(0, 4).map(a => adThumb(ctx, d, a, label(a))));
 }
 /** The two small notes. */
 export const exampleChip = kitExampleChip; /* one version, in the kit */
@@ -312,6 +332,88 @@ export const meter = (value, goal, { max, dim, goalTitle } = {}) => {
   const tick = g.querySelector('.goal'); if (tick && goalTitle) { tick.title = goalTitle; if (!dim) g.title = goalTitle; }
   return g;
 };
+
+/* ---------- batch 1 parts: tiles, section head, sort menu, ad thumbnails that open the shared ad detail ---------- */
+/** The dates line for a number: the page head's range ("Nov 1 to 25"). */
+export const SAMPLE_AS_OF = '2026-11-22';             // the as-of day every sample fixture shares (meta/_sample/top-ads.json window)
+const capTo = ctx => (ctx && ctx.range ? (ctx.sample && ctx.range.to > SAMPLE_AS_OF ? SAMPLE_AS_OF : ctx.range.to) : null);
+export const winOf = ctx => {
+  if (!ctx || !ctx.range) return null;
+  const to = capTo(ctx);
+  if (ctx.sample && to !== ctx.range.to && ctx.range.from <= to) return datesLabel(ctx.range.from, to);
+  return ctx.range.dates || ctx.range.label;
+};
+/** The one tile row (kit tiles): kpi nodes, 2 to 4 a row. */
+export const tileRow = (list, cols) => { const l = list.filter(Boolean); return tiles(l, { cols: cols || Math.min(4, Math.max(2, l.length)) }); };
+/** A section head in the Meta Best ads shape: title, a quiet window and source line, controls on the right. */
+export function secHead(title, sub, ...right) {
+  addStyles('ww-css2', CSS2);
+  const r = right.filter(Boolean);
+  return h('div', { class: 'ww-sh' }, h('div', { class: 't' }, h('h2', null, title), sub ? h('p', null, sub) : null), r.length ? h('div', { class: 'ww-ctl' }, ...r) : null);
+}
+/** sortMenu({ items: [{ id, label, low }], sort, dir, onChange(id, dir) }) : "Sort by X" (the app's own pop up menu, never a
+    native select) and the direction button. low: lower is better, so it sorts low first when picked. */
+export function sortMenu({ items, sort, dir, onChange }) {
+  addStyles('ww-css2', CSS2);
+  let cur = items.some(i => i.id === sort) ? sort : items[0].id;
+  let d = dir || (items.find(i => i.id === cur).low ? 'asc' : 'desc');
+  const word = h('b', null, items.find(i => i.id === cur).label);
+  const dirWord = () => (d === 'desc' ? 'High to low' : 'Low to high');
+  let menu = null;
+  const shut = () => { if (!menu) return; menu.remove(); menu = null; document.removeEventListener('pointerdown', away, true); document.removeEventListener('keydown', esc, true); btn.setAttribute('aria-expanded', 'false'); };
+  const away = e => { if (menu && !menu.contains(e.target) && !btn.contains(e.target)) shut(); };
+  const esc = e => { if (e.key === 'Escape') { shut(); btn.focus(); } };
+  const set = (id, d2) => { cur = id; d = d2; word.textContent = items.find(i => i.id === cur).label; dirBtn.textContent = dirWord(); onChange(cur, d); };
+  const btn = button([h('span', { class: 'k' }, 'Sort by'), word, h('i', { class: 'car' })], { class: 'ww-sortb', onclick: () => {
+    if (menu) return shut();
+    menu = h('div', { class: 'lx-pop ww-menu', role: 'menu', 'aria-label': 'Sort by' }, items.map(i => h('button', { type: 'button', class: 'lx-item', role: 'menuitemradio', 'aria-checked': i.id === cur ? 'true' : 'false',
+      onclick: () => { shut(); set(i.id, i.low ? 'asc' : 'desc'); } }, i.label, i.id === cur ? h('span', { class: 'ck', 'aria-hidden': 'true' }, '✓') : null)));
+    document.body.append(menu);
+    const r = btn.getBoundingClientRect(), vw = document.documentElement.clientWidth;
+    menu.style.top = Math.round(r.bottom + 6) + 'px';
+    menu.style.left = Math.round(Math.max(8, Math.min(vw - menu.offsetWidth - 8, r.left))) + 'px';
+    btn.setAttribute('aria-expanded', 'true');
+    document.addEventListener('pointerdown', away, true); document.addEventListener('keydown', esc, true); window.addEventListener('hashchange', shut, { once: true });
+    (menu.querySelector('[aria-checked=true]') || menu.querySelector('button')).focus();
+  } });
+  btn.setAttribute('aria-haspopup', 'menu'); btn.setAttribute('aria-expanded', 'false');
+  const dirBtn = button(dirWord(), { class: 'ww-dir', title: 'Flip the order', onclick: () => set(cur, d === 'desc' ? 'asc' : 'desc') });
+  return h('span', { class: 'ww-sortw' }, btn, dirBtn);
+}
+/** The shared ad detail (pages/_addetail.js) for an ad in this folder's shape, with the other ads of its ad set. */
+export function openAd(ctx, a, d = {}) {
+  const sib = a.set ? (d.ads || []).filter(o => o.set === a.set) : [];
+  const shape = o => ({ id: o.id, name: o.name, media_type: o.kind === 'video' ? 'video' : 'image', thumb: o.thumb || null, campaign: o.campaign || null, adset: o.set || null,
+    spend: o.spend, revenue: o.tw_sales, purchases: o.tw_orders, roas: o.roas, cpa: o.cpa, ctr: o.ctr, impressions: o.impressions, clicks: o.clicks, atc: o.atc,
+    hook: o.hook, hold: o.hold, fc_rev: o.fc, lc_rev: o.lc, platform_purchases: o.meta_orders, age: o.age, art: o.art || null, status: o.live == null ? undefined : o.live ? 'ACTIVE' : 'PAUSED' });
+  const to = (ctx.sample ? capTo(ctx) : null) || d.to || (ctx.range && ctx.range.to), from = ctx.range && ctx.range.from;
+  return openAdDetail(ctx, shape(a), { goals: { roas: d.goal_roas || null, cpa: d.goal_cpa || null }, window: from && to ? { from, to, label: winOf(ctx) } : undefined,
+    adsetAds: sib.length > 1 ? sib.map(shape) : undefined });
+}
+/** A small picture with a word under it that opens the ad's detail. o: art options. No id or no ctx = a plain picture. */
+export function adThumb(ctx, d, a, label, o) {
+  css();
+  const kids = [art(a, o), label != null && label !== '' ? h('small', null, label) : null];
+  if (!a || !a.id || !ctx) return h('div', null, ...kids);
+  return h('button', { type: 'button', class: 'ww-tb', title: a.name, 'aria-label': 'Open ' + (a.name || 'the ad'), onclick: e => { e.stopPropagation(); openAd(ctx, a, d); } }, ...kids);
+}
+const CSS2 = `
+.ww-sh{display:flex;align-items:flex-end;justify-content:space-between;gap:12px 16px;flex-wrap:wrap}
+.ww-sh .t{min-width:0}
+.ww-sh h2{margin:0;font-size:var(--fs-section,17px);font-weight:600;line-height:1.25}
+.ww-sh .t p{margin:2px 0 0;color:var(--muted);font-size:var(--fs-small,12.5px)}
+.ww-ctl{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap}
+.ww-ctl>.note{font-size:13px;color:var(--muted)}
+.ww-sortw{display:inline-flex;gap:8px}
+.ww-sortb .k{color:var(--muted);font-weight:500}
+.ww-sortb .car{width:7px;height:7px;margin-left:2px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:translateY(-2px) rotate(45deg);opacity:.6}
+.ww-menu{position:fixed;z-index:80}
+.ww-menu .lx-item .ck{margin-left:auto;color:var(--brand);font-weight:600}
+.ww-menu .lx-item[aria-checked=true]{font-weight:600}
+.ww-dir{min-width:40px}
+.ww-c .ww-art .kind{top:10px;left:10px}
+@media (max-width:759px){.ww-sh{align-items:flex-start}.ww-ctl{width:100%}.ww-ctl .lx-seg{flex:none;max-width:100%;overflow-x:auto}}
+`;
 
 /* ---------- plain states ---------- */
 export function notConnected(ctx, what = 'Meta ads') {

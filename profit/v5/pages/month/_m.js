@@ -9,7 +9,48 @@
      the goal ROAS and goal cost            ctx.setting('brand:<id>.target_roas'), read from the account-health brand list
      /api/season?act                        dated phases, for the notes on the Pace chart */
 
-import { h, button, empty, statusDot, addStyles } from '../../kit.js';
+import { h, button, empty, statusDot, addStyles, kpi, tiles, tipRow, staleStamp } from '../../kit.js';
+import { refresh as reloadPage } from '../../router.js';
+
+/* ---------- shared by every Business page (This month, Full funnel, Customers, Sales, agency Month and Money) ----------
+   The batch 1 look: the top figures are tiles (kit tiles(), one card each, never a hero band), every figure says its
+   window and its source, every chart says its window, and every chart bubble is a title plus label/value rows. */
+export const TW = 'Triple Whale';
+export const GA = 'Google Analytics';
+/* One definition for orders over visits, the same words on Sales > By day: it says which visits each page counts */
+export const VISITS_THAT_BUY = { name: 'Visits that buy', definition: 'Orders divided by site visits: the conversion rate. Full funnel counts visits with Google Analytics, Sales > By day with the Triple Whale pixel, so the two can differ a little.', formula: 'Orders / Visits' };
+/** tileRow([kpi options], { cols, window, source, labels }) : the tile grid. window, source and the spark's dates
+    (labels, one per spark point) are defaults each tile may override. size: 'lg' is dropped (a tile is --num-l). */
+export function tileRow(list, { cols, window: win, source, labels } = {}) {
+  const items = list.filter(Boolean);
+  const n = cols || (items.length >= 4 ? 4 : items.length === 2 ? 2 : 3);
+  return tiles(items.map(k => { const o = { window: win, source, sparkLabels: labels, ...k }; delete o.size; return kpi(o); }), { cols: n });
+}
+/** tipRows('Nov 4', [['Sales', '$1,204', 'lead'], ['Ad spend', '$410', 'slate']]) : a chart bubble, the batch 1 way. */
+export function tipRows(title, rows) {
+  return [h('div', { class: 'lx-tip-h' }, title), ...rows.filter(Boolean).map(r => tipRow(r[2] || '', r[0], r[1]))];
+}
+/** pageStamp(ctx, at): Home's "Updated 4 min ago" with the refresh button, once per page, for the right end of the
+    help bar (pass it as an extra to helpBar). The page module says stamp: false so the head leaves its copy out.
+    at is when the numbers were read when the data knows it; else when they landed (sample mode reads 4 min ago). */
+export function pageStamp(ctx, at) {
+  addStyles('mo-stamp', '.bz-bar>.lx-stale{margin-left:auto}.bz-bar>.lx-chip~.lx-stale{margin-left:0}');
+  const when = ctx && ctx.sample ? Date.now() - 4 * 60e3 : (at || Date.now());
+  return staleStamp({ at: when, onRefresh: async () => { reloadPage({ fresh: true }); await new Promise(r => setTimeout(r, 900)); } });
+}
+/** True on a phone width (the kit's 759px line). Read when a chart is built: on a phone a chart keeps fewer labels. */
+export const isPhone = () => typeof matchMedia === 'function' && matchMedia('(max-width:759px)').matches;
+/** Spark dates for a series that is not the tile's own window: every point named, the last one saying the step
+    ("Jun" ... "Nov, by month"), so the low and high under the line are never read as the tile's dates. */
+export function ownLabels(labels, step) {
+  const l = (labels || []).slice();
+  if (l.length && step) l[l.length - 1] = l[l.length - 1] + ', ' + step;
+  return l;
+}
+/** A chart caption row: the quiet source line on the left, the legend on the right (Home's hm-chart-cap). */
+export function chartCap(text, legendNode) {
+  return h('div', { class: 'mo-cap' }, text ? h('span', { class: 'lx-srcline' }, text) : null, legendNode || null);
+}
 
 export const ok = n => n != null && isFinite(n);
 export const asDate = str => new Date(str + 'T12:00:00');
@@ -82,15 +123,19 @@ const CSS = `
 .mo-chart .lx-chart-h .lx-pill,.mo-chart .lx-chart-h .lx-stat{margin-left:auto}
 .mo-chart .lx-chart-h{flex-wrap:wrap}
 .mo-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.mo-cap{display:flex;align-items:center;gap:8px 16px;flex-wrap:wrap;margin:-8px 0 10px}
+.mo-cap .lx-legend{margin-left:auto}
+.mo-src{padding:0 var(--pad-card,28px) 10px}
+.mo-tiles{margin:0}
 
 .mo-need{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-8);padding:6px 28px 4px}
 .mo-need>div{display:grid;gap:4px;min-width:0}
 .mo-need small{font-size:13px;color:var(--muted)}
-.mo-need span.lx-big{font-size:var(--num-xl);color:var(--ink)}
+.mo-need span.lx-big{font-size:var(--num-l);color:var(--ink)}
 .mo-need span{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 .mo-days{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));margin:18px 28px 0;border-top:1px solid var(--line)}
 .mo-days>div{display:grid;gap:3px;align-content:start;padding:14px 12px 16px 0;min-width:0}
-.mo-days small{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mo-days small{font-size:var(--fs-colhead,11.5px);font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mo-days .ev small{color:var(--ink)}
 .mo-days b{font-size:18px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .mo-days span{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
@@ -139,9 +184,9 @@ tr.total .lx-gauge-track,.mo-item.total .lx-gauge-track{background:var(--line-st
 .mo-evs{display:flex;flex-wrap:wrap;gap:8px;padding:14px 28px 22px}
 .mo-evs span{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border-radius:999px;background:var(--bg-sunk);font-size:12.5px;color:var(--ink-2)}
 .mo-evs b{font-weight:600;color:var(--ink)}
-.mo-wf .hd{min-height:30px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
-.mo-wf .hd .a,.mo-wf .hd .p{font-size:11px;color:var(--faint);white-space:nowrap}
-.mo-wf>div.row{cursor:default;border-radius:8px}
+.mo-wf .hd{min-height:30px;font-size:var(--fs-colhead,11.5px);font-weight:600;color:var(--muted)}
+.mo-wf .hd .a,.mo-wf .hd .p{font-size:var(--fs-colhead,11.5px);color:var(--muted);white-space:nowrap}
+.mo-wf>div.row{cursor:default;border-radius:var(--r-chip,6px)}
 .mo-wf>div.row:hover{background:var(--row-hover)}
 .mo-yard .rec{display:grid;gap:2px;min-width:130px}
 .mo-yard .rec small{font-size:12px;color:var(--muted)}
@@ -150,7 +195,7 @@ tr.total .lx-gauge-track,.mo-item.total .lx-gauge-track{background:var(--line-st
 .mo-yard .need small{font-size:12px;color:var(--muted)}
 .mo-opts tbody tr:hover td{background:transparent}
 .mo-hist{padding:0 28px 18px}
-.mo-hist>summary{cursor:pointer;width:max-content;padding:6px 10px;margin-left:-10px;border-radius:8px;font-size:13px;color:var(--muted);list-style:none}
+.mo-hist>summary{cursor:pointer;width:max-content;padding:6px 10px;margin-left:-10px;border-radius:var(--r-chip,6px);font-size:13px;color:var(--muted);list-style:none}
 .mo-hist>summary::-webkit-details-marker{display:none}
 .mo-hist>summary:hover{background:var(--row-hover);color:var(--ink)}
 .mo-hist[open]>summary{margin-bottom:8px}

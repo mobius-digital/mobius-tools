@@ -8,8 +8,9 @@ import { icon } from '../../icons.js';
 const CSS = `
 /* frame gap, fixed here until app.css has it: a one column grid must let its column shrink, or the tab row widens the whole page on a phone */
 .gv-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px}
-.gv-vid{display:grid;gap:14px;align-content:start;min-width:0}
-.gv-thumb{position:relative;aspect-ratio:16/9;border-radius:14px;overflow:hidden;background:linear-gradient(180deg,#ECEAE6 0%,#DEDBD5 100%);box-shadow:inset 0 0 0 1px rgba(28,20,10,.06)}
+.gv-vid{display:grid;gap:14px;align-content:start;min-width:0;cursor:pointer;border-radius:var(--r-card,16px);padding:8px;margin:-8px}
+.gv-l{display:block;font-size:var(--fs-colhead,11.5px);font-weight:600;color:var(--muted)}
+.gv-thumb{position:relative;aspect-ratio:16/9;border-radius:var(--r-tbl,12px);overflow:hidden;background:linear-gradient(180deg,#ECEAE6 0%,#DEDBD5 100%);box-shadow:inset 0 0 0 1px rgba(28,20,10,.06)}
 .gv-thumb.b{background:linear-gradient(180deg,#E6E9F0 0%,#D5D9E3 100%)}
 .gv-thumb.c{background:linear-gradient(90deg,#CFCAC2 0 34%,#E4E1DB 34% 66%,#CFCAC2 66%)}
 .gv-thumb.d{background:linear-gradient(180deg,#F1EFEC 0%,#E7E4DF 100%)}
@@ -51,7 +52,7 @@ const CSS = `
 .gv-bar::after{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--v,0%);background:var(--ink);border-radius:999px}
 .gv-note{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted)}
 .gv-note .lx-ic{width:15px;height:15px}
-.gv-strip{display:flex;align-items:center;gap:16px;padding:18px 22px;border-radius:18px;background:var(--band)}
+.gv-strip{display:flex;align-items:center;gap:16px;padding:18px 22px;border-radius:var(--r-card,16px);background:var(--band)}
 .gv-strip .ic{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#fff;box-shadow:0 0 0 1px var(--line)}
 .gv-strip .tx{min-width:0;flex:1}
 .gv-strip .tx b{display:block;font-size:15px;font-weight:600}

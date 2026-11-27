@@ -6,10 +6,11 @@
      the result          match, or the fields that differ. Key order and the engine's own meta do not count.
    Reads only. Nothing is saved anywhere but this page. The misses at the foot are the ones data.js wrote
    down while real pages were open in this browser (engine.js). */
-import { h, put, card, kpi, kpis, button, pill, statusDot, table, toast, em, empty, addStyles, relativeTime } from '../../kit.js';
+import { h, put, card, button, pill, statusDot, table, toast, em, empty, addStyles, relativeTime } from '../../kit.js';
 import { workers, token } from '../../config.js';
 import { engineApi, engineUrl, engineMode, differences, ignoreFor, misses, clearMisses } from '../../engine.js';
 import { defined } from '../../defs.js';
+import { countTiles, look } from '../a-settings/_look.js';
 
 const CSS = `
 .ec{display:grid;gap:var(--sp-5)}
@@ -169,25 +170,28 @@ function missCard(redraw) {
 }
 
 function render(el, _d, ctx) {
-  addStyles('ec-css', CSS);
-  if (ctx.sample) return put(el, empty({ title: 'Nothing to compare in sample mode', text: 'Sample mode never calls an engine.' }));
-  if (!ctx.me || ctx.me.role !== 'owner') return put(el, empty({ title: 'Only the owner can open this page' }));
+  addStyles('ec-css', CSS); look();
+  if (!ctx.sample && (!ctx.me || ctx.me.role !== 'owner')) return put(el, empty({ title: 'Only the owner can open this page' }));
+  /* sample mode shows an invented run so the page can be seen; Run never calls an engine there */
+  if (ctx.sample && !LAST) LAST = sampleRun(ctx);
   const pick = h('select', { 'aria-label': 'Which brands' }, h('option', { value: '' }, `Every brand (${ctx.brands.length})`), ctx.brands.map(b => h('option', { value: b.id }, b.name)));
-  const status = h('p', null, LAST ? '' : 'Asks every read the new engine has its own code for, on both engines at once, as you. Reads only.');
+  const status = h('p', null, ctx.sample ? 'Sample numbers: an invented run. Nothing was asked of either engine.' : LAST ? '' : 'Asks every read the new engine has its own code for, on both engines at once, as you. Reads only.');
   const body = h('div', { class: 'ec' });
   const go = button(LAST ? 'Run again' : 'Run the compare', { primary: true, onclick: () => run() });
   const draw = () => {
     if (!LAST) return put(body, missCard(draw));
     const r = LAST.rows;
     put(body,
-      kpis([kpi({ label: 'Calls asked', value: String(r.length), sub: `${LAST.from} to ${LAST.to}` }),
-        kpi({ label: 'Match', value: String(count(r, 'match')), lead: true }),
-        kpi({ label: 'Different', value: String(count(r, 'differs')) }),
-        kpi({ label: 'Failed', value: String(count(r, 'failed')) }),
-        kpi({ label: 'Handed to the old engine', value: String(count(r, 'passed')), sub: 'by the new engine itself' })]),
+      countTiles([
+        { label: 'Calls asked', value: String(r.length), window: `${LAST.from} to ${LAST.to}`, source: 'Both engines' },
+        { label: 'Match', value: String(count(r, 'match')), sub: r.length ? Math.round(count(r, 'match') / r.length * 100) + '% of calls' : '', window: 'Run ' + relativeTime(LAST.at), source: 'Both engines' },
+        { label: 'Different', value: String(count(r, 'differs')), window: 'Run ' + relativeTime(LAST.at), source: 'Both engines' },
+        { label: 'Failed or handed back', value: String(count(r, 'failed') + count(r, 'passed')), sub: `${count(r, 'failed')} failed, ${count(r, 'passed')} handed to the old engine`, window: 'Run ' + relativeTime(LAST.at), source: 'New engine' },
+      ], { cols: 4 }),
       problemCard(ctx, LAST), slowCard(ctx, LAST), missCard(draw), allCard(ctx, LAST));
   };
   async function run() {
+    if (ctx.sample) { toast('Sample mode never calls an engine.'); return; }
     go.disabled = true;
     try {
       status.textContent = 'Reading the list of calls from the new engine.';
@@ -204,16 +208,32 @@ function render(el, _d, ctx) {
       status.textContent = 'Could not run: ' + (e.message || 'the new engine did not answer') + '.';
     } finally { go.disabled = false; }
   }
-  put(el, h('div', { class: 'ec' },
+  put(el, h('div', { class: 'ec adm' },
     h('div', { class: 'row' }, go, pick, button('Copy the summary', { onclick: () => (LAST ? copy(summaryText(ctx, LAST)) : toast('Run the compare first')) }),
       button('The switch', { ghost: true, href: ctx.href('a-engine', 'switch') })),
     status, body));
   draw();
 }
 
+/** Sample only: a small invented run in the shape pair() returns, so the tiles and cards can be seen. */
+function sampleRun(ctx) {
+  const b = (ctx.brands || []).map(x => x.id), at = Date.now() - 6 * 60e3;
+  const row = (key, brand, state, ms_new, ms_old, extra = {}) => ({ key, which: key.includes('/ah/') ? 'ah' : 'profit', path: key.slice(7), brand, state, ms_new, ms_old, old_status: 200, new_status: 200, fields: [], ...extra });
+  const rows = [
+    ...b.map((id, i) => row('GET /pw/api/overview', id, 'match', 160 + i * 12, 410 + i * 20)),
+    ...b.slice(0, 4).map((id, i) => row('GET /pw/api/hub/paid', id, 'match', 220 + i * 9, 520 + i * 15)),
+    row('GET /ah/api/brands', '', 'match', 90, 130),
+    row('GET /pw/api/customers', b[0] || '', 'differs', 640, 980, { fields: [{ at: 'months[5].new_customers', old: '412', new: '411' }] }),
+    row('GET /ah/api/series', b[1] || '', 'failed', 3000, 450, { new_status: 0, note: 'the new engine could not be reached' }),
+    row('GET /pw/api/hub/creative', b[2] || '', 'passed', 510, 505, { note: 'the new engine handed this one to the old engine' }),
+  ];
+  return { at, from: ctx.range.from, to: ctx.range.to, rows };
+}
+
 export default {
   title: ['Does the new engine ', em('answer the same?')],
   eyebrow: 'Engine',
+  stamp: false,                  /* nothing is read until Run: no "updated" stamp */
   sample: null,
   render,
 };
