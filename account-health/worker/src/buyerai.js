@@ -309,9 +309,13 @@ export function shortLine(s, max) {
 }
 /* NO SPEND MINIMUMS (Cole: "let it fight"): a row that would ADD or raise a minimum never reaches the list. Taking one
    off is fine and passes. */
-const MIN_OFF = /\b(take|takes|taking|took|remove|removes|removing|clear|clears|clearing|lift|lifts|drop|drops)\b[^.]{0,30}\bminimums?\b|\bminimums? off\b|\bno (spend )?minimum\b/i;
-const MIN_ON = /\b(add|adds|adding|set|sets|setting|put|puts|putting|raise|raises|raising|give|gives|giving|increase|increases|bump|bumps|higher|new)\b[^.]{0,40}\b(spend |daily )?minimums?\b|\bminimum (spend )?(of|at|to) [$]|\bmake meta spend at least\b/i;
-export const addsMinimum = t => { t = String(t || ''); return MIN_ON.test(t) && !MIN_OFF.test(t); };
+const MIN_OFF = /\b(take|takes|taking|took|remove|removes|removing|clear|clears|clearing|lift|lifts|drop|drops|zero)\b[^.]{0,30}\bminimums?\b|\bminimums? off\b|\bno (spend )?minimum\b|\bminimums?\b[^.]{0,30}\bto [$]?0(?![.,]?\d)|\bminimums?\b[^.]{0,20}\bzero\b/i;
+const MIN_ON = /\b(add|adds|adding|(?<!\bad )set(?! \d)|(?<!\bad )sets(?! \d)|setting|put|puts|putting|raise|raises|raising|give|gives|giving|increase|increases|bump|bumps)\b.{0,40}\b(spend |daily )?minimums?\b|\bminimum (spend )?(of|at|to) [$](?!0(?![.,]?\d))|\bmake meta spend at least\b/i;
+/* Judged one clause at a time, so "Turn off 368 and add a $20 minimum to 451" still counts as adding one (fail closed).
+   Pass only the action text (action / change / do), never the why: a why that says "Meta spends only the minimum" is
+   not a move. */
+const CLAUSES = /[.;!?](?=\s|$)|,(?=\s)|\b(?:and|then|but)\b/i;
+export const addsMinimum = t => String(t || '').split(CLAUSES).some(c => c && MIN_ON.test(c) && !MIN_OFF.test(c));
 /** A line that sends the buyer off to check something Locus can check itself. */
 export const ASKS_CHECK = /\b(check|verify|confirm|look into|audit|investigate|make sure)\b[^.]{0,60}\b(utms?|tracking|tags?|pixel|attribution|capi|event|fires?|firing)\b|\butms?\b/i;
 const plural = (n, w) => `${Math.round(n)} ${w}${Math.round(n) === 1 ? '' : 's'}`;
@@ -389,7 +393,7 @@ export function finishPass(out, inp) {
     }
     if (verdict === 'change' && !action) verdict = 'keep';
     /* a change that adds a minimum goes back to the rule row as written */
-    const addsMin = addsMinimum(`${r.action || ''} ${r.change || ''} ${r.do || ''}`);
+    const addsMin = addsMinimum(`${r.action || ''}. ${r.change || ''}. ${r.do || ''}`);
     if (addsMin) { verdict = 'keep'; action = ''; mv = 'none'; why = shortLine(rule.why, WHY_WORDS); }
     /* A drop or sale that ended or sold out locked it (drops.js): never a turn-on move. */
     if (mv === 'resume' && isLocked(inp, r.ad_id || rule.ad_id || rule.adset_id, rule.name)) { verdict = 'keep'; action = ''; mv = 'none'; why = shortLine(rule.why, WHY_WORDS); }
@@ -408,7 +412,7 @@ export function finishPass(out, inp) {
       action = t.action; why = t.fact; checked = t.fact; mv = 'none';
     }
     if (!action) continue;
-    if (addsMinimum(`${x.action || ''} ${x.why || ''} ${x.do || ''}`)) continue;   // never a new minimum
+    if (addsMinimum(`${x.action || ''}. ${x.do || ''}`)) continue;   // never a new minimum
     if ((mv === 'resume' || x.type === 'relaunch') && isLocked(inp, ids.ad_id || ids.adset_id || ids.campaign_id, x.name)) continue;
     const card = cleanCard(x);
     if (card && checked) { card.do = action; card.because = why; }

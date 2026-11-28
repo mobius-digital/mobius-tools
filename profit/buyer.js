@@ -571,12 +571,12 @@
   }
   function qrow(r) {
     const hb = r.hidden || {}, when = hb.at ? new Date(hb.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
-    const why = hb.why === 'done' ? `Done by ${firstName(hb.by) || 'someone'} ${when}, quiet until ${hb.until}` : hb.why === 'skipped' ? `Skipped by ${firstName(hb.by) || 'someone'}, back tomorrow`
+    const why = hb.why === 'hands_off' ? 'Hands off: no calls for this brand' : hb.why === 'done' ? `Done by ${firstName(hb.by) || 'someone'} ${when}, quiet until ${hb.until}` : hb.why === 'skipped' ? `Skipped by ${firstName(hb.by) || 'someone'}, back tomorrow`
       : hb.why === 'dropped' ? `Locus dropped this today${hb.summary ? `: ${hb.summary}` : ''}` : hb.why === 'locked' ? `${hb.summary || 'Off for good'}. Reopen it in Drops and sales to bring it back.` : `Changed in Meta ${when} by ${firstName(hb.by) || 'someone'}${hb.summary ? `: ${hb.summary}` : ''}. Watched 3 days.`;
     return `<div class="by-row by-q" data-key="${esc(r.key)}"><div class="by-main"><div class="by-tags"><span class="by-lv">${LEVEL[r.level] || 'Ad set'}</span><span>${esc(r.brand)}</span></div><div class="by-n">${esc(r.name)}</div></div>
       <div class="by-what"><div class="by-act">${esc(r.action)}</div><div class="by-why">${esc(why)}</div></div>
       <span class="by-st">${r.stake > 0 ? esc(money(r.stake, r.currency)) : '&ndash;'}</span>
-      <div class="by-btns">${hb.why === 'watched' || hb.why === 'dropped' || hb.why === 'locked' ? '' : `<button type="button" class="v2btn ghost" data-back="${esc(r.key)}" title="Put it back on the list now.">Put it back</button>`}</div></div>`;
+      <div class="by-btns">${hb.why === 'watched' || hb.why === 'dropped' || hb.why === 'locked' || hb.why === 'hands_off' ? '' : `<button type="button" class="v2btn ghost" data-back="${esc(r.key)}" title="Put it back on the list now.">Put it back</button>`}</div></div>`;
   }
 
   const find = k => (DATA.rows || []).find(r => r.key === k) || (DATA.quiet || []).find(r => r.key === k);

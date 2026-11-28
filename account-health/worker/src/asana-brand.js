@@ -4,6 +4,7 @@ import { metaOf, resolveBrandId, addConnection, connSet } from './brands.js';
 import { laneBlocks, laneWho, laneOwner, fyi } from './lane.js';
 import { teamOf } from './calendar.js';
 import { jobOn } from './jobflags.js';
+import { handsOff } from '../../../profit/worker/src/handsoff.js';
 /**
  * Asana <-> Locus for the Brand tab (2026-09-24).
  *
@@ -997,6 +998,11 @@ export async function runMondayPlan(env, payload) {
 export async function postMonday(env, act, { auto = false } = {}) {
   /* 2026-11-26: the scheduled (auto) post is a quiet job (jobflags.js jobOn:mondayTestPost); a post asked for from Locus runs. */
   if (auto && !(await jobOn(env, 'mondayTestPost'))) return { skipped: 'quiet' };
+  /* HANDS OFF (handsoff.js): no Monday test calls and no Do it button on a hands-off brand, scheduled or asked for.
+     A failed read falls back to the brand id, so the default hands-off brands stay off (fail closed). */
+  const hoId = await resolveBrandId(env, act).catch(() => act);
+  const hoRow = await env.DB.prepare(`SELECT act_id, goals_json FROM brand_accounts WHERE act_id = ?1`).bind(hoId).first().catch(() => null);
+  if (handsOff(hoRow || String(hoId || ''))) return { act_id: hoId, skipped: 'hands_off' };
   const m = await mondayCalls(env, act);
   if (m.error) return m;
   if (!m.channel || !env.SLACK_BOT_TOKEN) return { ...m, error: 'This brand has no internal Slack channel (Settings).' };

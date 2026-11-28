@@ -285,9 +285,13 @@ test('run now: settings buyerAIRunNow = a Slack id reads every brand at any hour
 
 test('no spend minimums: a read that adds or raises a minimum is dropped; taking one off passes', async () => {
   const { addsMinimum, finishPass } = await import('./src/buyerai.js');
-  for (const t of ['Add a $20 minimum to 415', 'Set a daily minimum of $40', 'Raise the minimum to $30 a day', 'Give the set a higher minimum', 'Make Meta spend at least $50 a day here'])
+  for (const t of ['Add a $20 minimum to 415', 'Set a daily minimum of $40', 'Raise the minimum to $30 a day', 'Give the set a higher minimum', 'Make Meta spend at least $50 a day here',
+    'Add a $20 minimum to 451', 'Raise the minimum on the Past buyers set to $40', 'Set a $15 daily minimum on DATOS B',
+    'Add a $20.50 minimum to 451', 'Set a $1,000 minimum on 451', 'Turn off 368 and add a $20 minimum to 451'])
     assert.equal(addsMinimum(t), true, t);
-  for (const t of ['Take the $20 minimum off', 'Take the test minimum off', 'Remove the minimum on 415', 'Turn off ad set 368', 'Clear the minimum, keep the cap', 'New ads, no minimum'])
+  for (const t of ['Take the $20 minimum off', 'Take the test minimum off', 'Remove the minimum on 415', 'Turn off ad set 368', 'Clear the minimum, keep the cap', 'New ads, no minimum',
+    'Turn off ad set 368, it only spends its minimum', 'Needs new ads; Meta spends only the minimum here', 'Set the minimum to 0 on 451',
+    'Set the minimum to $0 on 451', 'Zero the minimum on 451', 'Take the minimum off 451', 'Clear the minimum on 451', 'Turn off ad set 368', ''])
     assert.equal(addsMinimum(t), false, t);
   const inp = { ruleRows: [{ key: 'k1', adset_id: '111', why: 'Spent $90, 0 sales.', name: 'Test' }], sets: [], locks: null };
   const out = finishPass({ summary: 's', headline: 'h', week: [],

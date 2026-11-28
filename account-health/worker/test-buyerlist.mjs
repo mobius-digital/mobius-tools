@@ -376,5 +376,17 @@ await check('hands off (handsoff.js): no Yes, No or pause row on the brand; Ice 
   } finally { ACCTS.splice(-2); CALLS.splice(-2); }
 });
 
+await check('hands off: the Monday test post (asana-brand.js postMonday) never posts or offers Do it on a hands-off brand', async () => {
+  const { postMonday } = await import('./src/asana-brand.js');
+  const fake = goals => ({ SLACK_BOT_TOKEN: 'x', DB: { prepare: sql => ({ bind(...a) { this.a = a; return this; },
+    async first() { return /goals_json FROM brand_accounts/.test(sql) ? (goals === undefined ? null : { act_id: this.a[0], goals_json: JSON.stringify(goals) }) : null; },
+    async all() { return { results: [] }; }, async run() { return {}; } }) } });
+  assert.deepEqual(await postMonday(fake(undefined), 'brand_ice_and_gold'), { act_id: 'brand_ice_and_gold', skipped: 'hands_off' }, 'default list, no row read');
+  assert.deepEqual(await postMonday(fake({}), 'brand_dental_fresh'), { act_id: 'brand_dental_fresh', skipped: 'hands_off' });
+  assert.deepEqual(await postMonday(fake({ hands_off: true }), 'brand_alpha'), { act_id: 'brand_alpha', skipped: 'hands_off' }, 'a saved flag');
+  const r = await postMonday(fake({}), 'brand_alpha');
+  assert.notEqual(r.skipped, 'hands_off', 'a brand that is not hands off goes on to the calls');
+});
+
 console.log(`\n${n}/${n + bad} passed`);
 if (bad) process.exit(1);
