@@ -45,6 +45,7 @@ import { gall } from './metawrite.js';
 import { trybeBanners } from './trybe.js';
 import { readAI, applyAI, aiPassDone, buyerAIOn, adNumbers, withCovers, metaActsOf, disagree, decide, lessonsFor, buyerAITick, spentToday, trackingCheck, DAY_CAP, POST_WAIT_HOURS, noDash, CARD_KINDS } from './buyerai.js';
 import { laneBlocks } from './lane.js';
+import { handsOff, HANDS_OFF_WHY } from '../../../profit/worker/src/handsoff.js';
 
 export const DEFAULT_BUYER_CHANNEL = 'C0C8UA53U3W';   // #daily-briefs
 export const DEFAULT_OWNER = 'Cole';
@@ -616,7 +617,10 @@ export async function buildBuyerList(env, d, { act = 'all', only = null, live = 
   const turnsOn = r => r.do === 'resume' || r.ai_type === 'relaunch' || /\b(turn (it |them )?(back )?on|relaunch|resume|unpause)\b/i.test(r.action || '');
   /* Decided today (Yes / No on the card): the row stays on its brand's card, marked, until tomorrow. */
   const decs = await readDecisions(env, ids, today).catch(() => new Map());
+  /* Hands off (handsoff.js): no Yes, No or pause row on the brand, whatever made it; it leaves the list, quiet. */
+  const off = new Set(accts.filter(handsOff).map(a => a.act_id));
   for (const r of all) {
+    if (off.has(r.act_id)) { quiet.push({ ...r, hidden: { why: 'hands_off', by: 'Locus', summary: HANDS_OFF_WHY } }); continue; }
     const dc = decs.get(dkey(r));
     if (dc) { rows.push({ ...r, decided: { decision: dc.decision, note: dc.note || '', by: dc.by, at: dc.at, write_id: dc.write_id || null } }); continue; }
     const h = hiddenBy(r, st);
@@ -640,7 +644,8 @@ export async function buildBuyerList(env, d, { act = 'all', only = null, live = 
     n_do: rows.filter(r => canDo(r) && !r.decided).length, groups, decided: { n: toDecide.filter(r => r.decided).length, of: toDecide.length },
     counts: Object.fromEntries(KINDS.map(k => [k, rows.filter(r => r.kind === k).length])),
     hidden: { done: quiet.filter(r => r.hidden.why === 'done').length, skipped: quiet.filter(r => r.hidden.why === 'skipped').length, watched: quiet.filter(r => r.hidden.why === 'watched').length,
-      dropped: quiet.filter(r => r.hidden.why === 'dropped').length, locked: quiet.filter(r => r.hidden.why === 'locked').length },
+      dropped: quiet.filter(r => r.hidden.why === 'dropped').length, locked: quiet.filter(r => r.hidden.why === 'locked').length,
+      hands_off: quiet.filter(r => r.hidden.why === 'hands_off').length },
     rows: sorted, quiet, notes, banners, ...launchView(today, set.launchDays, launch.scheduled, launched),
     ai: { on: set.buyerAI, n_read: [...ai.values()].filter(x => x.status === 'done').length, n_brands: accts.length,
       brands: [...ai.entries()].filter(([, x]) => x.status === 'done' && (x.summary || x.headline)).map(([k, x]) => ({ act_id: k, brand: (accts.find(a => a.act_id === k) || {}).name || k, summary: x.summary, headline: x.headline || x.summary || '', week: x.week || [], at: x.at })) } };

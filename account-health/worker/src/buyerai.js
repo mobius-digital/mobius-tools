@@ -28,6 +28,7 @@ import { factsFor, factsBlock } from './stratmem.js';
 import { coverUrl } from './creative.js';
 import { buildBuyerList, setState, postBuyerList } from './buyerlist.js';
 import { eligible, morningHour } from './morningcard.js';
+import { handsOff } from '../../../profit/worker/src/handsoff.js';
 import { locksFor, lockedBy } from './drops.js';
 
 export const PASS_MODEL = 'claude-opus-5-5', TALK_MODEL = 'claude-sonnet-5-5';
@@ -481,6 +482,8 @@ export function passUser(a, inp) {
 /** One brand's read: build its list, read everything, one Opus call, store it. */
 export async function readBrand(env, d, a, { today = centralToday(), list = null } = {}) {
   await ensureBuyerAI(env);
+  /* a hands-off brand (handsoff.js) is never read: no model call, no rows */
+  if (handsOff(a)) return { act_id: a.act_id, status: 'hands_off' };
   const L = list || await buildBuyerList(env, d, { act: a.act_id, live: false, noAI: true });
   const inp = await passInput(env, d, a, L, { today });
   if (!inp.metaActs.length || (!inp.ruleRows.length && !inp.sets.length)) {
@@ -547,7 +550,7 @@ async function passState(env, today) { const s = safe(await getSetting(env, 'buy
 export async function aiPassDone(env, d, today) {
   if (!(await buyerAIOn(env))) return true;
   const st = await passState(env, today);
-  const brands = (await d.listAccounts(env, true)).filter(eligible);
+  const brands = (await d.listAccounts(env, true)).filter(a => eligible(a) && !handsOff(a));
   return brands.every(a => st.acts[a.act_id]);
 }
 /** Every 5 minutes from an hour before the morning hour to noon Central: up to PER_TICK brands not read today, side by
@@ -566,7 +569,7 @@ export async function buyerAITick(env, d, { force = false, acts = null, perTick 
     if (hour > LAST_HOUR) return { skipped: 'after noon Central' };
   }
   const st = await passState(env, today);
-  const all = (await d.listAccounts(env, true)).filter(a => eligible(a) && (!acts || acts.includes(a.act_id)));
+  const all = (await d.listAccounts(env, true)).filter(a => eligible(a) && !handsOff(a) && (!acts || acts.includes(a.act_id)));
   const todo = all.filter(a => force || !st.acts[a.act_id]).slice(0, force ? 99 : perTick);
   if (!todo.length) return { date: today, done: true };
   /* One tick at a time: a read can outlast the 5 minutes between ticks, and two ticks would read a brand twice. */

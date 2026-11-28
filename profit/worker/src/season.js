@@ -12,6 +12,7 @@
  * Why here and not the Q4 Playbook: that app was a sixth place to look and died
  * (last edit Aug 25, nothing launched). Locus is open all day. See CLAUDE.md.
  */
+import { handsOff, HANDS_OFF_WHY } from './handsoff.js';
 
 export const SEASON = '2026';
 export const BF = '2026-11-27';
@@ -586,7 +587,8 @@ async function standingAll(env, accounts, today, deps) {
     r.be_new = cfg.be_new || null;
     r.no_sales = noSales ? 1 : 0; r.as_of = (lv && lv.as_of) || null;
     r.suggest = r.error ? { call: 'hold', pct: 0, why: `No live numbers: ${r.error}` } : standCall({ soFar: r.so_far, last6: r.last6, kpi: cfg.kpi, hold: r.hold, noSales, beNew: cfg.be_new });
-    if (cfg.watch) { r.watch = 1; r.suggest = { call: 'hold', pct: 0, why: cfg.watch }; }
+    /* hands off (handsoff.js, the brand's own flag): updates only, no raise or cut call, like a client-run brand */
+    if (cfg.watch || handsOff({ act_id: a.act_id, goals: acct.goals || {} })) { r.watch = 1; r.suggest = { call: 'hold', pct: 0, why: cfg.watch || HANDS_OFF_WHY }; }
     if (cfg.client_approve) r.client_approve = 1;
     return r;
   }));
