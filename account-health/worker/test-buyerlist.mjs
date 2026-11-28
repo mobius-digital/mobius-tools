@@ -115,7 +115,7 @@ await check('shared state: Done = quiet 3 days, Skip = until tomorrow, Clear = b
   db.prepare(`INSERT INTO p_meta_write VALUES ('mw2', 'act_1', 'brand_alpha', 'ad', '3331', 'Hook B', 'meta_pause', 'status', NULL, NULL, 'Paused', 'x', ?, NULL)`).run(new Date(Date.now() - 4 * 864e5).toISOString());
   const l = await buildBuyerList(env, d, { act: 'all' });
   assert.deepEqual(l.rows.map(r => r.kind).sort(), ['launch', 'minoff', 'trim'], 'cut done, mixed skipped, scale watched; the 4-day-old write no longer hides the trim');
-  assert.deepEqual(l.hidden, { done: 1, skipped: 1, watched: 1, dropped: 0, locked: 0 });
+  assert.deepEqual(l.hidden, { done: 1, skipped: 1, watched: 1, dropped: 0, locked: 0, hands_off: 0 });
   const st = await readState(env, new Set(['brand_alpha']), today);
   assert.equal(st.states.length, 1); assert.equal(st.states[0].quiet_until, '2026-10-29');
   /* tomorrow: the skip is over, the done is not */
@@ -351,6 +351,41 @@ await check('Ready against Meta: a name must START with the card number; one lin
   const off = metaVerdict([{ eff: 'CAMPAIGN_PAUSED', set: set(null, null), camp: { name: 'Holiday 2026' } }], now);
   assert.equal(off.state, 'paused'); assert.match(off.line, /the campaign is off/);
   for (const v of [live, sch, off, metaVerdict([], now)]) assert.ok(!v.line.includes('—'));
+});
+
+await check('hands off (handsoff.js): no Yes, No or pause row on the brand; Ice & Gold and Synergy by default, a saved flag wins', async () => {
+  const { handsOff, HANDS_OFF_DEFAULT } = await import('../../profit/worker/src/handsoff.js');
+  assert.deepEqual([...HANDS_OFF_DEFAULT].sort(), ['brand_dental_fresh', 'brand_ice_and_gold', 'brand_veterinary_formula']);
+  assert.equal(handsOff({ act_id: 'brand_ice_and_gold' }), true, 'default on');
+  assert.equal(handsOff({ act_id: 'brand_dental_fresh', goals_json: '{}' }), true);
+  assert.equal(handsOff({ act_id: 'brand_veterinary_formula', goals: {} }), true);
+  assert.equal(handsOff({ act_id: 'brand_ice_and_gold', goals: { hands_off: false } }), false, 'a saved false turns it off');
+  assert.equal(handsOff({ act_id: 'brand_alpha', goals_json: '{"hands_off":true}' }), true, 'a saved true on any brand');
+  assert.equal(handsOff({ act_id: 'brand_alpha', goals_json: 'not json' }), false);
+  ACCTS.push({ act_id: 'brand_ice_and_gold', name: 'Ice & Gold', currency: 'USD' }, { act_id: 'brand_dental_fresh', name: 'Dental Fresh', currency: 'USD', goals: {} });
+  CALLS.push({ kind: 'cut', act_id: 'brand_ice_and_gold', brand: 'Ice & Gold', adset_id: '7001', adset: 'Statics', stake: 9000, currency: 'USD', why: 'Spent $900 with no sale.' },
+    { kind: 'scale', act_id: 'brand_dental_fresh', brand: 'Dental Fresh', adset_id: '7002', adset: 'Broad', stake: 800, currency: 'USD', why: '9 sales at goal.' });
+  try {
+    const l = await buildBuyerList(env, d, { act: 'all' });
+    assert.ok(!l.rows.some(r => r.act_id === 'brand_ice_and_gold' || r.act_id === 'brand_dental_fresh'), 'no row with a button');
+    assert.deepEqual(l.quiet.filter(r => r.hidden.why === 'hands_off').map(r => r.adset_id).sort(), ['7001', '7002']);
+    assert.equal(l.hidden.hands_off, 2);
+    ACCTS[ACCTS.length - 2].goals = { hands_off: false };
+    const l2 = await buildBuyerList(env, d, { act: 'brand_ice_and_gold' });
+    assert.deepEqual(l2.rows.map(r => r.adset_id), ['7001'], 'switched off in brand settings: the call is back');
+  } finally { ACCTS.splice(-2); CALLS.splice(-2); }
+});
+
+await check('hands off: the Monday test post (asana-brand.js postMonday) never posts or offers Do it on a hands-off brand', async () => {
+  const { postMonday } = await import('./src/asana-brand.js');
+  const fake = goals => ({ SLACK_BOT_TOKEN: 'x', DB: { prepare: sql => ({ bind(...a) { this.a = a; return this; },
+    async first() { return /goals_json FROM brand_accounts/.test(sql) ? (goals === undefined ? null : { act_id: this.a[0], goals_json: JSON.stringify(goals) }) : null; },
+    async all() { return { results: [] }; }, async run() { return {}; } }) } });
+  assert.deepEqual(await postMonday(fake(undefined), 'brand_ice_and_gold'), { act_id: 'brand_ice_and_gold', skipped: 'hands_off' }, 'default list, no row read');
+  assert.deepEqual(await postMonday(fake({}), 'brand_dental_fresh'), { act_id: 'brand_dental_fresh', skipped: 'hands_off' });
+  assert.deepEqual(await postMonday(fake({ hands_off: true }), 'brand_alpha'), { act_id: 'brand_alpha', skipped: 'hands_off' }, 'a saved flag');
+  const r = await postMonday(fake({}), 'brand_alpha');
+  assert.notEqual(r.skipped, 'hands_off', 'a brand that is not hands off goes on to the calls');
 });
 
 console.log(`\n${n}/${n + bad} passed`);

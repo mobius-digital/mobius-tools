@@ -1,6 +1,6 @@
 /* Brand settings > Goals. You give Locus four facts and it works out every goal from them, live as you type.
    Real mode reads the goals in use today from the brand list (account-health GET /api/brands), this month's sales
-   goal from the plan (profit GET /api/plan) and the platform goals from the test rules (profit GET /api/brand/rules).
+   goal and month to date from the plan (profit GET /api/plan, pace or actual, see _mtd.js) and the platform goals from the test rules (profit GET /api/brand/rules).
    The four facts have no server home yet, so they are kept on this device, and they never save a goal by themselves.
    Clients see this page and save from it too; the server logs every client change (activities) and puts a bell note
    on the team (brandguard clientAudit).
@@ -9,6 +9,7 @@
      the test and call rules for this brand             profit PUT /api/brand/rules?act=<brand id> { rules: { <name>: <number> } } */
 
 import { put } from '../../kit.js';
+import { mtdOf } from './_mtd.js';
 import { h, hero, card, gauge, takeaway, kpis, kpi, statusDot, money, x, pct, em, empty, platformChip, addStyles } from '../../kit.js';
 import { AI_NAME, APP_NAME } from '../../config.js';
 import { css, stage, saveBar, numBox, seg, exampleChip, fold, say, setHelp } from './_set.js';
@@ -83,7 +84,7 @@ function draw(el, data, ctx) {
     put(top, hero({ line: true },
       h('div', { class: 'lx-gl-top' },
         h('span', { class: 'lx-hero-num' }, x(mer)), h('span', { class: 'lab' }, defLabel('Store MER', 'mer'), ', ' + (data.mtd.dates || monthDates())), statusDot(tone, word),
-        h('span', { class: 'lx-sp' }), h('span', { class: 'src' }, 'store sales ' + money(data.mtd.sales) + ' / all ad spend ' + money(data.mtd.spend) + ' · Triple Whale')),
+        h('span', { class: 'lx-sp' }), h('span', { class: 'src' }, 'store sales ' + money(data.mtd.sales) + ' / all ad spend ' + money(data.mtd.spend) + ' · ' + (data.mtd.source || 'Triple Whale'))),
       gauge({ value: mer, max, goal: goalNow || undefined, tone, ticks: [
         w.be && { at: w.be, text: 'Break-even ' + x(w.be) }, far(mer, [w.be, goalNow], max) && { at: mer, text: 'Now ' + x(mer), on: true }, goalNow && { at: goalNow, text: 'Goal ' + x(goalNow) }].filter(Boolean) }),
       /* the gauge already shows now, break-even and goal: a line only when it adds something the gauge does not */
@@ -256,12 +257,12 @@ export default {
       soft(ctx.fixture('goals.json')),
     ]);
     const b = ((brands && brands.brands) || []).find(r => r.id === ctx.brand.id) || {};
-    const r = (rules && rules.rules) || {}, g = (plan && plan.goals) || {}, cur = (plan && (plan.current_month || plan.mtd)) || {};
+    const r = (rules && rules.rules) || {}, g = (plan && plan.goals) || {}, cur = mtdOf(plan) || {};
     const example = ['facts', 'inputs'];
     const goal = +g.revenue || +g.sales || +g.revenue_goal || null;
-    const sales = cur.sales ?? cur.revenue ?? null, spend = cur.spend ?? cur.ad_spend ?? null;
+    const sales = cur.sales ?? null, spend = cur.spend ?? null;
     return {
-      month: monthName(ctx.range.to), mtd: sales != null && spend ? { sales, spend, dates: monthDates() } : null,
+      month: monthName(ctx.range.to), mtd: sales != null && spend ? { sales, spend, source: cur.source, dates: monthDates() } : null,
       inputs: { ...(fx ? fx.inputs : {}), ...(goal ? { sales_goal: goal } : {}), ...(+b.margin_pct > 0 ? { keep_pct: Math.round(b.margin_pct * (b.margin_pct <= 1 ? 100 : 1)) } : {}) },
       facts: fx ? fx.facts : {},
       in_use: { target_roas: +b.target_roas || +r.target_roas || null, target_cpa: +b.target_cpa || +r.target_cpa || null, goal_meta: +r.goal_meta || null, goal_google: +r.goal_google || null, goal_tiktok: +r.goal_tiktok || null },

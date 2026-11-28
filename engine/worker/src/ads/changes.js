@@ -17,7 +17,36 @@ export async function listActivities(ctx, input) {
   const rows = ctx.scope.brand
     ? await ctx.db.all('ads.activitiesOne', { act: ctx.scope.brand, from, to, limit })
     : await ctx.db.all('ads.activitiesAll', { from, to, limit });
-  return { rows };
+  return { rows: foldEchoes(rows) };
+}
+
+/* EVERY CHANGE ONCE (2026-11-28). A change made through Locus is logged twice: Locus's own row (id `manual:...`, with
+   the person, the reason and the Undo) and, after the activity sync, Meta's echo of the same write, made by the system
+   user Locus writes as ("Mobius Tools"). The echo folds into the Locus row when it is the same object and the same kind
+   of change within ECHO_MS; each Locus row takes at most one echo, the nearest. A change by anyone else in Ads Manager
+   is never folded. Order is kept. */
+export const ECHO_MS = 10 * 60e3;
+const ECHO_ACTOR = /^mobius tools$/i;
+const isLocusRow = r => String(r.id || '').startsWith('manual:') || r.manual === 1 || r.manual === true;
+const timeOf = r => Date.parse(String(r.event_time || '').replace(/([+-]\d\d)(\d\d)$/, '$1:$2'));
+export function foldEchoes(rows) {
+  if (!Array.isArray(rows) || rows.length < 2) return rows;
+  const mine = rows.filter(r => isLocusRow(r) && r.object_id);
+  if (!mine.length) return rows;
+  const drop = new Set();
+  for (const m of mine) {
+    const t = timeOf(m);
+    if (!Number.isFinite(t)) continue;
+    let best = null, gap = Infinity;
+    for (const r of rows) {
+      if (r === m || isLocusRow(r) || drop.has(r) || !ECHO_ACTOR.test(String(r.actor || ''))) continue;
+      if (String(r.object_id) !== String(m.object_id) || (r.category || '') !== (m.category || '')) continue;
+      const d = Math.abs(timeOf(r) - t);
+      if (d <= ECHO_MS && d < gap) { best = r; gap = d; }
+    }
+    if (best) drop.add(best);
+  }
+  return drop.size ? rows.filter(r => !drop.has(r)) : rows;
 }
 
 function platformOf(r) {

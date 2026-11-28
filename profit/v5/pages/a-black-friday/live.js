@@ -34,7 +34,8 @@
      profit /api/hub/paid (lastPlatformClick, this week), ah /api/buyer-list (the ad calls), ah /api/ad-creatives
    A client (brand view only) reads only GET /api/season/war?act=<id>&live=1: the pace hero and the plan, no calls.
    Exports, all in the browser (./_export.js): the client card and the whole board as PNG or PDF.
-   Writes (team only, each after a tap; sample mode never calls one):
+   Writes (team only, each after a tap; sample mode never calls one). A call past its shelf life (over 6 hours, or made
+   on another day in Central; _warcall.js callOutOfDate) has no Approve at all, only "Set budget" typed by hand:
      ah       POST /api/meta/write {act, kind:'budget', level:'campaign', object, amount, reason, client_why, dry:true}
               then the same body without dry, plus expect {daily_budget} from the dry run (and big:true over 50%)
      ah       POST /api/standing/approve {slot, act}         instead of the write, when the page's move equals the
@@ -58,6 +59,7 @@ import {
   CALL_WORD, CADENCE_CHOICES, MAX_STEP, MIN_BUDGET, READ_HOURS,
   BE_ROAS_DIV, brandCalls, cadenceOf, central, clientChanges, clientWhy, clockCT, dayLabel, hourWord, isDue, matchesCheckin,
   nextDue, sinceBasis, slotAdd, slotDate, slotDiff, slotHour, agoWords, parseBudget, stepTo, cadenceSuggest, mondayOf,
+  callOutOfDate, asOfWords, OUT_OF_DATE,
 } from '../_warcall.js';
 import { cardHtml, CARD_CSS, downloadCard, copyCard, downloadCardPdf, NONE as NO_CHANGES } from './_card.js';
 import { boardCanvas, copyCanvas, downloadCanvas, downloadPdf } from './_export.js';
@@ -140,6 +142,8 @@ const CSS = `
 .wr3-chip{display:inline-flex;align-items:center;gap:6px;min-height:28px;padding:0 10px;border-radius:var(--r-btn);border:1px solid var(--line-strong);background:var(--surface);font:inherit;font-size:12.5px;color:var(--ink-2);cursor:pointer;white-space:nowrap}
 .wr3-chip:hover{background:var(--row-hover)}
 .wr3-chip[disabled]{cursor:default}
+.lx-btn.wr3-stale[disabled]{opacity:.6;cursor:not-allowed;white-space:normal;text-align:left}
+.wr3-tile.stale{opacity:.6}
 .wr3-chip.due{border-color:transparent;background:var(--warn-bg);color:var(--warn)}
 .wr3-body{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--gap-4,16px);min-width:0}
 @container wr3b (min-width:860px){.wr3-body.two{grid-template-columns:minmax(0,3fr) minmax(0,2fr);align-items:start}}
@@ -725,6 +729,11 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     return '';
   }
   const ageH = () => (nowOf() - Date.parse(rec().at)) / 3600e3;
+  /* When this brand's call was made: a brand carried from an earlier check-in keeps its own time (the server's
+     Approve reads the same field). */
+  const callAt = c => Date.parse((c && c.b && c.b.checked_at) || rec().at);
+  /* A call past its shelf life (over 6 hours, or made on another day) gets no live Approve, here or in a sheet. */
+  const outOfDate = c => callOutOfDate(callAt(c), nowOf());
   const hasSuggestion = (c, cp) => !!(cp.move && !cp.done && !cp.dismissed && !S.probing && c.mode === 'live');
   const pendingOf = c => c.camps.filter(cp => hasSuggestion(c, cp) && !cp.abo);
   /** A reason line only when it adds something the numbers do not show: a warning, a cap, who approves. */
@@ -759,6 +768,8 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     return { tone: '', word: 'No goal set', rank: 3 };
   }
   /** One window of the store strip: label with its window, store MER big, then Sales and Ad spend. */
+  /** Gray a tile drawn from a check-in that is out of date. */
+  const grayIf = (yes, el) => { if (yes) el.classList.add('stale'); return el; };
   function tile(w, c, head, sub, emptyText) {
     const hd = h('span', { class: 'hd' }, h('b', null, head), sub ? h('small', null, sub) : null);
     if (!w) return h('div', { class: 'wr3-tile' }, hd, h('span', { class: 'mer off-t' }, 'none'), h('span', { class: 'gray' }, emptyText));
@@ -826,7 +837,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     const key = openKey(c, cp), open = S.open.has(key);
     const flip = () => { if (S.open.has(key)) S.open.delete(key); else S.open.add(key); draw(); };
     const word = callWord(c, cp), tone = callTone(c, cp);
-    const sug = hasSuggestion(c, cp) && write && !cp.abo;
+    const sug = hasSuggestion(c, cp) && write && !cp.abo && !outOfDate(c);
     const abo = aboMove(c, cp);
     const callBtn = h('button', { type: 'button', class: 'lx-pill wr3-cbtn ' + (tone || ''),
       onclick: e => { e.stopPropagation(); if (sug) approveSheet(c, cp); else if (abo) { S.open.add(key); draw(); } else campSheet(c, cp); },
@@ -867,7 +878,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
         : [h('span', { class: 'full' }, 'ROAS, Triple Whale last click'), h('span', { class: 'short' }, 'ROAS (Triple Whale)')])),
       h('div', { class: 'wr3-cr hd' },
         h('span', { style: { paddingLeft: '36px' } }, 'Campaign'), h('span', { class: 'r c-bud' }, 'Budget a day'), h('span', { class: 'r c-spent' }, 'Spent today'),
-        h('span', { class: 'r c-since' }, since ? `Since ${since}` : 'Since check-in'), h('span', { class: 'r c-today' }, 'Today'), h('span', { class: 'r c-week' }, 'This week'),
+        h('span', { class: 'r c-since' }, since ? `Since ${since}` : 'Since check-in'), h('span', { class: 'r c-today' }, outOfDate(c) ? 'At check-in' : 'Today'), h('span', { class: 'r c-week' }, 'This week'),
         h('span', { class: 'c-call' }, callHead), h('span', { class: 'r c-act' }, '')),
       c.camps.length ? c.camps.flatMap(cp => campRow(c, cp)) : h('p', { class: 'wr3-quiet', style: { padding: '12px 14px' } }, 'No live campaign in Meta.'),
       h('p', { class: 'wr3-cl-foot' }, noSales ? 'Budgets and spend are Meta. No store is connected, so there is no ROAS to read. Open a campaign for its ad sets and ads.'
@@ -897,7 +908,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
         h('div', { class: 'wr3-strip' },
           h('div', { class: 'wr3-tiles' },
             tile(c.windows.since, c, sinceHead, c.basis ? `to ${at}` : null, S.probing ? 'Reading the earlier check-in' : 'No earlier check-in today'),
-            tile(c.windows.today, c, 'Today', `12am to ${at}`),
+            grayIf(outOfDate(c), tile(c.windows.today, c, outOfDate(c) ? asOfWords(callAt(c)) : 'Today', outOfDate(c) ? `12am to ${at}, not live` : `12am to ${at}`)),
             tile(c.windows.week, c, 'This week', `Mon to ${at}`)),
           h('span', { class: 'lx-srcline' }, c.mode === 'no_sales' ? 'Ad spend, Central time · Meta' : 'Whole store, Central time · Triple Whale')),
         one ? null : sparkFor(c)),            // one brand: the hero above already draws its today by the hour
@@ -916,6 +927,9 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
   /** Approve / Set budget / Not now for one pending move (the queue and the card use the same handlers). */
   function askButtons(c, cp) {
     if (!write) return h('p', { class: 'wr3-quiet' }, 'Your access is read only, so you cannot approve this.');
+    if (outOfDate(c)) return h('div', { class: 'wr3-act' },
+      button(OUT_OF_DATE, { disabled: true, class: 'wr3-stale', aria: `${OUT_OF_DATE}: ${decisionText(cp)}` }),
+      button('Set budget', { onclick: () => approveSheet(c, cp, { manual: true }) }));
     return h('div', { class: 'wr3-act' },
       button(c.b.client_approve ? 'Client said yes' : 'Approve', { primary: true, onclick: () => approveSheet(c, cp), aria: c.b.client_approve ? `The client said yes: apply ${decisionText(cp)}` : `Approve: ${decisionText(cp)}` }),
       button('Set budget', { onclick: () => approveSheet(c, cp, { manual: true }) }),
@@ -930,8 +944,10 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     const rows = [];
     for (const c of list) for (const cp of pendingOf(c)) rows.push([c, cp]);
     if (!rows.length) return card({ title: 'No call needs your yes' }, h('p', { class: 'wr3-quiet' }, 'Every campaign holds at this check-in. The brand cards below have the numbers.'));
-    const n = rows.length;
-    return card({ title: `${n} ${n === 1 ? 'call needs' : 'calls need'} your yes`, note: 'from the last check-in, the most urgent first' },
+    const n = rows.length, stale = rows.filter(([c]) => outOfDate(c)).length, live = n - stale;
+    const title = !live ? `${n} ${n === 1 ? 'call is' : 'calls are'} out of date`
+      : `${live} ${live === 1 ? 'call needs' : 'calls need'} your yes` + (stale ? `, ${stale} out of date` : '');
+    return card({ title, note: !live ? 'from a check-in past its 6 hours, wait for the next check-in' : 'from the last check-in, the most urgent first' },
       h('div', { class: 'wr3-need' }, rows.map(([c, cp]) => {
         const since = sinceWord(c), why = extraWhy(cp);
         return h('div', { class: 'wr3-ask', id: 'q-' + askId(c, cp) },
@@ -1069,7 +1085,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     const m = c.b.meta || {};
     /* Set budget at the bottom, prefilled with the suggestion */
     const from = cp.done && ok(cp.done.to) ? cp.done.to : cp.daily;
-    const sug = hasSuggestion(c, cp) && cp.move.from === from ? cp.move.to : null;
+    const sug = hasSuggestion(c, cp) && cp.move.from === from && !outOfDate(c) ? cp.move.to : null;
     const amt = h('input', { class: 'lx-input', type: 'number', min: String(MIN_BUDGET), step: '5', inputmode: 'decimal', enterkeyhint: 'done', value: String(sug ?? from ?? ''), 'aria-label': 'New daily budget' });
     const goBtn = h('span');
     const drawGo = () => {
@@ -1094,7 +1110,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
         cp.why && !cp.move ? h('p', { class: 'dim' }, reasonOnly(cp.why)) : null),
       h('div', { class: 'wr3-tiles' },
         wTile(since ? `Since ${since}` : 'Since check-in', 'since_check_in', W.since),
-        wTile('Today', 'today', W.today),
+        wTile(outOfDate(c) ? asOfWords(callAt(c)) : 'Today', 'today', W.today),
         wTile('This week', 'this_week', W.week)),
       todayBlock,
       picHost,
@@ -1185,13 +1201,15 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
      Same sheet, same dry run, client line, big change tick and Undo. amount: an amount typed in the panel. */
   function approveSheet(c, cp, { typed = false, note = '', manual = false, amount: given = null } = {}) {
     if (!write || ctx.isClient || (S.probing && !manual)) return;
+    /* an out of date call is never approved: only a budget typed by hand, which names no call */
+    if (!manual && outOfDate(c)) { toast(OUT_OF_DATE + '.'); return; }
     const R = rec();
     /* after a change from this page, Meta has the new figure, so a hand-set starts from it */
     const from = manual && cp.done && ok(cp.done.to) ? cp.done.to : cp.daily;
     if (!from) { toast('Ad set budgets: change this one by hand in Ads Manager.'); return; }
     /* prefill only a suggestion the page itself stands behind: shown as a move, earlier check-ins read, worked out
        from the budget this sheet starts on */
-    const sug = hasSuggestion(c, cp) && cp.move.from === from ? cp.move.to : null;
+    const sug = hasSuggestion(c, cp) && cp.move.from === from && !outOfDate(c) ? cp.move.to : null;
     const start = ok(given) && given > 0 ? given : sug ?? from;
     const amount = h('input', { class: 'lx-input', type: 'number', min: String(MIN_BUDGET), step: '5', inputmode: 'decimal', pattern: '[0-9]*', enterkeyhint: 'done', value: String(start), 'aria-label': 'New daily budget' });
     const jump = h('input', { type: 'checkbox' });
@@ -1239,7 +1257,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
 
     function drawBtns(msg, tone, extra) {
       const err = check();
-      const t = toOf(), via = matchesCheckin(c.b, { ...cp, move: { from, to: t } }) && ageH() <= 6;
+      const t = toOf(), via = matchesCheckin(c.b, { ...cp, move: { from, to: t } }) && !outOfDate(c);
       whyNote.hidden = !via;
       whyNote.textContent = via ? 'This is the check-in\'s own move, so it goes through the check-in\'s Approve and the client reads the check-in\'s standard line, not the text above.' : '';
       const against = !!light && ((t > from && light !== 'green') || (t < from && light === 'green'));
@@ -1290,11 +1308,13 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
       if (!dry || busy || check()) return;
       const to = toOf();
       if (to !== dry.to) { dry = null; drawBtns(); return; }
+      /* the call went out of date while the sheet was open: nothing is written on it (a typed budget still goes) */
+      if (!manual && outOfDate(c)) { dry = null; drawBtns(OUT_OF_DATE + '. Nothing was written.'); return; }
       if (!why.value.trim()) { drawBtns('Write the line the client will read.'); return; }
       busy = true; drawBtns();
       const big = Math.abs(to - from) / from > MAX_STEP;
       /* the check-in's own move goes through its Approve (Slack batch fills in); approve() refuses records over 6 hours old */
-      const viaCheckin = matchesCheckin(c.b, { ...cp, move: { from, to } }) && ageH() <= 6;
+      const viaCheckin = matchesCheckin(c.b, { ...cp, move: { from, to } }) && !outOfDate(c);
       let r;
       if (ctx.sample) r = { ok: true, write: 'sample_' + Date.now().toString(36), summary: '' };   // never sent anywhere; unique so a sample Undo takes off only its own row
       else if (viaCheckin) {

@@ -369,8 +369,8 @@ const budgetAction = d => ({
 
 const minSpendAction = d => ({
   name: 'meta_min_spend',
-  description: 'Set or clear an ad set\'s daily minimum spend (daily_min_spend_target) and/or daily cap (daily_spend_cap) in Meta. Dollars; 0 clears it. Only ad sets inside an Advantage campaign budget have these.',
-  input_schema: base({ min: { type: 'number', description: 'Daily minimum in dollars; 0 clears it. Omit to leave it.' }, cap: { type: 'number', description: 'Daily cap in dollars; 0 clears it. Omit to leave it.' } }),
+  description: 'Set or clear an ad set\'s daily minimum spend (daily_min_spend_target) and/or daily cap (daily_spend_cap) in Meta. Dollars; 0 clears it. Only ad sets inside an Advantage campaign budget have these. Rule (Cole): no spend minimums, ever ("let it fight"); never propose a new or higher minimum unless Cole typed that exact number himself. Clearing one (min 0) and setting a cap are fine.',
+  input_schema: base({ min: { type: 'number', description: 'Daily minimum in dollars; 0 clears it (the normal use: never add one on your own). Omit to leave it.' }, cap: { type: 'number', description: 'Daily cap in dollars; 0 clears it. Omit to leave it.' } }),
   propose: async (env, input, h, ctx) => {
     const r = await prep(env, d, { ...input, level: 'adset' }, ctx, 'adset'); if (r.error) return r;
     const o = r.obj;

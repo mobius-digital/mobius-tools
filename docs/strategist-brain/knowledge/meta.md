@@ -1,6 +1,6 @@
 # Meta ads: knowledge for the Strategist (October 2026)
 
-Read with: Mobius doctrine (one Sales CBO per brand with Advantage+, numbered test ad sets of up to 6 ads, at most 5 new tests a week, judge the ad set first and each ad by its role, Triple Whale last platform click as the default number) and `source-lucky-account-structure.md` (the worked Lucky numbers: $20/day test minimum for 7 days, minimums at or under 25% of budget, the two-line judging rule). This file extends that doctrine. It never overrides it.
+Read with: Mobius doctrine (one Sales CBO per brand with Advantage+, numbered test ad sets of up to 6 ads, at most 5 new tests a week, judge the ad set first and each ad by its role, Triple Whale last platform click as the default number) and `source-lucky-account-structure.md` (the worked Lucky numbers: no spend minimums, ever (Cole: "let it fight"), the two-line judging rule). This file extends that doctrine. It never overrides it.
 
 ## 1. How it works now (2025 to 2026)
 
@@ -67,13 +67,13 @@ Read with: Mobius doctrine (one Sales CBO per brand with Advantage+, numbered te
 
 ### Test rules (doctrine plus thresholds)
 - Max 5 new test ad sets a week, up to 6 ads each, one launch day if possible.
-- Test minimum: about 40% of goal CPA per day for 7 days (Lucky: $20 on a $52 goal). Rises with price: a $300 product needs about $40/day.
-- All live minimums at or under 25% of the campaign budget. Over the cap: take minimums off finished tests first, then launch fewer, then raise budget to (total minimums / 0.25).
+- No spend minimums, ever (Cole's rule, "let it fight"): never add or suggest a daily minimum on any ad set, test or not. A set Meta will not spend on gets better, more different ads, or comes off.
+- A minimum that is already on a set can be taken off (that is always fine); never put a new one on.
 - Judging lines (Lucky shape, apply per brand with its own goal and account average):
   - Winner: cost per sale at or under goal and 2+ sales. Keep running, minimum off, brief 3 to 5 variations.
   - Keep: at or under the trailing 30-day account average and 2+ sales. Leave running, minimum off.
   - Another week: above the average, but 2+ soft metrics in the account's top third and cost per sale at or under 2x goal.
-  - Pause: above the account average, or under 2 sales once judged, or Meta would not spend the minimum by day 7.
+  - Pause: above the account average, or under 2 sales once judged, or Meta would not spend on it by day 7.
 - An angle is dead only after 2 different concepts on it have failed. One failed concept kills the concept, not the angle.
 - New creative mix: about 60% new concepts / 40% variations when the brand has few proven winners; about 25 / 75 once 3+ ads have held goal CPA for 3+ weeks.
 
@@ -124,7 +124,7 @@ Read with: Mobius doctrine (one Sales CBO per brand with Advantage+, numbered te
 - After any theme, checkout, app or domain change on Shopify: check Events Manager deduplication and EMQ within 48 hours.
 
 ### Testing structures compared (why Mobius uses test ad sets inside the Sales CBO)
-- Test ad sets with a 7-day minimum inside the one Sales CBO (Mobius, Theriot, Radack): tests and winners share learning; winners never move; minimums force a fair look. Cost: minimums are an average, not a guarantee.
+- Test ad sets inside the one Sales CBO (Mobius, Theriot, Radack): tests and winners share learning; winners never move. Mobius runs them with no spend minimum (Cole: "let it fight").
 - Separate ABO testing campaign (2020 to 2023 standard): clean equal spend, but splits the purchase signal and needs the winner moved, which loses its learning. Only for brands spending $1,500+/day where 50 purchases a week per campaign is still met.
 - Meta's Creative Testing tool (in-ad-set A/B, 2 to 5 new ads, up to 30 days, even split, Meta advises at most 20% of budget, Highest volume only): use for a true head-to-head of openings on one proven concept, not for new concepts. New ads only; existing ads cannot be tested.
 - Meta Experiments (A/B test of campaigns): the only clean way to test bid strategy, Highest value vs Highest volume, Advantage+ on vs off, or incremental attribution. 14 days minimum, 50/50 split.
@@ -137,7 +137,7 @@ Read with: Mobius doctrine (one Sales CBO per brand with Advantage+, numbered te
 3. Campaign: 7-day TW CPA vs goal and account average, spend vs budget, frequency, CPM trend.
 4. Tests due: each test ad set past 3x goal spend or day 7, sorted into Winner, Keep, Another week, Pause.
 5. Anchors: each working ad set's top ad, hook rate and CTR vs its first 14 days. Fatigue triggers a variation brief.
-6. Pipeline: number of new tests launched vs 5 slots; days since the last new concept; minimums vs the 25% cap.
+6. Pipeline: number of new tests launched vs 5 slots; days since the last new concept; any spend minimum still on a set (take it off).
 7. Cross-channel: Search Console brand clicks, Google brand CPA, Klaviyo revenue share, TikTok spend in TW.
 
 ## 3. Diagnostics
@@ -149,8 +149,8 @@ Read with: Mobius doctrine (one Sales CBO per brand with Advantage+, numbered te
 | CTR fine, add to cart fine, purchases down | 1. Site or checkout issue 2. Stock out or price change 3. Tracking break | GA4 checkout-to-purchase rate down; Shopify product out of stock; TW orders flat while Meta purchases fall | Check the product page and checkout by hand; check Events Manager; message the client if stock |
 | Meta purchases well above TW (25%+) | 1. View or engage-through credit 2. Duplicate pixel events 3. Existing customers being credited | Meta "1-day view" column share; Events Manager dedup warning; TW new-customer share low | Judge on TW; fix dedup; check audience segments breakdown |
 | Meta purchases well below TW (25%+) | 1. CAPI down or EMQ fell 2. Consent banner blocking 3. Domain/checkout change | EMQ under 6; Events Manager server events dropped; date it started matches a site change | Fix CAPI first. Do not cut budget on Meta's numbers while tracking is broken |
-| New tests get almost no spend | 1. No minimum or minimum too low 2. Tests too similar to running winners (same Entity ID) 3. Ad set in review | Test ad set under 30% of its minimum by day 3; opening shots match existing ads | Set the minimum (40% of goal CPA); brief visibly different openings |
-| One old ad takes 70%+ of campaign spend | 1. Normal winner concentration 2. Tests not different enough 3. Minimums missing | Its CPA vs account average; test ad sets' spend share | If it holds goal CPA: leave it, feed more distinct concepts. If above average: variations of it and new concepts, do not pause it first |
+| New tests get almost no spend | 1. Tests too similar to running winners (same Entity ID) 2. Weak opening seconds 3. Ad set in review | Opening shots match existing ads; hook rate against the account | Never add a minimum ("let it fight"); brief visibly different openings, turn off low performers |
+| One old ad takes 70%+ of campaign spend | 1. Normal winner concentration 2. Tests not different enough | Its CPA vs account average; test ad sets' spend share | If it holds goal CPA: leave it, feed more distinct concepts. If above average: variations of it and new concepts, do not pause it first |
 | Learning limited on every ad set | Account makes under 50 purchases a week across too many ad sets | TW weekly orders vs number of active ad sets | Normal at small spend. Consolidate only if more than 1 campaign or 10+ always-on ad sets |
 | Spend will not reach budget | 1. Cost cap or ROAS goal too tight 2. Audience exclusions too wide 3. Ad rejections, account limits | Bid strategy column; delivery column "limited"; account quality warnings | Loosen the control 10 to 15% or return to Highest volume |
 | Cheapest product takes most spend, ROAS below goal | Highest volume optimises for count, not value | Spend share by product vs price | A/B test Highest value; feed tests to the higher-priced product |
@@ -210,7 +210,7 @@ Format: WHAT to do. NUMBER and its source. WHY in one line. WHAT TO WATCH and fo
 - "Conversions dropped in January or March 2026." That was the attribution change, not demand. Compare TW orders across the date.
 - "This ad has the best CPA, give it its own ad set." Duplicating a winner splits its learning and makes the copies compete for one Entity ID. Leave it; scale the campaign.
 - "Learning limited means the ad set is broken." At under 50 purchases a week it is the normal state. Judge cost per sale.
-- "The test did not spend, so the ad is bad." Meta never tried it. Check the minimum and how similar it looks to running winners. A test that could not spend is unread, then paused by rule after day 7.
+- "The test did not spend, so the ad is bad." Meta never tried it. Check how similar it looks to running winners (never fix it with a minimum). A test that could not spend is unread, then paused by rule after day 7.
 - "5 copy variations of the winner = 5 tests." To Andromeda it is about 1 ad. Change what is seen.
 - "Turn off the losers to force spend to the winner." CBO already does that. Turning off the anchor of a working set resets it.
 - "A cost cap at goal CPA will make Meta hit goal." It makes Meta spend less. CTC data: cost caps landed about 40% over target anyway.

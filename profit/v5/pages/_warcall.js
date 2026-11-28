@@ -64,6 +64,25 @@ export function central(ms = Date.now()) {
 /** "2:10pm" in Central. */
 export const clockCT = ms => new Date(ms).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' }).replace(' ', '').toLowerCase();
 
+/* ---------- shelf life of a check-in call ---------- */
+/** The server's Approve refuses a check-in older than this (account-health standing.js approve()). */
+export const CALL_SHELF_H = 6;
+export const OUT_OF_DATE = 'Out of date, wait for the next check-in';
+/** True when a call made at check-in time `at` must not be approved at `now`: past the 6 hour shelf life, or made on
+    another day in Central (its "today" numbers are a day that is over). A missing or unreadable time is out of date. */
+export function callOutOfDate(at, now = Date.now()) {
+  const t = typeof at === 'number' ? at : Date.parse(at);
+  if (!Number.isFinite(t)) return true;
+  if ((now - t) / 3600e3 > CALL_SHELF_H) return true;
+  return central(t).date !== central(now).date;
+}
+/** "As of 8:00pm Fri check-in": what a tile drawn from a saved check-in really shows. */
+export function asOfWords(at) {
+  const t = typeof at === 'number' ? at : Date.parse(at);
+  if (!Number.isFinite(t)) return 'As of the last check-in';
+  return `As of ${clockCT(t)} ${weekday(central(t).date)} check-in`;
+}
+
 /* ---------- cadence ---------- */
 /** The brand's check-in rhythm in hours, from the season answer `checkin_hours` (2 to 12, missing = 6). */
 export function cadenceOf(answers) {

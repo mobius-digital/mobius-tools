@@ -21,6 +21,7 @@ import { fixture } from '../../data.js';
 import { doneToast, undoWrites, clientLine } from '../meta/_write.js';
 import { forgetWaiting } from '../../bell.js';
 import { openAdDetail } from '../_addetail.js';
+import { callsBy } from './_calls.js';
 
 const ok = n => n != null && isFinite(n);
 const errText = e => (e && e.message) || 'The server did not answer.';
@@ -330,16 +331,6 @@ const lifetimeOf = (D, level, id) => {
   return v && ok(v.lifetime) && v.lifetime > 0 ? v.lifetime : null;
 };
 
-/** The ad call rows for one brand: { ad: {id: row}, adset: {id: row} }. */
-function callsBy(D) {
-  const rows = D && D.calls ? [...(D.calls.rows || []), ...(D.calls.quiet || [])] : [];
-  const out = { ad: {}, adset: {} };
-  for (const r of rows) {
-    if (r.level === 'ad') { const id = String(r.ad_id || r.object_id || ''); if (id && !out.ad[id]) out.ad[id] = r; }
-    else if (r.level === 'adset') { const id = String(r.adset_id || r.object_id || ''); if (id && !out.adset[id]) out.adset[id] = r; }
-  }
-  return out;
-}
 const callLabel = r => String(r.action || r.call || r.kind || 'Look closer');
 const callWhy = r => String(r.why || r.because || '');
 const moveOf = r => (['pause', 'resume', 'budget'].includes(r && r.do) ? r.do : null);
