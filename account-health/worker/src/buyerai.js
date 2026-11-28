@@ -284,7 +284,7 @@ summary = one line, at most ${WHY_WORDS} words: the most important thing for thi
 THE CARD (what Cole sees on the Buyer list; every RULE ROW and every EXTRA row carries these too):
 - kind: raise | cut | trim | refresh | keep | note | launch | tidy. A rule row keeps its own kind unless your verdict changes the call (a cut you turn into "turn off the losers, keep the set" is trim; a keep is keep).
 - level + object: campaign | adset | ad | account, and its name as it is in the data ("368 | Still").
-- do: the directive, ONE sentence with the object and the numbers in it ("Turn off ad set 368", "Raise Early Black Friday $300 to $400 a day"). A cut is a cut: turn the set off, never just lift its minimum. Before cutting a set with a winner in it, look at the losers' first-click sales and CTR: when the losers feed nothing and the winners are at goal, turn off the losers and keep the set (kind trim); cut the set only when the losers feed the winners or nothing in it is at goal. Say which. A minimum in plain words ("make Meta spend at least $50 a day here"). "Anchor" = the ad set carrying most of the campaign. Something scheduled says "starts by itself". A tidy row lists the names and spend.
+- do: the directive, ONE sentence with the object and the numbers in it ("Turn off ad set 368", "Raise Early Black Friday $300 to $400 a day"). A cut is a cut: turn the set off, never just lift its minimum. Before cutting a set with a winner in it, look at the losers' first-click sales and CTR: when the losers feed nothing and the winners are at goal, turn off the losers and keep the set (kind trim); cut the set only when the losers feed the winners or nothing in it is at goal. Say which. Never add or suggest a spend minimum on anything (Cole: "let it fight"): a set Meta will not spend on needs better ads, or comes off. Taking a minimum off is fine, in plain words ("take the $20 minimum off"). "Anchor" = the ad set carrying most of the campaign. Something scheduled says "starts by itself". A tidy row lists the names and spend.
 - facts: 3 to 6 chips, label + value, only the numbers that made the call (Spend 7d, Sales, ROAS vs goal, Cost per sale, CTR, Freq, First click, Hook, Leads, Cost per lead, Ends). good = true when it beats the goal, bad = true when it misses; both false when it is just context.
 - because: one or two short plain sentences: the why, in words Cole would say. Say when first click changes the call ("warms people up, keep") and when it does not.
 - decide: true for raise, cut, trim, refresh, tidy, a launch that needs a hand, and a note that asks a question (then "do" says what Yes and No mean); false for the rest, with fyi = "Nothing to do" | "Starts by itself" | "Needs new ads" | "Watch".
@@ -307,6 +307,11 @@ export function shortLine(s, max) {
   const cut = Math.max(head.lastIndexOf(', '), head.lastIndexOf('; '), head.lastIndexOf(' and '), head.lastIndexOf(': '));
   return (cut > head.length * 0.4 ? head.slice(0, cut) : head).replace(/[ ,;:]+$/, '').trim();
 }
+/* NO SPEND MINIMUMS (Cole: "let it fight"): a row that would ADD or raise a minimum never reaches the list. Taking one
+   off is fine and passes. */
+const MIN_OFF = /\b(take|takes|taking|took|remove|removes|removing|clear|clears|clearing|lift|lifts|drop|drops)\b[^.]{0,30}\bminimums?\b|\bminimums? off\b|\bno (spend )?minimum\b/i;
+const MIN_ON = /\b(add|adds|adding|set|sets|setting|put|puts|putting|raise|raises|raising|give|gives|giving|increase|increases|bump|bumps|higher|new)\b[^.]{0,40}\b(spend |daily )?minimums?\b|\bminimum (spend )?(of|at|to) [$]|\bmake meta spend at least\b/i;
+export const addsMinimum = t => { t = String(t || ''); return MIN_ON.test(t) && !MIN_OFF.test(t); };
 /** A line that sends the buyer off to check something Locus can check itself. */
 export const ASKS_CHECK = /\b(check|verify|confirm|look into|audit|investigate|make sure)\b[^.]{0,60}\b(utms?|tracking|tags?|pixel|attribution|capi|event|fires?|firing)\b|\butms?\b/i;
 const plural = (n, w) => `${Math.round(n)} ${w}${Math.round(n) === 1 ? '' : 's'}`;
@@ -383,9 +388,12 @@ export function finishPass(out, inp) {
       else { verdict = 'keep'; action = ''; mv = 'none'; why = t ? t.fact : shortLine(rule.why, WHY_WORDS); }
     }
     if (verdict === 'change' && !action) verdict = 'keep';
+    /* a change that adds a minimum goes back to the rule row as written */
+    const addsMin = addsMinimum(`${r.action || ''} ${r.change || ''} ${r.do || ''}`);
+    if (addsMin) { verdict = 'keep'; action = ''; mv = 'none'; why = shortLine(rule.why, WHY_WORDS); }
     /* A drop or sale that ended or sold out locked it (drops.js): never a turn-on move. */
     if (mv === 'resume' && isLocked(inp, r.ad_id || rule.ad_id || rule.adset_id, rule.name)) { verdict = 'keep'; action = ''; mv = 'none'; why = shortLine(rule.why, WHY_WORDS); }
-    const card = cleanCard(r);
+    const card = addsMin ? null : cleanCard(r);
     if (card && asked) { card.do = action || card.do; card.because = why; }
     rows.push({ key: r.key, verdict, action, why, move: mv, budget: mv === 'budget' && +r.budget > 0 ? Math.round(+r.budget) : null,
       ad_id: mv !== 'none' && ID.test(r.ad_id || '') ? r.ad_id : null, checked, reason: why, change: action, card });
@@ -400,6 +408,7 @@ export function finishPass(out, inp) {
       action = t.action; why = t.fact; checked = t.fact; mv = 'none';
     }
     if (!action) continue;
+    if (addsMinimum(`${x.action || ''} ${x.why || ''} ${x.do || ''}`)) continue;   // never a new minimum
     if ((mv === 'resume' || x.type === 'relaunch') && isLocked(inp, ids.ad_id || ids.adset_id || ids.campaign_id, x.name)) continue;
     const card = cleanCard(x);
     if (card && checked) { card.do = action; card.because = why; }

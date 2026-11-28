@@ -283,6 +283,27 @@ test('run now: settings buyerAIRunNow = a Slack id reads every brand at any hour
   assert.match((await buyerAITick(env, d)).skipped, /after noon/);
 });
 
+test('no spend minimums: a read that adds or raises a minimum is dropped; taking one off passes', async () => {
+  const { addsMinimum, finishPass } = await import('./src/buyerai.js');
+  for (const t of ['Add a $20 minimum to 415', 'Set a daily minimum of $40', 'Raise the minimum to $30 a day', 'Give the set a higher minimum', 'Make Meta spend at least $50 a day here'])
+    assert.equal(addsMinimum(t), true, t);
+  for (const t of ['Take the $20 minimum off', 'Take the test minimum off', 'Remove the minimum on 415', 'Turn off ad set 368', 'Clear the minimum, keep the cap', 'New ads, no minimum'])
+    assert.equal(addsMinimum(t), false, t);
+  const inp = { ruleRows: [{ key: 'k1', adset_id: '111', why: 'Spent $90, 0 sales.', name: 'Test' }], sets: [], locks: null };
+  const out = finishPass({ summary: 's', headline: 'h', week: [],
+    rows: [{ key: 'k1', verdict: 'change', action: 'Add a $20 minimum', why: 'Meta will not spend', move: 'none', do: 'Add a $20 daily minimum to Test' }],
+    extra: [{ type: 'budget', name: 'x', adset_id: '222', action: 'Set a $40 minimum on 222', why: 'Meta starves it', move: 'none' },
+      { type: 'budget', name: 'y', adset_id: '333', action: 'Take the $20 minimum off', why: 'Judged, 0 sales', move: 'none' }] }, inp);
+  assert.equal(out.rows[0].verdict, 'keep', 'the rule row stands as written');
+  assert.equal(out.rows[0].card, null);
+  assert.deepEqual(out.extra.map(x => x.adset_id), ['333'], 'only the take-off row is left');
+});
+
+test('hands off: the morning read never reads a hands-off brand (no model call)', async () => {
+  const r = await readBrand(env, d, { act_id: 'brand_ice_and_gold', name: 'Ice & Gold' });
+  assert.equal(r.status, 'hands_off');
+});
+
 let pass = 0;
 for (const [name, fn] of tests) {
   try { await fn(); pass++; console.log(`PASS  ${name}`); }
